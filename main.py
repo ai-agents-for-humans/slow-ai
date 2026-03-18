@@ -1,4 +1,5 @@
 import json
+import uuid
 from pathlib import Path
 
 import streamlit as st
@@ -48,9 +49,10 @@ def display_brief(brief: ProblemBrief):
 
 
 def save_brief(brief: ProblemBrief):
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
-    output_path = output_dir / "problem_brief.json"
+    project_id = str(uuid.uuid4())
+    project_dir = Path("output") / project_id
+    project_dir.mkdir(parents=True, exist_ok=True)
+    output_path = project_dir / "problem_brief.json"
     output_path.write_text(brief.model_dump_json(indent=2))
     return output_path
 
