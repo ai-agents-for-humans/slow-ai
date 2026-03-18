@@ -204,11 +204,11 @@ The terminal layout:
 
 Before telling me Phase 1 is done, verify:
 
-- [ ] `uv run main.py` starts without errors
-- [ ] The agent asks one question at a time
-- [ ] A complete `ProblemBrief` is produced and confirmed by the user
-- [ ] `output/problem_brief.json` is saved and validates against the Pydantic model
-- [ ] The conversation feels like a consultation, not a form
+- [x] `uv run main.py` starts without errors
+- [x] The agent asks one question at a time
+- [x] A complete `ProblemBrief` is produced and confirmed by the user
+- [x] `output/{uuid}/problem_brief.json` is saved and validates against the Pydantic model
+- [x] The conversation feels like a consultation, not a form
 
 ---
 
