@@ -1,13 +1,17 @@
+import asyncio
 import json
 import uuid
 from pathlib import Path
 
+import nest_asyncio
 import streamlit as st
 
 from slow_ai.agents.interviewer import interviewer
 from slow_ai.models import ProblemBrief
 
-st.set_page_config(page_title="Slow AI", layout="centered")
+nest_asyncio.apply()
+
+st.set_page_config(page_title="Slow AI", layout="wide")
 st.title("Slow AI — Problem Brief Interview")
 
 
@@ -20,6 +24,10 @@ def init_state():
         st.session_state.brief = None
     if "saved" not in st.session_state:
         st.session_state.saved = False
+    if "report" not in st.session_state:
+        st.session_state.report = None
+    if "research_log" not in st.session_state:
+        st.session_state.research_log = []
 
 
 def call_agent(user_msg: str):
@@ -57,7 +65,51 @@ def save_brief(brief: ProblemBrief):
     return output_path
 
 
+def load_saved_briefs() -> list[tuple[str, ProblemBrief]]:
+    """Return list of (project_id, brief) for all saved briefs."""
+    output_dir = Path("output")
+    if not output_dir.exists():
+        return []
+    results = []
+    for brief_path in sorted(output_dir.glob("*/problem_brief.json"), reverse=True):
+        try:
+            brief = ProblemBrief.model_validate_json(brief_path.read_text())
+            results.append((brief_path.parent.name, brief))
+        except Exception:
+            pass
+    return results
+
+
+def load_brief_into_session(project_id: str, brief: ProblemBrief):
+    st.session_state.brief = brief
+    st.session_state.saved = True
+    st.session_state.report = None
+    st.session_state.research_log = []
+
+
 init_state()
+
+# Sidebar — load a saved brief and re-run research
+with st.sidebar:
+    st.header("Saved Projects")
+    saved_briefs = load_saved_briefs()
+    if not saved_briefs:
+        st.caption("No saved briefs yet.")
+    else:
+        options = {pid: f"{brief.goal[:60]}…" if len(brief.goal) > 60 else brief.goal
+                   for pid, brief in saved_briefs}
+        selected_id = st.selectbox(
+            "Select a project",
+            options=list(options.keys()),
+            format_func=lambda pid: options[pid],
+        )
+        selected_brief = next(b for pid, b in saved_briefs if pid == selected_id)
+        with st.expander("Brief details"):
+            st.markdown(f"**Goal:** {selected_brief.goal}")
+            st.markdown(f"**Domain:** {selected_brief.domain}")
+        if st.button("Load & Re-run Research", type="primary"):
+            load_brief_into_session(selected_id, selected_brief)
+            st.rerun()
 
 # Kick off the conversation on first load
 if not st.session_state.messages:
@@ -90,7 +142,50 @@ if st.session_state.brief and not st.session_state.saved:
         st.rerun()
 
 if st.session_state.saved:
-    st.success("Brief confirmed and saved. You're done!")
+    st.success("Brief confirmed and saved.")
+    st.divider()
+    st.subheader("Research")
+
+    if not st.session_state.report:
+        if st.button("Start Research", type="primary"):
+            from slow_ai.research.runner import run_research
+
+            log_placeholder = st.empty()
+            log: list[str] = []
+
+            def on_progress(msg: str):
+                log.append(msg)
+                log_placeholder.markdown("\n".join(f"- {m}" for m in log))
+
+            with st.spinner("Research in progress..."):
+                report = asyncio.run(
+                    run_research(st.session_state.brief, on_progress=on_progress)
+                )
+
+            st.session_state.report = report
+            st.session_state.research_log = log
+            st.rerun()
+
+    if st.session_state.report:
+        report = st.session_state.report
+
+        for msg in st.session_state.research_log:
+            st.markdown(f"- {msg}")
+
+        st.divider()
+        st.subheader("Datasets found")
+        for ds in report.datasets:
+            with st.expander(f"{ds.name} — quality: {ds.quality_score:.2f}"):
+                st.json(ds.model_dump())
+
+        st.subheader("Summary")
+        st.write(report.summary)
+
+        st.subheader("Git log")
+        from slow_ai.execution.git_store import GitStore
+        store = GitStore(run_id=report.run_id)
+        for entry in store.get_log():
+            st.text(f"{entry['sha']}  {entry['message']}  {entry['timestamp']}")
 
 # Chat input
 if not st.session_state.saved:

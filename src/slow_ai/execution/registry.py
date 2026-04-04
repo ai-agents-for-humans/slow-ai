@@ -1,0 +1,85 @@
+import uuid
+from datetime import datetime, timezone
+
+from slow_ai.models import AgentRegistration, SpawnRequest
+
+
+class AgentRegistry:
+    """
+    The control plane. Tracks all agents: their lineage, status, token use.
+    Committed to git as registry.json at each milestone.
+    """
+
+    def __init__(self):
+        self.agents: dict[str, AgentRegistration] = {}
+
+    def register(
+        self,
+        agent_type: str,
+        parent_agent_id: str | None,
+        task_id: str,
+    ) -> AgentRegistration:
+        agent_id = f"{agent_type}-{uuid.uuid4().hex[:6]}"
+        reg = AgentRegistration(
+            agent_id=agent_id,
+            agent_type=agent_type,
+            parent_agent_id=parent_agent_id,
+            task_id=task_id,
+            spawned_at=datetime.now(timezone.utc).isoformat(),
+        )
+        self.agents[agent_id] = reg
+
+        if parent_agent_id and parent_agent_id in self.agents:
+            self.agents[parent_agent_id].children.append(agent_id)
+
+        return reg
+
+    def update_status(self, agent_id: str, status: str, tokens_used: int = 0) -> None:
+        if agent_id in self.agents:
+            self.agents[agent_id].status = status
+            self.agents[agent_id].tokens_used = tokens_used
+            if status in ("completed", "failed"):
+                self.agents[agent_id].completed_at = (
+                    datetime.now(timezone.utc).isoformat()
+                )
+
+    def set_memory_path(self, agent_id: str, path: str) -> None:
+        if agent_id in self.agents:
+            self.agents[agent_id].memory_path = path
+
+    def snapshot(self) -> dict:
+        """Return full registry as dict for git commit."""
+        return {
+            "agents": {
+                aid: reg.model_dump()
+                for aid, reg in self.agents.items()
+            },
+            "total_agents": len(self.agents),
+            "running": sum(
+                1 for r in self.agents.values() if r.status == "running"
+            ),
+        }
+
+    def get_dag(self) -> dict:
+        """
+        Return DAG as nodes and edges.
+        Used by Phase 4 IDE to render the agent graph.
+        """
+        nodes = [
+            {
+                "id": reg.agent_id,
+                "type": reg.agent_type,
+                "status": reg.status,
+                "tokens": reg.tokens_used,
+            }
+            for reg in self.agents.values()
+        ]
+        edges = [
+            {
+                "source": reg.parent_agent_id,
+                "target": reg.agent_id,
+            }
+            for reg in self.agents.values()
+            if reg.parent_agent_id
+        ]
+        return {"nodes": nodes, "edges": edges}
