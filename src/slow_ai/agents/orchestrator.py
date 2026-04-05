@@ -44,7 +44,7 @@ Return run_id and milestone_flags from the brief.
 """
 
 _orchestrator = Agent(
-    model="google-gla:gemini-2.0-flash",
+    model="google-gla:gemini-3.0-flash-preview",
     output_type=ResearchPlan,
     system_prompt=_SYSTEM_PROMPT,
 )
