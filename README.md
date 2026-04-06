@@ -258,43 +258,52 @@ humans do best.
 
 ## Architecture Overview
 
+The system has two independent planes: a **UI plane** (Streamlit) and an **execution
+plane** (a subprocess per run). They share no memory and no event loops — the only
+contract between them is a directory of plain JSON files written by the runner and
+polled by the UI.
+
 ```mermaid
 graph TD
-    User["User (Browser)"]
-    UI["Streamlit UI\nmain.py"]
-    IV["Interviewer Agent\ngemini-3-pro-preview"]
-    Brief["ProblemBrief\noutput/{id}/problem_brief.json"]
-    ORC["Orchestrator Agent\ngemini-2.0-flash"]
-    Plan["ResearchPlan\n(list of AgentContexts)"]
-    S1["Specialist: Copernicus"]
-    S2["Specialist: NASA Earthdata"]
-    S3["Specialist: Google Earth Engine"]
-    S4["Specialist: Open Data"]
-    W["Worker (spawned on budget pressure)"]
-    ENV["EvidenceEnvelopes"]
-    SYN["Synthesis Agent\ngemini-2.0-flash"]
-    REP["ResearchReport"]
-    GIT["GitStore\nruns/{run_id}/"]
-    REG["AgentRegistry"]
+    subgraph UI ["UI plane — main.py (Streamlit)"]
+        User["User"]
+        IV["Interviewer Agent"]
+        Fragment["@st.fragment\npoll every 2 s"]
+        DAG["streamlit-flow DAG\n(live + interactive)"]
+        Report["Report view"]
+    end
 
-    User -->|chat| UI
-    UI -->|run_sync| IV
-    IV -->|ProblemBrief| UI
-    UI -->|save JSON| Brief
-    Brief -->|run_research| ORC
-    ORC --> Plan
-    Plan -->|asyncio.gather| S1 & S2 & S3 & S4
-    S1 & S2 & S3 & S4 -->|SpawnRequest| W
-    S1 & S2 & S3 & S4 --> ENV
-    W --> ENV
-    ENV -->|_synthesise| SYN
-    SYN --> REP
-    REP --> UI
+    subgraph Run ["Execution plane — subprocess per run"]
+        ORC["Orchestrator"]
+        S1["Specialist 1"]
+        S2["Specialist 2"]
+        SN["Specialist N"]
+        W["Worker\n(budget overflow)"]
+        SYN["Synthesizer"]
+    end
 
-    S1 & S2 & S3 & S4 & W -->|commit artefacts| GIT
-    ORC -->|M0| GIT
-    SYN -->|M2| GIT
-    REG <-->|register/update| GIT
+    subgraph Store ["runs/{run_id}/"]
+        LIVE["live/\nstatus · dag · artefacts · log"]
+        GIT["git commits\n[init] [M0] [M1] [M2]"]
+    end
+
+    User -->|interview| IV
+    IV -->|ProblemBrief| User
+    User -->|Start Research| Fragment
+
+    Fragment -->|subprocess.Popen| ORC
+    ORC -->|delegates| S1 & S2 & SN
+    S1 & S2 & SN -->|SpawnRequest| W
+    S1 & S2 & SN & W -->|envelopes| SYN
+    SYN -->|ResearchReport| GIT
+
+    ORC & S1 & S2 & SN & W & SYN -->|write on every\nstatus change| LIVE
+    ORC & S1 & S2 & SN & W & SYN -->|milestone commits| GIT
+
+    Fragment -->|read every 2 s| LIVE
+    Fragment -->|renders| DAG
+    DAG -->|completed →| Report
+    Report -->|reads| GIT
 ```
 
 ---
@@ -306,38 +315,52 @@ sequenceDiagram
     participant U as User
     participant UI as Streamlit UI
     participant IV as Interviewer
+    participant SUB as Research subprocess
     participant ORC as Orchestrator
     participant SP as Specialists (parallel)
     participant SYN as Synthesiser
-    participant GIT as GitStore
+    participant LIVE as live/ files
+    participant GIT as git commits
 
     U->>UI: start session
-    UI->>IV: "Hello, I'm ready to start"
-    IV-->>UI: greeting question
+    UI->>IV: run_sync (in-process)
     loop interview
         U->>UI: answer
-        UI->>IV: message + history
         IV-->>UI: next question or ProblemBrief
     end
     U->>UI: Confirm & Save
-    UI->>GIT: save problem_brief.json
 
     U->>UI: Start Research
-    UI->>ORC: ProblemBrief
-    ORC-->>UI: ResearchPlan (N specialists)
-    GIT-->>GIT: commit [M0-plan]
+    UI->>SUB: subprocess.Popen (run_id)
+    Note over UI,SUB: UI is now free — no blocking
 
-    UI->>SP: asyncio.gather (all specialists)
-    SP-->>SP: perplexity_search + web_browse
-    SP-->>SP: SpawnRequest → worker if budget low
-    SP-->>UI: EvidenceEnvelopes
-    GIT-->>GIT: commit [M1-source-discovery]
+    SUB->>LIVE: status = initializing
+    SUB->>ORC: run_orchestrator(brief)
+    ORC-->>SUB: ResearchPlan
+    SUB->>GIT: commit [M0-plan]
+    SUB->>LIVE: dag + status = running
 
-    UI->>SYN: brief + all envelopes
-    SYN-->>UI: ResearchReport (ranked datasets)
-    GIT-->>GIT: commit [M2-final-report]
+    SUB->>SP: asyncio.gather (all specialists)
+    loop each specialist
+        SP->>LIVE: dag (status = running)
+        SP-->>SP: search + browse
+        SP-->>SP: SpawnRequest → worker
+        SP->>LIVE: dag + artefacts (status = completed)
+    end
+    SUB->>GIT: commit [M1-source-discovery]
 
-    UI-->>U: datasets, summary, git log
+    SUB->>SYN: brief + all envelopes
+    SYN-->>SUB: ResearchReport
+    SUB->>GIT: commit [M2-final-report]
+    SUB->>LIVE: status = completed
+
+    loop every 2 s (st.fragment)
+        UI->>LIVE: read status + dag + artefacts
+        UI-->>U: live DAG (streamlit-flow)
+    end
+    Note over UI,U: on status=completed → st.rerun(scope="app")
+    UI->>GIT: read report.json
+    UI-->>U: interactive DAG + datasets + summary + git log
 ```
 
 ---
@@ -544,8 +567,9 @@ Fetches the URL with `httpx`, strips navigation, scripts, and boilerplate with
 ### GitStore
 `src/slow_ai/execution/git_store.py`
 
-Initialises a bare git repository at `runs/{run_id}/` and commits research artefacts at
-each milestone. This gives a full, reproducible audit trail for every run.
+Initialises a git repository at `runs/{run_id}/` and serves two roles simultaneously:
+
+**Durable audit trail** — milestone commits create a permanent, inspectable record:
 
 | Commit tag | What is committed |
 |---|---|
@@ -554,13 +578,25 @@ each milestone. This gives a full, reproducible audit trail for every run.
 | `[M1-source-discovery]` | `envelopes/*.json`, `memory/*.json`, `registry.json` |
 | `[M2-final-report]` | `report.json`, `registry.json` |
 
-Skipped paths (failed agents, stop verdicts) are recorded as `skipped_paths/*.json`.
+Skipped paths (failed agents, stop verdicts) are recorded as `paths/not_taken/*.json`.
+
+**Live state surface** — the `live/` subdirectory holds untracked files updated by the
+runner on every agent status change. The UI polls these without waiting for a milestone
+commit:
+
+| File | Written when | Contains |
+|---|---|---|
+| `live/status.json` | every major transition | `{status: initializing\|running\|completed\|failed}` |
+| `live/dag.json` | every agent state change | full DAG (nodes + edges + token counts + durations) |
+| `live/artefacts.json` | each agent completes | per-agent evidence envelope + memory snapshot |
+| `live/log.jsonl` | every progress event | one JSON line per message |
 
 ### AgentRegistry
 `src/slow_ai/execution/registry.py`
 
 In-memory control plane committed to git as `registry.json` at each milestone.
-Tracks every agent across its full lifecycle.
+Tracks every agent — orchestrator, specialists, workers, and synthesizer — across
+its full lifecycle.
 
 ```mermaid
 stateDiagram-v2
@@ -577,7 +613,10 @@ Each registration records:
 - `task_id`, `status`, `spawned_at`, `completed_at`
 - `tokens_used`, `memory_path`, `children[]`
 
-`get_dag()` returns nodes + edges for future DAG visualisation.
+`get_dag()` returns nodes and edges reflecting the full agent tree. The orchestrator
+is the root; specialists are its children; workers are children of the specialist that
+spawned them; the synthesizer is a final child of the orchestrator. This produces edges
+on every run without requiring workers to be spawned.
 
 ---
 
@@ -585,28 +624,44 @@ Each registration records:
 
 `main.py` — single-page Streamlit app.
 
+The UI has no knowledge of the research internals. It launches a subprocess and then
+reads from files. The design is deliberately thin so the same data contract works with
+any frontend (React + ReactFlow, CLI, etc.).
+
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph Sidebar
-        SB1[List saved projects\noutput/ * /problem_brief.json]
-        SB2[Select + Load & Re-run Research]
+        SB[Saved projects\nselect + re-run]
     end
 
-    subgraph Main
-        direction TB
-        M1[Interview chat]
-        M2[Brief preview\nConfirm & Save / Not quite]
-        M3[Start Research button\nProgress log]
-        M4[Datasets · Summary · Git log]
+    subgraph Interview
+        I1[Chat with Interviewer]
+        I2[Brief preview\nConfirm & Save]
     end
 
-    SB2 -->|load brief\nclear report| M3
-    M1 -->|ProblemBrief| M2
-    M2 -->|saved=True| M3
-    M3 -->|report ready| M4
+    subgraph Research
+        R1[Start Research\n→ subprocess.Popen]
+        R2["@st.fragment run_every=2s\npolls live/ files"]
+        R3[Live DAG\nstreamlit-flow]
+        R4[status=completed\nst.rerun scope=app]
+    end
+
+    subgraph Report
+        P1[Interactive DAG\nclick node → detail panel]
+        P2[Envelope · Memory · Raw tabs]
+        P3[Datasets · Summary · Git log]
+    end
+
+    SB -->|load brief| R1
+    I1 --> I2 --> R1
+    R1 --> R2 --> R3 --> R4
+    R4 --> P1
+    P1 -->|node click| P2
+    P1 --> P3
 ```
 
-Session state keys: `messages`, `history`, `brief`, `saved`, `report`, `research_log`.
+Session state keys: `messages`, `history`, `brief`, `saved`, `report`, `research_log`,
+`current_run_id`, `dag`, `agent_artefacts`, `flow_state`.
 
 ---
 

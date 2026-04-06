@@ -18,8 +18,10 @@ class AgentRegistry:
         agent_type: str,
         parent_agent_id: str | None,
         task_id: str,
+        agent_id: str | None = None,
     ) -> AgentRegistration:
-        agent_id = f"{agent_type}-{uuid.uuid4().hex[:6]}"
+        if agent_id is None:
+            agent_id = f"{agent_type}-{uuid.uuid4().hex[:6]}"
         reg = AgentRegistration(
             agent_id=agent_id,
             agent_type=agent_type,
@@ -62,8 +64,7 @@ class AgentRegistry:
 
     def get_dag(self) -> dict:
         """
-        Return DAG as nodes and edges.
-        Used by Phase 4 IDE to render the agent graph.
+        Return DAG as nodes and edges for UI rendering.
         """
         nodes = [
             {
@@ -71,6 +72,8 @@ class AgentRegistry:
                 "type": reg.agent_type,
                 "status": reg.status,
                 "tokens": reg.tokens_used,
+                "spawned_at": reg.spawned_at,
+                "completed_at": reg.completed_at,
             }
             for reg in self.agents.values()
         ]

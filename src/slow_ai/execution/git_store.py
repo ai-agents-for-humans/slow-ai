@@ -4,6 +4,8 @@ from typing import Any
 
 from git import Actor, Repo
 
+_LIVE_DIR = "live"
+
 AUTHOR = Actor("SlowAI", "slowai@local")
 
 
@@ -73,3 +75,47 @@ class GitStore:
             }
             for c in self.repo.iter_commits()
         ]
+
+    # ── Live files (not committed, read by UI while run is in progress) ───────
+
+    def write_live(self, filename: str, content) -> None:
+        """Write a live state file to runs/{run_id}/live/. Not committed to git."""
+        live_dir = self.run_path / _LIVE_DIR
+        live_dir.mkdir(exist_ok=True)
+        data = (
+            json.dumps(content, default=str)
+            if isinstance(content, (dict, list))
+            else str(content)
+        )
+        (live_dir / filename).write_text(data, encoding="utf-8")
+
+    def read_live(self, filename: str, default=None):
+        """Read a live state file. Returns parsed JSON, or default if missing."""
+        path = self.run_path / _LIVE_DIR / filename
+        if not path.exists():
+            return default
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return default
+
+    def append_live_log(self, msg: str) -> None:
+        """Append a message line to the live log."""
+        live_dir = self.run_path / _LIVE_DIR
+        live_dir.mkdir(exist_ok=True)
+        with (live_dir / "log.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"msg": msg}) + "\n")
+
+    def read_live_log(self) -> list[str]:
+        """Return all live log messages in order."""
+        path = self.run_path / _LIVE_DIR / "log.jsonl"
+        if not path.exists():
+            return []
+        try:
+            return [
+                json.loads(line)["msg"]
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+        except (json.JSONDecodeError, OSError):
+            return []

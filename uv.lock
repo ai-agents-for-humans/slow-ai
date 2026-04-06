@@ -1120,6 +1120,7 @@ wheels = [
 name = "griffelib"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/06/eccbd311c9e2b3ca45dbc063b93134c57a1ccc7607c5e545264ad092c4a9/griffelib-2.0.0.tar.gz", hash = "sha256:e504d637a089f5cab9b5daf18f7645970509bf4f53eda8d79ed71cce8bd97934", size = 166312, upload-time = "2026-03-23T21:06:55.954Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4d/51/c936033e16d12b627ea334aaaaf42229c37620d0f15593456ab69ab48161/griffelib-2.0.0-py3-none-any.whl", hash = "sha256:01284878c966508b6d6f1dbff9b6fa607bc062d8261c5c7253cb285b06422a7f", size = 142004, upload-time = "2026-02-09T19:09:40.561Z" },
 ]
@@ -3446,6 +3447,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "rich" },
     { name = "streamlit" },
+    { name = "streamlit-flow-component" },
 ]
 
 [package.dev-dependencies]
@@ -3469,6 +3471,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "rich", specifier = ">=13.0" },
     { name = "streamlit", specifier = ">=1.40.0" },
+    { name = "streamlit-flow-component", specifier = ">=1.6.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -3558,6 +3561,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/92/8e/f2b8b4fa8ba65aae251170c54f8ce198fb588fc348301c2b624f8c63efac/streamlit-1.55.0.tar.gz", hash = "sha256:015e512bbd02d000f4047e51118dc086b70e7d9c46b4a11a33c2509731379626", size = 8612008, upload-time = "2026-03-03T22:26:02.149Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/dc/e6/412c1e1f200ca8c32ecf10201839183e261ad61ced3ede34a66f6d4be3cf/streamlit-1.55.0-py3-none-any.whl", hash = "sha256:1e4a16449c6131696180f4ddb40ea8c51834e89c2a43e1b0362bc9b1cfd9b415", size = 9075714, upload-time = "2026-03-03T22:25:59.126Z" },
+]
+
+[[package]]
+name = "streamlit-flow-component"
+version = "1.6.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6f/96/67e4d8843debfdbb73ba6a66548e23f3296e0c6c990c65cb37698a94f856/streamlit-flow-component-1.6.1.tar.gz", hash = "sha256:16998d94731f494358d3ce03a73795e127c39fcefa0662666f524bd017493388", size = 2073059, upload-time = "2025-02-28T00:53:17.03Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/54/ae94d63815d7bbfd71d7406b43c56b7d666a2dd24702b50ddfdde9b0c724/streamlit_flow_component-1.6.1-py3-none-any.whl", hash = "sha256:1664fc081bf343443e4aca17942434a72808d59e4f55c19d520caa19779bf538", size = 2092632, upload-time = "2025-02-28T00:53:13.318Z" },
 ]
 
 [[package]]

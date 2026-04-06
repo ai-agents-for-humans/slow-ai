@@ -13,7 +13,6 @@ from slow_ai.execution.git_store import GitStore
 from slow_ai.execution.registry import AgentRegistry
 from slow_ai.models import (
     AgentContext,
-    DatasetCandidate,
     EvidenceEnvelope,
     ProblemBrief,
     ResearchPlan,
@@ -24,94 +23,144 @@ from slow_ai.models import (
 os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
 
-async def run_research(
-    brief: ProblemBrief,
-    on_progress: callable = None,
-) -> ResearchReport:
+async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
+    """
+    Orchestrate a full research run.
 
-    run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    All progress and state is written to runs/{run_id}/live/ as plain files so
+    any UI (Streamlit, React, CLI) can poll without being coupled to this code.
+    Git commits capture durable milestones; live files capture real-time state.
+    """
     store = GitStore(run_id=run_id)
     registry = AgentRegistry()
+    artefacts: dict = {}
 
-    store.commit_brief(brief.model_dump())
-    _progress(on_progress, f"Run `{run_id}` initialised.")
+    store.write_live("status.json", {"status": "initializing"})
 
-    # Step 1: Orchestrator plans
-    _progress(on_progress, "Orchestrator planning research...")
-    plan: ResearchPlan = await run_orchestrator(brief, run_id)
+    try:
+        store.commit_brief(brief.model_dump())
+        _log(store, f"Run `{run_id}` initialised.")
 
-    # Register all specialists
-    for ctx in plan.specialists:
-        registry.register(
-            agent_type=ctx.role,
+        # ── Step 1: Orchestrator plans ────────────────────────────────────────
+        orc_reg = registry.register(
+            agent_type="orchestrator",
             parent_agent_id=None,
-            task_id=ctx.task.task_id,
+            task_id=f"orchestration-{run_id}",
+        )
+        orchestrator_id = orc_reg.agent_id
+        registry.update_status(orchestrator_id, "running")
+        _emit(store, registry, artefacts)
+
+        _log(store, "Orchestrator planning research...")
+        plan: ResearchPlan = await run_orchestrator(brief, run_id)
+
+        # Register specialists using the IDs the orchestrator already assigned,
+        # parented to the orchestrator. This fixes the ID mismatch that
+        # previously made registry status updates silently no-op.
+        for ctx in plan.specialists:
+            registry.register(
+                agent_type=ctx.role,
+                parent_agent_id=orchestrator_id,
+                task_id=ctx.task.task_id,
+                agent_id=ctx.agent_id,
+            )
+
+        _emit(store, registry, artefacts)
+        store.commit_milestone(
+            "M0-plan",
+            {"research_plan.json": plan.model_dump()},
+            registry_snapshot=registry.snapshot(),
+        )
+        _log(store, f"Plan ready — {len(plan.specialists)} specialists assigned.")
+        store.write_live("status.json", {"status": "running"})
+
+        # ── Step 2: Specialists run in parallel ───────────────────────────────
+        _log(store, "Launching specialists in parallel...")
+
+        async def run_with_spawn(ctx: AgentContext):
+            async def spawn_handler(request: SpawnRequest) -> AgentContext:
+                worker_ctx = await handle_spawn_request(request, registry)
+                _log(store, f"Worker spawned: {worker_ctx.agent_id} (parent: {request.requested_by})")
+                _emit(store, registry, artefacts)
+                worker_envelope, worker_ctx = await run_specialist(worker_ctx, registry, None)
+                artefacts[worker_ctx.agent_id] = {
+                    "envelope": worker_envelope.model_dump(),
+                    "memory": worker_ctx.memory.model_dump(),
+                }
+                _emit(store, registry, artefacts)
+                return worker_ctx
+
+            registry.update_status(ctx.agent_id, "running")
+            _emit(store, registry, artefacts)
+            return await run_specialist(ctx, registry, spawn_handler)
+
+        results = await asyncio.gather(
+            *[run_with_spawn(ctx) for ctx in plan.specialists],
+            return_exceptions=True,
         )
 
-    store.commit_milestone(
-        "M0-plan",
-        {"research_plan.json": plan.model_dump()},
-        registry_snapshot=registry.snapshot(),
-    )
-    _progress(on_progress, f"Plan ready — {len(plan.specialists)} specialists assigned.")
+        envelopes: list[EvidenceEnvelope] = []
+        updated_contexts: list[AgentContext] = []
 
-    # Step 2: Specialists run in parallel
-    _progress(on_progress, "Launching specialists in parallel...")
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                _log(store, f"Specialist {plan.specialists[i].agent_id} failed: {result}")
+                store.record_skipped_path(
+                    f"specialist-failed-{plan.specialists[i].agent_id}",
+                    reason=str(result),
+                    triggered_by="runner",
+                )
+            else:
+                envelope, updated_ctx = result
+                envelopes.append(envelope)
+                updated_contexts.append(updated_ctx)
+                artefacts[updated_ctx.agent_id] = {
+                    "envelope": envelope.model_dump(),
+                    "memory": updated_ctx.memory.model_dump(),
+                }
+                _log(store, f"{updated_ctx.role}: {envelope.status} (confidence {envelope.confidence:.2f})")
+            _emit(store, registry, artefacts)
 
-    async def run_with_spawn(ctx: AgentContext):
-        async def spawn_handler(request: SpawnRequest) -> AgentContext:
-            worker_ctx = await handle_spawn_request(request, registry)
-            _progress(on_progress, f"Worker spawned: {worker_ctx.agent_id} (parent: {request.requested_by})")
-            worker_envelope, worker_ctx = await run_specialist(worker_ctx, registry, None)
-            return worker_ctx
-        return await run_specialist(ctx, registry, spawn_handler)
+        # Commit M1 — all envelopes and memory stores
+        m1_artefacts = {}
+        for envelope, ctx in zip(envelopes, updated_contexts):
+            m1_artefacts[f"envelopes/{envelope.agent_id}.json"] = envelope.model_dump()
+            m1_artefacts[f"memory/{ctx.agent_id}.json"] = ctx.memory.model_dump()
 
-    results = await asyncio.gather(
-        *[run_with_spawn(ctx) for ctx in plan.specialists],
-        return_exceptions=True,
-    )
+        store.commit_milestone("M1-source-discovery", m1_artefacts, registry.snapshot())
+        _log(store, f"M1 committed — {len(envelopes)} envelopes.")
 
-    envelopes: list[EvidenceEnvelope] = []
-    updated_contexts: list[AgentContext] = []
+        for envelope in envelopes:
+            if envelope.verdict == "stop":
+                store.record_skipped_path(
+                    f"stop-verdict-{envelope.agent_id}",
+                    reason="agent returned stop verdict",
+                    triggered_by=envelope.agent_id,
+                )
 
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            _progress(on_progress, f"Specialist {plan.specialists[i].agent_id} failed: {result}")
-            store.record_skipped_path(
-                f"specialist-failed-{plan.specialists[i].agent_id}",
-                reason=str(result),
-                triggered_by="runner",
-            )
-        else:
-            envelope, updated_ctx = result
-            envelopes.append(envelope)
-            updated_contexts.append(updated_ctx)
-            _progress(on_progress, f"{updated_ctx.role}: {envelope.status} (confidence {envelope.confidence:.2f})")
+        # ── Step 3: Synthesis ─────────────────────────────────────────────────
+        registry.update_status(orchestrator_id, "completed")
+        synth_reg = registry.register(
+            agent_type="synthesizer",
+            parent_agent_id=orchestrator_id,
+            task_id=f"synthesis-{run_id}",
+        )
+        registry.update_status(synth_reg.agent_id, "running")
+        _emit(store, registry, artefacts)
 
-    # Commit M1 — all envelopes and memory stores
-    m1_artefacts = {}
-    for envelope, ctx in zip(envelopes, updated_contexts):
-        m1_artefacts[f"envelopes/{envelope.agent_id}.json"] = envelope.model_dump()
-        m1_artefacts[f"memory/{ctx.agent_id}.json"] = ctx.memory.model_dump()
+        _log(store, "Synthesising final report...")
+        report = await _synthesise(run_id, brief, envelopes, store, registry)
 
-    store.commit_milestone("M1-source-discovery", m1_artefacts, registry.snapshot())
-    _progress(on_progress, f"M1 committed — {len(envelopes)} envelopes.")
+        registry.update_status(synth_reg.agent_id, "completed")
+        _emit(store, registry, artefacts)
 
-    # Record stop verdicts
-    for envelope in envelopes:
-        if envelope.verdict == "stop":
-            store.record_skipped_path(
-                f"stop-verdict-{envelope.agent_id}",
-                reason="agent returned stop verdict",
-                triggered_by=envelope.agent_id,
-            )
+        _log(store, f"Done. Report committed to runs/{run_id}/")
+        store.write_live("status.json", {"status": "completed"})
+        return report
 
-    # Step 3: Synthesis
-    _progress(on_progress, "Synthesising final report...")
-    report = await _synthesise(run_id, brief, envelopes, store, registry, on_progress)
-    _progress(on_progress, f"Done. Report committed to runs/{run_id}/")
-
-    return report
+    except Exception as exc:
+        store.write_live("status.json", {"status": "failed", "error": str(exc)})
+        raise
 
 
 async def _synthesise(
@@ -120,7 +169,6 @@ async def _synthesise(
     envelopes: list[EvidenceEnvelope],
     store: GitStore,
     registry: AgentRegistry,
-    on_progress: callable,
 ) -> ResearchReport:
 
     synthesis_agent = Agent(
@@ -159,6 +207,11 @@ Return a ResearchReport.
     return report
 
 
-def _progress(callback: callable, message: str) -> None:
-    if callback:
-        callback(message)
+def _log(store: GitStore, msg: str) -> None:
+    store.append_live_log(msg)
+
+
+def _emit(store: GitStore, registry: AgentRegistry, artefacts: dict) -> None:
+    """Write the current DAG and artefacts snapshots to live files."""
+    store.write_live("dag.json", registry.get_dag())
+    store.write_live("artefacts.json", artefacts)
