@@ -198,6 +198,48 @@ that was attempted and why each outcome happened.
 
 ---
 
+### The context graph
+
+Before any agent is created, the orchestrator produces a **context graph** — a directed
+graph of work items that represents a complete decomposition of the goal.
+
+Each node in the context graph is a piece of work: a sub-goal, a question that needs
+answering, a domain to investigate. Each edge is a dependency. The graph is the blueprint
+— it captures what *needs to happen* to reach success, independently of how it will be
+executed.
+
+Only after the context graph is finalised does the orchestrator assign agents to nodes.
+An agent is bound to a work item, not the other way around. This separation matters
+because it keeps the plan honest — the shape of the problem is declared before the
+machinery is engaged.
+
+This two-step orchestration gives the system properties that a single flat plan cannot:
+
+**Completeness visibility.** Every work item in the context graph must be addressed for
+the goal to be considered met. Gaps are surfaced explicitly: a work item with no
+associated agent means an aspect of the goal was never attempted. A work item whose
+agent returned low confidence means a gap in coverage, not a silent absence.
+
+**Coverage over time.** Because the context graph is static and stored in git, two runs
+against the same brief produce two context graphs that can be compared directly. Same
+nodes, different agents, different results. The context graph becomes the unit of
+comparison across runs.
+
+**Replayability.** A context graph can be re-executed with a different agent strategy —
+different tools, different models, different specialist assignments — without changing the
+problem definition. The graph expresses the goal; the agents are a pluggable execution
+layer against it.
+
+**Retrospective clarity.** After a run, the UI shows two graphs: the context graph
+(what needed to happen) and the agent DAG (what actually ran, with lineage and
+artefacts). The overlay — which agents covered which work items — gives a complete picture
+of the run that neither graph provides alone.
+
+The context graph is not a memory. It stores no agent state, no findings, no evidence.
+It is a blueprint. Blueprints do not change when the building is constructed.
+
+---
+
 ### The interview
 
 Workflow quality is bounded by problem definition quality. Most agentic systems start

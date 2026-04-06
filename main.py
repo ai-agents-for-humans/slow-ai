@@ -81,6 +81,97 @@ _STATUS_ICON = {
 }
 
 
+_COVERAGE_STYLE = {
+    "uncovered": {
+        "background": "#1e293b", "color": "#94a3b8",
+        "border": "1px solid #475569", "borderRadius": "6px",
+        "fontSize": "12px", "padding": "8px 12px",
+    },
+    "in_progress": {
+        "background": "#1e3a8a", "color": "#93c5fd",
+        "border": "2px solid #3b82f6", "borderRadius": "6px",
+        "fontSize": "12px", "padding": "8px 12px",
+    },
+    "covered": {
+        "background": "#14532d", "color": "#86efac",
+        "border": "1px solid #22c55e", "borderRadius": "6px",
+        "fontSize": "12px", "padding": "8px 12px",
+    },
+    "partial": {
+        "background": "#431407", "color": "#fdba74",
+        "border": "1px solid #f97316", "borderRadius": "6px",
+        "fontSize": "12px", "padding": "8px 12px",
+    },
+}
+_COVERAGE_ICON = {
+    "uncovered": "○", "in_progress": "◌", "covered": "●", "partial": "◑",
+}
+
+
+def _work_item_coverage(dag: dict, artefacts: dict) -> dict[str, tuple[str, float]]:
+    """
+    Returns {work_item_id: (coverage_status, max_confidence)} based on the
+    current agent DAG and artefacts.
+    coverage_status: "uncovered" | "in_progress" | "covered" | "partial"
+    """
+    # Collect per-work-item agent states and confidences
+    states: dict[str, list] = {}
+    for node in dag.get("nodes", []):
+        wid = node.get("work_item_id")
+        if not wid:
+            continue
+        conf = artefacts.get(node["id"], {}).get("envelope", {}).get("confidence", 0.0)
+        states.setdefault(wid, []).append((node["status"], conf))
+
+    result = {}
+    for wid, entries in states.items():
+        statuses = {s for s, _ in entries}
+        max_conf = max(c for _, c in entries)
+        if "running" in statuses:
+            result[wid] = ("in_progress", max_conf)
+        elif "completed" in statuses:
+            result[wid] = ("covered" if max_conf >= 0.6 else "partial", max_conf)
+        else:
+            result[wid] = ("uncovered", 0.0)
+    return result
+
+
+def _build_context_graph_state(
+    context_graph: dict, dag: dict, artefacts: dict
+) -> StreamlitFlowState:
+    coverage = _work_item_coverage(dag, artefacts)
+    nodes = []
+    for item in context_graph.get("nodes", []):
+        wid = item["id"]
+        cov_status, conf = coverage.get(wid, ("uncovered", 0.0))
+        icon = _COVERAGE_ICON[cov_status]
+        label_parts = [f"{icon}  {item['name']}"]
+        if cov_status != "uncovered":
+            label_parts.append(f"conf: {conf:.2f}")
+        nodes.append(StreamlitFlowNode(
+            id=wid,
+            pos=(0, 0),
+            data={"label": "\n".join(label_parts)},
+            node_type="default",
+            style=_COVERAGE_STYLE[cov_status],
+            source_position="bottom",
+            target_position="top",
+            selectable=True,
+        ))
+
+    edges = [
+        StreamlitFlowEdge(
+            id=f"{e['source']}-{e['target']}",
+            source=e["source"],
+            target=e["target"],
+            animated=False,
+            marker_end={"type": "arrowclosed"},
+        )
+        for e in context_graph.get("edges", [])
+    ]
+    return StreamlitFlowState(nodes=nodes, edges=edges)
+
+
 def _duration_secs(spawned_at: str | None, completed_at: str | None) -> int | None:
     if not spawned_at or not completed_at:
         return None
@@ -200,6 +291,10 @@ def init_state():
         "dag": None,
         "agent_artefacts": {},
         "flow_state": None,
+        "flow_state_live": None,
+        "context_graph": None,
+        "context_graph_state": None,
+        "context_graph_state_live": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -264,6 +359,10 @@ def load_brief_into_session(project_id: str, brief: ProblemBrief):
     st.session_state.dag = None
     st.session_state.agent_artefacts = {}
     st.session_state.flow_state = None
+    st.session_state.flow_state_live = None
+    st.session_state.context_graph = None
+    st.session_state.context_graph_state = None
+    st.session_state.context_graph_state_live = None
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -341,7 +440,7 @@ if st.session_state.saved:
     # Live view — auto-refreshes every 2 s while a run is in progress
     if st.session_state.current_run_id:
 
-        @st.fragment(run_every="2s")
+        @st.fragment(run_every="5s")
         def _live_panel():
             from slow_ai.execution.git_store import GitStore
             from slow_ai.models import ResearchReport as _Report
@@ -352,7 +451,6 @@ if st.session_state.saved:
             status = status_data.get("status", "initializing")
 
             if status == "completed":
-                # Capture final state then hand off to the report view
                 report_path = store.run_path / "report.json"
                 if report_path.exists():
                     st.session_state.report = _Report.model_validate_json(
@@ -362,9 +460,13 @@ if st.session_state.saved:
                     "dag.json", {"nodes": [], "edges": []}
                 )
                 st.session_state.agent_artefacts = store.read_live("artefacts.json", {})
+                st.session_state.context_graph = store.read_live("context_graph.json", None)
                 st.session_state.research_log = store.read_live_log()
                 st.session_state.current_run_id = None
                 st.session_state.flow_state = None
+                st.session_state.flow_state_live = None
+                st.session_state.context_graph_state = None
+                st.session_state.context_graph_state_live = None
                 st.rerun(scope="app")
                 return
 
@@ -376,29 +478,54 @@ if st.session_state.saved:
                     st.rerun()
                 return
 
-            # Initializing / running
+            # ── Progress log ──────────────────────────────────────────────────
             log = store.read_live_log()
-            dag = store.read_live("dag.json", {"nodes": [], "edges": []})
+            st.caption(f"● {status}")
+            if log:
+                st.markdown("\n".join(f"- {m}" for m in log))
+            else:
+                st.caption("Starting up…")
 
-            col_log, col_dag = st.columns([1, 2])
-            with col_log:
-                st.caption(f"● {status}")
-                if log:
-                    st.markdown("\n".join(f"- {m}" for m in log))
-                else:
-                    st.caption("Starting up…")
-            with col_dag:
-                if dag.get("nodes"):
-                    flow_state = _build_flow_state(dag)
-                    streamlit_flow(
-                        "dag_live",
-                        flow_state,
-                        layout=TreeLayout(direction="down"),
-                        fit_view=True,
-                        height=420,
+            # ── Context graph (blueprint) ──────────────────────────────────────
+            cg = store.read_live("context_graph.json", None)
+            if cg and cg.get("nodes"):
+                st.subheader("Context Graph")
+                current_cg_live = st.session_state.context_graph_state_live
+                if (
+                    current_cg_live is None
+                    or len(current_cg_live.nodes) != len(cg["nodes"])
+                ):
+                    dag_for_cg = store.read_live("dag.json", {"nodes": [], "edges": []})
+                    artefacts_for_cg = store.read_live("artefacts.json", {})
+                    st.session_state.context_graph_state_live = _build_context_graph_state(
+                        cg, dag_for_cg, artefacts_for_cg
                     )
-                else:
-                    st.caption("Waiting for agents…")
+                streamlit_flow(
+                    "cg_live",
+                    st.session_state.context_graph_state_live,
+                    layout=TreeLayout(direction="down"),
+                    fit_view=True,
+                    height=350,
+                )
+
+            # ── Agent DAG (full width) ─────────────────────────────────────────
+            dag = store.read_live("dag.json", {"nodes": [], "edges": []})
+            if dag.get("nodes"):
+                current_live = st.session_state.flow_state_live
+                if (
+                    current_live is None
+                    or len(current_live.nodes) != len(dag["nodes"])
+                ):
+                    st.session_state.flow_state_live = _build_flow_state(dag)
+                streamlit_flow(
+                    "dag_live",
+                    st.session_state.flow_state_live,
+                    layout=TreeLayout(direction="down"),
+                    fit_view=True,
+                    height=550,
+                )
+            else:
+                st.caption("Waiting for agents…")
 
         _live_panel()
 
@@ -409,6 +536,55 @@ if st.session_state.saved:
         with st.expander("Run log", expanded=False):
             for msg in st.session_state.research_log:
                 st.markdown(f"- {msg}")
+
+        # ── Context graph (static blueprint with final coverage) ───────────────
+        cg = st.session_state.context_graph
+        if cg and cg.get("nodes"):
+            st.subheader("Context Graph")
+            dag_final = st.session_state.dag or {"nodes": [], "edges": []}
+            artefacts_final = st.session_state.agent_artefacts or {}
+            if (
+                st.session_state.context_graph_state is None
+                or len(st.session_state.context_graph_state.nodes) != len(cg["nodes"])
+            ):
+                st.session_state.context_graph_state = _build_context_graph_state(
+                    cg, dag_final, artefacts_final
+                )
+            new_cg_state = streamlit_flow(
+                "context_graph_final",
+                st.session_state.context_graph_state,
+                layout=TreeLayout(direction="down"),
+                fit_view=True,
+                height=400,
+                get_node_on_click=True,
+            )
+            st.session_state.context_graph_state = new_cg_state
+            if new_cg_state.selected_id:
+                selected = next(
+                    (n for n in cg["nodes"] if n["id"] == new_cg_state.selected_id),
+                    None,
+                )
+                if selected:
+                    st.divider()
+                    st.subheader(f"Work Item — {selected['name']}")
+                    st.write(selected["description"])
+                    if selected.get("success_criteria"):
+                        st.markdown(
+                            "**Success criteria:**\n"
+                            + "\n".join(f"- {c}" for c in selected["success_criteria"])
+                        )
+                    # Show agents covering this work item
+                    covering = [
+                        n for n in dag_final.get("nodes", [])
+                        if n.get("work_item_id") == selected["id"]
+                    ]
+                    if covering:
+                        st.markdown(
+                            "**Agents:** "
+                            + "  ·  ".join(
+                                f"`{n['id'].split('-')[-1]}` ({n['type']})" for n in covering
+                            )
+                        )
 
         st.subheader("Agent DAG")
         dag = st.session_state.dag or {"nodes": [], "edges": []}

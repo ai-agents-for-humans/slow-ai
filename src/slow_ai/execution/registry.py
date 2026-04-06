@@ -19,6 +19,7 @@ class AgentRegistry:
         parent_agent_id: str | None,
         task_id: str,
         agent_id: str | None = None,
+        work_item_id: str | None = None,
     ) -> AgentRegistration:
         if agent_id is None:
             agent_id = f"{agent_type}-{uuid.uuid4().hex[:6]}"
@@ -28,6 +29,7 @@ class AgentRegistry:
             parent_agent_id=parent_agent_id,
             task_id=task_id,
             spawned_at=datetime.now(timezone.utc).isoformat(),
+            work_item_id=work_item_id,
         )
         self.agents[agent_id] = reg
 
@@ -74,6 +76,7 @@ class AgentRegistry:
                 "tokens": reg.tokens_used,
                 "spawned_at": reg.spawned_at,
                 "completed_at": reg.completed_at,
+                "work_item_id": reg.work_item_id,
             }
             for reg in self.agents.values()
         ]

@@ -15,6 +15,22 @@ class ProblemBrief(BaseModel):
     excluded_paths: list[str]
 
 
+# --- Context graph ---
+
+class WorkItem(BaseModel):
+    id: str                         # e.g. "wi-1"
+    name: str                       # short label
+    description: str                # what research needs to happen
+    success_criteria: list[str] = []
+    depends_on: list[str] = []      # ids of WorkItems this item depends on
+
+
+class ContextGraph(BaseModel):
+    goal: str
+    nodes: list[WorkItem]
+    edges: list[dict[str, str]] = []  # [{"source": "wi-1", "target": "wi-2"}]
+
+
 # --- Memory ---
 
 class MemoryEntry(BaseModel):
@@ -82,6 +98,7 @@ class AgentRegistration(BaseModel):
     memory_path: str | None = None     # git path to memory snapshot
     tokens_used: int = 0
     children: list[str] = []          # agent_ids of workers this agent spawned
+    work_item_id: str | None = None    # WorkItem.id this agent addresses
 
 
 # --- Agent context ---
@@ -95,12 +112,14 @@ class AgentContext(BaseModel):
     constraints: dict[str, Any]
     tools_available: list[str] = ["perplexity_search", "web_browse"]
     evidence_required: dict[str, str]
+    work_item_id: str | None = None    # WorkItem.id this agent addresses
 
 
 # --- Research plan ---
 
 class ResearchPlan(BaseModel):
     run_id: str
+    context_graph: ContextGraph | None = None
     specialists: list[AgentContext]
     milestone_flags: list[str]
 

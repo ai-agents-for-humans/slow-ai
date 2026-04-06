@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from pydantic_ai import Agent
 
-from slow_ai.agents.orchestrator import handle_spawn_request, run_orchestrator
+from slow_ai.agents.orchestrator import handle_spawn_request, run_context_planner, run_orchestrator
 from slow_ai.agents.specialist import run_specialist
 from slow_ai.config import settings
 from slow_ai.execution.git_store import GitStore
@@ -41,6 +41,17 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
         store.commit_brief(brief.model_dump())
         _log(store, f"Run `{run_id}` initialised.")
 
+        # ── Step 0: Context planning ──────────────────────────────────────────
+        _log(store, "Building context graph...")
+        context_graph = await run_context_planner(brief, run_id)
+        store.write_live("context_graph.json", context_graph.model_dump())
+        store.commit_milestone(
+            "M-1-context",
+            {"context_graph.json": context_graph.model_dump()},
+            registry_snapshot=None,
+        )
+        _log(store, f"Context graph ready — {len(context_graph.nodes)} work items.")
+
         # ── Step 1: Orchestrator plans ────────────────────────────────────────
         orc_reg = registry.register(
             agent_type="orchestrator",
@@ -51,18 +62,19 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
         registry.update_status(orchestrator_id, "running")
         _emit(store, registry, artefacts)
 
-        _log(store, "Orchestrator planning research...")
-        plan: ResearchPlan = await run_orchestrator(brief, run_id)
+        _log(store, "Orchestrator assigning specialists to work items...")
+        plan: ResearchPlan = await run_orchestrator(brief, context_graph, run_id)
 
         # Register specialists using the IDs the orchestrator already assigned,
-        # parented to the orchestrator. This fixes the ID mismatch that
-        # previously made registry status updates silently no-op.
+        # parented to the orchestrator. Pass work_item_id so the DAG carries
+        # the blueprint linkage through to the UI.
         for ctx in plan.specialists:
             registry.register(
                 agent_type=ctx.role,
                 parent_agent_id=orchestrator_id,
                 task_id=ctx.task.task_id,
                 agent_id=ctx.agent_id,
+                work_item_id=ctx.work_item_id,
             )
 
         _emit(store, registry, artefacts)
