@@ -124,6 +124,27 @@ class ResearchPlan(BaseModel):
     milestone_flags: list[str]
 
 
+# --- Orchestrator decision (assess step) ---
+
+class SpecialistAssignment(BaseModel):
+    role: str
+    work_item_id: str
+    goal: str
+    context_budget: int = 6000
+    evidence_required: dict[str, str] = {}
+
+
+class OrchestratorDecision(BaseModel):
+    action: Literal["spawn_specialists", "escalate_to_human", "synthesize"]
+    wave: int
+    work_items_covered: list[str] = []     # wi-ids considered done
+    work_items_pending: list[str] = []     # wi-ids still needing work
+    work_items_escalated: list[str] = []   # wi-ids needing human input
+    next_wave: list[SpecialistAssignment] = []   # populated when action == "spawn_specialists"
+    escalation_notes: dict[str, str] = {}  # wi-id → reason, when action == "escalate_to_human"
+    reasoning: str
+
+
 # --- Evidence ---
 
 class EvidenceEnvelope(BaseModel):

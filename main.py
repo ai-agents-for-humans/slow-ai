@@ -1,4 +1,5 @@
 import asyncio
+import json
 import subprocess
 import sys
 import uuid
@@ -23,14 +24,10 @@ st.title("Slow AI — Problem Brief Interview")
 
 # ── Research subprocess ───────────────────────────────────────────────────────
 
-def _start_research(brief: ProblemBrief) -> str:
+def _start_research(brief: ProblemBrief, project_id: str) -> str:
     """
-    Write the brief to disk and launch a research subprocess.
-
-    The subprocess runs in its own Python process with its own event loop —
-    no shared asyncio state, no Streamlit context, no threading issues.
-    It writes all live state to runs/{run_id}/live/ as plain JSON files.
-    Streamlit polls those files via a fragment.
+    Write the brief to disk, record the run against the project, and launch
+    a research subprocess.
 
     Returns the run_id so the caller can store it in session state.
     """
@@ -44,10 +41,17 @@ def _start_research(brief: ProblemBrief) -> str:
         brief.model_dump_json(), encoding="utf-8"
     )
 
+    # Record this run against the project so it can be listed later
+    runs_file = Path("output") / project_id / "runs.jsonl"
+    with runs_file.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({
+            "run_id": run_id,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        }) + "\n")
+
     subprocess.Popen(
         [sys.executable, "-m", "slow_ai.research", run_id],
         cwd=str(Path.cwd()),
-        # stdout/stderr go to the terminal where Streamlit is running
     )
     return run_id
 
@@ -79,6 +83,27 @@ _STATUS_STYLE = {
 _STATUS_ICON = {
     "registered": "○", "running": "◌", "completed": "●", "failed": "✕",
 }
+
+# Milestone node type overrides (take precedence over status-based styles)
+_MILESTONE_STYLE = {
+    "background": "#312e81", "color": "#c7d2fe",
+    "border": "2px solid #6366f1", "borderRadius": "8px",
+    "fontSize": "13px", "padding": "10px 16px", "fontWeight": "bold",
+}
+_ASSESSMENT_STYLE = {
+    "background": "#1c1917", "color": "#d6d3d1",
+    "border": "1px dashed #78716c", "borderRadius": "6px",
+    "fontSize": "12px", "padding": "8px 12px",
+}
+
+
+def _node_style(node: dict) -> dict:
+    node_type = node.get("type", "")
+    if node_type.startswith("wave_"):
+        return _MILESTONE_STYLE
+    if node_type == "assessment":
+        return _ASSESSMENT_STYLE
+    return _STATUS_STYLE.get(node["status"], _STATUS_STYLE["registered"])
 
 
 _COVERAGE_STYLE = {
@@ -199,7 +224,7 @@ def _build_flow_state(dag: dict) -> StreamlitFlowState:
             pos=(0, 0),
             data={"label": "\n".join(parts)},
             node_type="default",
-            style=_STATUS_STYLE.get(n["status"], _STATUS_STYLE["registered"]),
+            style=_node_style(n),
             source_position="bottom",
             target_position="top",
             selectable=True,
@@ -288,6 +313,7 @@ def init_state():
         "report": None,
         "research_log": [],
         "current_run_id": None,
+        "current_project_id": None,
         "dag": None,
         "agent_artefacts": {},
         "flow_state": None,
@@ -295,6 +321,7 @@ def init_state():
         "context_graph": None,
         "context_graph_state": None,
         "context_graph_state_live": None,
+        "latest_assessment": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -327,13 +354,13 @@ def display_brief(brief: ProblemBrief):
             st.markdown(f"- {item}")
 
 
-def save_brief(brief: ProblemBrief):
+def save_brief(brief: ProblemBrief) -> tuple[Path, str]:
     project_id = str(uuid.uuid4())
     project_dir = Path("output") / project_id
     project_dir.mkdir(parents=True, exist_ok=True)
     output_path = project_dir / "problem_brief.json"
     output_path.write_text(brief.model_dump_json(indent=2))
-    return output_path
+    return output_path, project_id
 
 
 def load_saved_briefs() -> list[tuple[str, ProblemBrief]]:
@@ -353,6 +380,7 @@ def load_saved_briefs() -> list[tuple[str, ProblemBrief]]:
 def load_brief_into_session(project_id: str, brief: ProblemBrief):
     st.session_state.brief = brief
     st.session_state.saved = True
+    st.session_state.current_project_id = project_id
     st.session_state.report = None
     st.session_state.research_log = []
     st.session_state.current_run_id = None
@@ -363,6 +391,58 @@ def load_brief_into_session(project_id: str, brief: ProblemBrief):
     st.session_state.context_graph = None
     st.session_state.context_graph_state = None
     st.session_state.context_graph_state_live = None
+    st.session_state.latest_assessment = None
+
+
+def load_project_runs(project_id: str) -> list[dict]:
+    """Return all runs for a project, newest first, enriched with live status."""
+    runs_file = Path("output") / project_id / "runs.jsonl"
+    if not runs_file.exists():
+        return []
+    runs = []
+    for line in runs_file.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        status_path = Path("runs") / entry["run_id"] / "live" / "status.json"
+        if status_path.exists():
+            try:
+                entry["status"] = json.loads(status_path.read_text())["status"]
+            except Exception:
+                entry["status"] = "unknown"
+        else:
+            entry["status"] = "unknown"
+        runs.append(entry)
+    return list(reversed(runs))
+
+
+def load_historical_run(run_id: str):
+    """Load a completed run's artefacts into session state for viewing."""
+    from slow_ai.execution.git_store import GitStore
+    from slow_ai.models import ResearchReport as _Report
+
+    store = GitStore(run_id)
+    report_path = store.run_path / "report.json"
+    st.session_state.report = None
+    if report_path.exists():
+        try:
+            st.session_state.report = _Report.model_validate_json(
+                report_path.read_text(encoding="utf-8")
+            )
+        except Exception:
+            pass
+    st.session_state.dag = store.read_live("dag.json", {"nodes": [], "edges": []})
+    st.session_state.agent_artefacts = store.read_live("artefacts.json", {})
+    st.session_state.context_graph = store.read_live("context_graph.json", None)
+    st.session_state.latest_assessment = store.read_live("assessment.json", None)
+    st.session_state.research_log = store.read_live_log()
+    st.session_state.flow_state = None
+    st.session_state.context_graph_state = None
+    st.session_state.current_run_id = None  # not an active run
+    st.session_state.saved = True
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -393,6 +473,26 @@ with st.sidebar:
             load_brief_into_session(selected_id, selected_brief)
             st.rerun()
 
+        # ── Previous runs for this project ────────────────────────────────────
+        st.divider()
+        st.caption("Previous runs")
+        runs = load_project_runs(selected_id)
+        if not runs:
+            st.caption("No runs yet.")
+        else:
+            _STATUS_BADGE = {
+                "completed": "🟢", "failed": "🔴",
+                "waiting_for_human": "🟡", "running": "🔵",
+            }
+            for run in runs:
+                badge = _STATUS_BADGE.get(run["status"], "⚪")
+                ts = run.get("started_at", run["run_id"])[:16].replace("T", " ")
+                col_label, col_btn = st.columns([3, 1])
+                col_label.markdown(f"{badge} `{ts}`")
+                if col_btn.button("View", key=f"view_{run['run_id']}"):
+                    load_historical_run(run["run_id"])
+                    st.rerun()
+
 # Kick off interview on first load
 if not st.session_state.messages:
     response = call_agent("Hello, I'm ready to start.")
@@ -411,8 +511,9 @@ if st.session_state.brief and not st.session_state.saved:
     display_brief(st.session_state.brief)
     col1, col2 = st.columns(2)
     if col1.button("Confirm & Save", type="primary"):
-        path = save_brief(st.session_state.brief)
+        path, project_id = save_brief(st.session_state.brief)
         st.session_state.saved = True
+        st.session_state.current_project_id = project_id
         st.success(f"Saved to `{path}`")
         st.rerun()
     if col2.button("Not quite — continue"):
@@ -430,11 +531,24 @@ if st.session_state.saved:
     st.divider()
     st.subheader("Research")
 
-    # Start button — shown only when no run is active and no report exists
-    if not st.session_state.current_run_id and not st.session_state.report:
-        if st.button("Start Research", type="primary"):
-            run_id = _start_research(st.session_state.brief)
+    # Start / re-run button
+    if not st.session_state.current_run_id:
+        btn_label = "Start New Run" if st.session_state.report else "Start Research"
+        if st.button(btn_label, type="primary"):
+            run_id = _start_research(
+                st.session_state.brief,
+                st.session_state.current_project_id,
+            )
             st.session_state.current_run_id = run_id
+            st.session_state.report = None
+            st.session_state.dag = None
+            st.session_state.agent_artefacts = {}
+            st.session_state.context_graph = None
+            st.session_state.flow_state = None
+            st.session_state.flow_state_live = None
+            st.session_state.context_graph_state = None
+            st.session_state.context_graph_state_live = None
+            st.session_state.latest_assessment = None
             st.rerun()
 
     # Live view — auto-refreshes every 2 s while a run is in progress
@@ -461,6 +575,7 @@ if st.session_state.saved:
                 )
                 st.session_state.agent_artefacts = store.read_live("artefacts.json", {})
                 st.session_state.context_graph = store.read_live("context_graph.json", None)
+                st.session_state.latest_assessment = store.read_live("assessment.json", None)
                 st.session_state.research_log = store.read_live_log()
                 st.session_state.current_run_id = None
                 st.session_state.flow_state = None
@@ -485,6 +600,19 @@ if st.session_state.saved:
                 st.markdown("\n".join(f"- {m}" for m in log))
             else:
                 st.caption("Starting up…")
+
+            # ── Latest orchestrator assessment ─────────────────────────────────
+            assessment = store.read_live("assessment.json", None)
+            if assessment:
+                with st.expander(
+                    f"Wave {assessment.get('wave', '?')} assessment — {assessment.get('action', '?')}",
+                    expanded=False,
+                ):
+                    ac, pc, ec = st.columns(3)
+                    ac.metric("Covered", len(assessment.get("work_items_covered", [])))
+                    pc.metric("Pending", len(assessment.get("work_items_pending", [])))
+                    ec.metric("Escalated", len(assessment.get("work_items_escalated", [])))
+                    st.caption(assessment.get("reasoning", ""))
 
             # ── Context graph (blueprint) ──────────────────────────────────────
             cg = store.read_live("context_graph.json", None)
@@ -536,6 +664,26 @@ if st.session_state.saved:
         with st.expander("Run log", expanded=False):
             for msg in st.session_state.research_log:
                 st.markdown(f"- {msg}")
+
+        # ── Final orchestrator assessment ──────────────────────────────────────
+        assessment = st.session_state.latest_assessment
+        if assessment:
+            st.subheader("Orchestrator Assessment")
+            ac, pc, ec = st.columns(3)
+            ac.metric("Work items covered", len(assessment.get("work_items_covered", [])))
+            pc.metric("Work items pending", len(assessment.get("work_items_pending", [])))
+            ec.metric("Work items escalated", len(assessment.get("work_items_escalated", [])))
+            st.caption(f"Final action: **{assessment.get('action', '?')}** — wave {assessment.get('wave', '?')}")
+            with st.expander("Reasoning"):
+                st.write(assessment.get("reasoning", ""))
+            if assessment.get("work_items_pending"):
+                with st.expander("Pending work items"):
+                    for wid in assessment["work_items_pending"]:
+                        st.markdown(f"- `{wid}`")
+            if assessment.get("escalation_notes"):
+                with st.expander("Escalation notes"):
+                    for wid, note in assessment["escalation_notes"].items():
+                        st.markdown(f"**{wid}**: {note}")
 
         # ── Context graph (static blueprint with final coverage) ───────────────
         cg = st.session_state.context_graph
