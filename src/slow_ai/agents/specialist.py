@@ -7,17 +7,39 @@ from pydantic_ai import Agent
 
 from slow_ai.config import settings
 from slow_ai.models import AgentContext, EvidenceEnvelope, MemoryEntry, SpawnRequest
+from slow_ai.tools.code_execution import code_execution as _code_execution
 from slow_ai.tools.perplexity import perplexity_search
 from slow_ai.tools.web_browse import web_browse
 
 os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
 
+def _tool_descriptions(tools_available: list[str]) -> str:
+    descriptions = {
+        "perplexity_search": (
+            "search(query): search the web for information — returns a synthesised "
+            "answer plus source citations"
+        ),
+        "web_browse": (
+            "browse(url): navigate to a URL and extract its full text content"
+        ),
+        "code_execution": (
+            "execute(code): run Python code in an isolated subprocess and return "
+            "stdout/stderr. Use for data transformation, statistical analysis, "
+            "geospatial processing, ontology/RDF work (rdflib), visualisation "
+            "(matplotlib), document parsing, or any computation. Always print() "
+            "results you want to capture."
+        ),
+    }
+    lines = [descriptions[t] for t in tools_available if t in descriptions]
+    return "\n".join(f"- {l}" for l in lines) if lines else "No tools available."
+
+
 def build_system_prompt(ctx: AgentContext) -> str:
     return f"""
 You are a {ctx.role}.
 
-Your expertise: {', '.join(ctx.expertise) if ctx.expertise else 'earth observation data research'}
+Your expertise: {', '.join(ctx.expertise) if ctx.expertise else 'research and analysis'}
 
 Your task:
 {ctx.task.goal}
@@ -28,23 +50,21 @@ Research constraints:
 Context budget: {ctx.memory.context_budget} tokens. Currently used: {ctx.memory.total_tokens}.
 Budget remaining: {ctx.memory.budget_remaining()} tokens.
 
-You have two tools:
-- search: find datasets, get relevant URLs and a synthesised answer
-- browse: read a specific URL and extract detailed information
+Available tools:
+{_tool_descriptions(ctx.tools_available)}
 
 Research process:
-1. Use search with a precise query tailored to your task and constraints
-2. From citations returned, use browse on each URL to get actual dataset details
-3. After each tool call, note key findings (you will write these to memory)
-4. If your budget is running low and you have more URLs to check, note them in
-   your evidence envelope — the runner will spawn workers for the remaining URLs
+1. Use the tools available to you to investigate your task
+2. After each tool call, note key findings (you will write these to memory)
+3. If your budget is running low and there is more to investigate, note remaining
+   work in your evidence envelope — the runner will spawn workers for it
 
 Evidence required:
 {json.dumps(ctx.evidence_required, indent=2) if ctx.evidence_required else
-"sources_checked, datasets_found, coverage_pct, license, resolution, download_url"}
+"sources_checked, findings, confidence_rationale"}
 
 Return an EvidenceEnvelope with:
-- status: completed / partial / faileds
+- status: completed / partial / failed
 - role: your role name
 - proof: everything you found, structured
 - verdict: continue (found useful data) / escalate (needs human review) / stop (nothing found)
@@ -60,7 +80,7 @@ async def run_specialist(
     spawn_handler=None,
 ) -> tuple[EvidenceEnvelope, AgentContext]:
     """
-    Run a specialist agent.
+    Run a specialist agent with only the tools its work item requires.
     Returns the evidence envelope AND the updated context (with populated memory).
     """
 
@@ -70,42 +90,63 @@ async def run_specialist(
         system_prompt=build_system_prompt(ctx),
     )
 
-    @agent.tool_plain
-    async def search(query: str) -> str:
-        result = await perplexity_search(query)
-        entry = MemoryEntry(
-            key=f"search_{uuid.uuid4().hex[:4]}",
-            value={"query": query, "answer": result.answer, "citations": result.citations},
-            source="perplexity_search",
-            confidence=0.8,
-            created_at=datetime.now(timezone.utc).isoformat(),
-            tokens_consumed=len(result.answer.split()) * 2,
-        )
-        ctx.memory.add(entry)
-        return json.dumps({"answer": result.answer, "citations": result.citations})
+    # Register only the tools this agent has been granted
+    if "perplexity_search" in ctx.tools_available:
+        @agent.tool_plain
+        async def search(query: str) -> str:
+            result = await perplexity_search(query)
+            entry = MemoryEntry(
+                key=f"search_{uuid.uuid4().hex[:4]}",
+                value={"query": query, "answer": result.answer, "citations": result.citations},
+                source="perplexity_search",
+                confidence=0.8,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                tokens_consumed=len(result.answer.split()) * 2,
+            )
+            ctx.memory.add(entry)
+            return json.dumps({"answer": result.answer, "citations": result.citations})
 
-    @agent.tool_plain
-    async def browse(url: str) -> str:
-        result = await web_browse(url)
-        entry = MemoryEntry(
-            key=f"browse_{uuid.uuid4().hex[:4]}",
-            value={"url": url, "title": result.title, "text": result.text[:500]},
-            source="web_browse",
-            confidence=0.9 if result.success else 0.1,
-            created_at=datetime.now(timezone.utc).isoformat(),
-            tokens_consumed=len(result.text.split()) * 2 if result.text else 10,
-        )
-        ctx.memory.add(entry)
-        if not result.success:
-            return json.dumps({"error": result.error})
-        return json.dumps({"title": result.title, "text": result.text})
+    if "web_browse" in ctx.tools_available:
+        @agent.tool_plain
+        async def browse(url: str) -> str:
+            result = await web_browse(url)
+            entry = MemoryEntry(
+                key=f"browse_{uuid.uuid4().hex[:4]}",
+                value={"url": url, "title": result.title, "text": result.text[:500]},
+                source="web_browse",
+                confidence=0.9 if result.success else 0.1,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                tokens_consumed=len(result.text.split()) * 2 if result.text else 10,
+            )
+            ctx.memory.add(entry)
+            if not result.success:
+                return json.dumps({"error": result.error})
+            return json.dumps({"title": result.title, "text": result.text})
+
+    if "code_execution" in ctx.tools_available:
+        @agent.tool_plain
+        async def execute(code: str) -> str:
+            result = await _code_execution(code, working_dir=ctx.artefacts_dir)
+            entry = MemoryEntry(
+                key=f"exec_{uuid.uuid4().hex[:4]}",
+                value={
+                    "success": result["success"],
+                    "stdout": result["stdout"][:1000],
+                    "stderr": result["stderr"][:500] if result["stderr"] else "",
+                },
+                source="code_execution",
+                confidence=0.95 if result["success"] else 0.1,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                tokens_consumed=len(result["stdout"].split()) * 2 + 20,
+            )
+            ctx.memory.add(entry)
+            return json.dumps(result)
 
     if registry:
         registry.update_status(ctx.agent_id, "running")
 
     result = await agent.run(
-        "Begin research for your assigned task. "
-        "Start with a search, then browse key URLs from the citations."
+        "Begin research for your assigned task using the tools available to you."
     )
 
     envelope: EvidenceEnvelope = result.output

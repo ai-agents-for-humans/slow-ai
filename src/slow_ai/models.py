@@ -23,12 +23,48 @@ class WorkItem(BaseModel):
     description: str                # what research needs to happen
     success_criteria: list[str] = []
     depends_on: list[str] = []      # ids of WorkItems this item depends on
+    required_skills: list[str] = [] # e.g. ["web_search", "pdf_extraction"]
 
 
 class ContextGraph(BaseModel):
     goal: str
     nodes: list[WorkItem]
     edges: list[dict[str, str]] = []  # [{"source": "wi-1", "target": "wi-2"}]
+
+
+# --- Skill gap / viability ---
+
+class SkillGap(BaseModel):
+    skill: str                      # e.g. "pdf_extraction"
+    required_by: list[str]          # work item ids that directly need this skill
+    downstream_blocked: int         # total items blocked (including transitive deps)
+    is_critical_path: bool          # blocks > 50% of the graph
+
+
+class ViabilityDecision(BaseModel):
+    action: Literal["go", "degraded", "no_go"]
+    skill_gaps: list[SkillGap] = []
+    blocked_work_items: list[str] = []    # gap items + transitive dependents
+    executable_work_items: list[str] = []
+    coverage_ratio: float = 1.0
+    reasoning: str
+
+
+# --- Skill synthesis ---
+
+class SynthesizedSkill(BaseModel):
+    name: str
+    description: str
+    tools: list[str]                # existing tool names that implement this skill
+    source: str = "synthesized"
+    tags: list[str] = []
+
+
+class SkillSynthesisResult(BaseModel):
+    synthesized: list[SynthesizedSkill] = []
+    needs_new_tool: list[str] = []          # skill names that couldn't be synthesized
+    github_search_queries: list[str] = []   # suggested queries for unresolvable gaps
+    reasoning: str
 
 
 # --- Memory ---
@@ -113,6 +149,7 @@ class AgentContext(BaseModel):
     tools_available: list[str] = ["perplexity_search", "web_browse"]
     evidence_required: dict[str, str]
     work_item_id: str | None = None    # WorkItem.id this agent addresses
+    artefacts_dir: str | None = None   # absolute path; code_execution runs here
 
 
 # --- Research plan ---

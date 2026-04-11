@@ -776,11 +776,3 @@ pytest tests/test_runner.py -v -s
 
 ## Open Work
 
-- [ ] **Specialist stability** — specialists sometimes fail mid-run; error handling and retry logic needed
-- [ ] **Worker spawn integration test** — `SpawnRequest` path not yet covered by automated tests
-- [ ] **DAG visualisation** — `get_dag()` exists on `AgentRegistry`; no UI widget yet
-- [ ] **Report persistence** — `ResearchReport` is stored in session state only; should be saved to `output/{id}/report.json` so it survives page reload
-- [ ] **Brief versioning** — re-running research on an existing brief creates a new `run_id` but both share the same `output/{id}/`; runs should be linked to their brief explicitly
-- [ ] **Token cost tracking** — `cost_tokens` is recorded per envelope but not surfaced in the UI
-- [ ] **Synthesis quality** — quality scoring is done by the LLM; a deterministic scoring pass would improve reproducibility
-- [ ] **Auth / multi-user** — no authentication; single-user local tool only

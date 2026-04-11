@@ -127,9 +127,15 @@ _COVERAGE_STYLE = {
         "border": "1px solid #f97316", "borderRadius": "6px",
         "fontSize": "12px", "padding": "8px 12px",
     },
+    "missing_skill": {
+        "background": "#1c0a0a", "color": "#fca5a5",
+        "border": "2px dashed #ef4444", "borderRadius": "6px",
+        "fontSize": "12px", "padding": "8px 12px",
+    },
 }
 _COVERAGE_ICON = {
     "uncovered": "○", "in_progress": "◌", "covered": "●", "partial": "◑",
+    "missing_skill": "⊘",
 }
 
 
@@ -162,16 +168,27 @@ def _work_item_coverage(dag: dict, artefacts: dict) -> dict[str, tuple[str, floa
 
 
 def _build_context_graph_state(
-    context_graph: dict, dag: dict, artefacts: dict
+    context_graph: dict,
+    dag: dict,
+    artefacts: dict,
+    blocked_skill_items: set[str] | None = None,
 ) -> StreamlitFlowState:
     coverage = _work_item_coverage(dag, artefacts)
+    blocked_skill_items = blocked_skill_items or set()
     nodes = []
     for item in context_graph.get("nodes", []):
         wid = item["id"]
-        cov_status, conf = coverage.get(wid, ("uncovered", 0.0))
+        if wid in blocked_skill_items:
+            cov_status, conf = "missing_skill", 0.0
+        else:
+            cov_status, conf = coverage.get(wid, ("uncovered", 0.0))
         icon = _COVERAGE_ICON[cov_status]
         label_parts = [f"{icon}  {item['name']}"]
-        if cov_status != "uncovered":
+        if cov_status == "missing_skill":
+            skills = item.get("required_skills", [])
+            if skills:
+                label_parts.append(f"needs: {', '.join(skills)}")
+        elif cov_status != "uncovered":
             label_parts.append(f"conf: {conf:.2f}")
         nodes.append(StreamlitFlowNode(
             id=wid,
@@ -322,6 +339,7 @@ def init_state():
         "context_graph_state": None,
         "context_graph_state_live": None,
         "latest_assessment": None,
+        "latest_viability": None,
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -438,6 +456,7 @@ def load_historical_run(run_id: str):
     st.session_state.agent_artefacts = store.read_live("artefacts.json", {})
     st.session_state.context_graph = store.read_live("context_graph.json", None)
     st.session_state.latest_assessment = store.read_live("assessment.json", None)
+    st.session_state.latest_viability = store.read_live("viability.json", None)
     st.session_state.research_log = store.read_live_log()
     st.session_state.flow_state = None
     st.session_state.context_graph_state = None
@@ -483,6 +502,7 @@ with st.sidebar:
             _STATUS_BADGE = {
                 "completed": "🟢", "failed": "🔴",
                 "waiting_for_human": "🟡", "running": "🔵",
+                "blocked_on_capabilities": "🟠",
             }
             for run in runs:
                 badge = _STATUS_BADGE.get(run["status"], "⚪")
@@ -576,6 +596,7 @@ if st.session_state.saved:
                 st.session_state.agent_artefacts = store.read_live("artefacts.json", {})
                 st.session_state.context_graph = store.read_live("context_graph.json", None)
                 st.session_state.latest_assessment = store.read_live("assessment.json", None)
+                st.session_state.latest_viability = store.read_live("viability.json", None)
                 st.session_state.research_log = store.read_live_log()
                 st.session_state.current_run_id = None
                 st.session_state.flow_state = None
@@ -590,6 +611,49 @@ if st.session_state.saved:
                 st.error(f"Research failed: {error}")
                 if st.button("Reset", key="reset_btn"):
                     st.session_state.current_run_id = None
+                    st.rerun()
+                return
+
+            if status == "blocked_on_capabilities":
+                st.warning("Run blocked — skill gaps must be resolved before this run can proceed.")
+                checkpoint = store.read_live("capability_checkpoint.json", {})
+                if checkpoint:
+                    st.markdown(f"**Reason:** {checkpoint.get('reasoning', '')}")
+                    gaps = checkpoint.get("gaps", [])
+                    if gaps:
+                        st.markdown("**Missing skills:**")
+                        for g in gaps:
+                            critical = " *(critical path)*" if g.get("is_critical_path") else ""
+                            st.markdown(
+                                f"- `{g['skill']}` — needed by {g['required_by']}, "
+                                f"blocks {g['downstream_blocked']} item(s){critical}"
+                            )
+
+                # Show the context graph even when blocked — it's the most useful
+                # thing to have visible when diagnosing what's missing and why
+                cg = store.read_live("context_graph.json", None)
+                if cg and cg.get("nodes"):
+                    st.subheader("Context Graph")
+                    viability = store.read_live("viability.json", None)
+                    blocked_items = set(viability.get("blocked_work_items", [])) if viability else set()
+                    if (
+                        st.session_state.context_graph_state_live is None
+                        or len(st.session_state.context_graph_state_live.nodes) != len(cg["nodes"])
+                    ):
+                        st.session_state.context_graph_state_live = _build_context_graph_state(
+                            cg, {"nodes": [], "edges": []}, {}, blocked_items
+                        )
+                    streamlit_flow(
+                        "cg_blocked",
+                        st.session_state.context_graph_state_live,
+                        layout=TreeLayout(direction="down"),
+                        fit_view=True,
+                        height=350,
+                    )
+
+                if st.button("Reset", key="reset_cap_btn"):
+                    st.session_state.current_run_id = None
+                    st.session_state.context_graph_state_live = None
                     st.rerun()
                 return
 
@@ -614,10 +678,51 @@ if st.session_state.saved:
                     ec.metric("Escalated", len(assessment.get("work_items_escalated", [])))
                     st.caption(assessment.get("reasoning", ""))
 
+            # ── Skill synthesis results ────────────────────────────────────────
+            synthesis = store.read_live("synthesis.json", None)
+            if synthesis:
+                synth_count = len(synthesis.get("synthesized", []))
+                unresolved = synthesis.get("needs_new_tool", [])
+                queries = synthesis.get("github_search_queries", [])
+                with st.expander(
+                    f"Skill synthesis — {synth_count} synthesized, {len(unresolved)} unresolved",
+                    expanded=False,
+                ):
+                    if synthesis.get("synthesized"):
+                        st.markdown("**Synthesized (added to registry):**")
+                        for s in synthesis["synthesized"]:
+                            st.markdown(f"- `{s['name']}` → tools: {s['tools']}")
+                    if unresolved:
+                        st.markdown("**Needs new tool:**")
+                        for name in unresolved:
+                            st.markdown(f"- `{name}`")
+                    if queries:
+                        st.markdown("**Suggested GitHub searches:**")
+                        for q in queries:
+                            st.markdown(f"- {q}")
+                    st.caption(synthesis.get("reasoning", ""))
+
+            # ── Viability decision ─────────────────────────────────────────────
+            viability = store.read_live("viability.json", None)
+            if viability and viability.get("action") in ("degraded", "no_go"):
+                action = viability["action"]
+                gaps = viability.get("skill_gaps", [])
+                colour = "warning" if action == "degraded" else "error"
+                label = "Degraded run" if action == "degraded" else "Blocked — no_go"
+                with st.expander(f"{label} — {len(gaps)} skill gap(s)", expanded=(action == "no_go")):
+                    st.caption(viability.get("reasoning", ""))
+                    for g in gaps:
+                        critical = " *(critical path)*" if g.get("is_critical_path") else ""
+                        st.markdown(
+                            f"- `{g['skill']}` — needed by {g['required_by']}, "
+                            f"blocks {g['downstream_blocked']} item(s){critical}"
+                        )
+
             # ── Context graph (blueprint) ──────────────────────────────────────
             cg = store.read_live("context_graph.json", None)
             if cg and cg.get("nodes"):
                 st.subheader("Context Graph")
+                blocked_items = set(viability.get("blocked_work_items", [])) if viability else set()
                 current_cg_live = st.session_state.context_graph_state_live
                 if (
                     current_cg_live is None
@@ -626,7 +731,7 @@ if st.session_state.saved:
                     dag_for_cg = store.read_live("dag.json", {"nodes": [], "edges": []})
                     artefacts_for_cg = store.read_live("artefacts.json", {})
                     st.session_state.context_graph_state_live = _build_context_graph_state(
-                        cg, dag_for_cg, artefacts_for_cg
+                        cg, dag_for_cg, artefacts_for_cg, blocked_items
                     )
                 streamlit_flow(
                     "cg_live",
@@ -665,6 +770,23 @@ if st.session_state.saved:
             for msg in st.session_state.research_log:
                 st.markdown(f"- {msg}")
 
+        # ── Viability decision (if degraded) ──────────────────────────────────
+        viability = st.session_state.latest_viability
+        if viability and viability.get("action") in ("degraded", "no_go"):
+            action = viability["action"]
+            gaps = viability.get("skill_gaps", [])
+            with st.expander(
+                f"Skill gaps — {action} run ({len(gaps)} missing skill(s))",
+                expanded=False,
+            ):
+                st.caption(viability.get("reasoning", ""))
+                for g in gaps:
+                    critical = " *(critical path)*" if g.get("is_critical_path") else ""
+                    st.markdown(
+                        f"- `{g['skill']}` — needed by {g['required_by']}, "
+                        f"blocks {g['downstream_blocked']} item(s){critical}"
+                    )
+
         # ── Final orchestrator assessment ──────────────────────────────────────
         assessment = st.session_state.latest_assessment
         if assessment:
@@ -691,12 +813,14 @@ if st.session_state.saved:
             st.subheader("Context Graph")
             dag_final = st.session_state.dag or {"nodes": [], "edges": []}
             artefacts_final = st.session_state.agent_artefacts or {}
+            viability_final = st.session_state.latest_viability or {}
+            blocked_final = set(viability_final.get("blocked_work_items", []))
             if (
                 st.session_state.context_graph_state is None
                 or len(st.session_state.context_graph_state.nodes) != len(cg["nodes"])
             ):
                 st.session_state.context_graph_state = _build_context_graph_state(
-                    cg, dag_final, artefacts_final
+                    cg, dag_final, artefacts_final, blocked_final
                 )
             new_cg_state = streamlit_flow(
                 "context_graph_final",
@@ -716,6 +840,12 @@ if st.session_state.saved:
                     st.divider()
                     st.subheader(f"Work Item — {selected['name']}")
                     st.write(selected["description"])
+                    if selected.get("required_skills"):
+                        skill_labels = []
+                        for s in selected["required_skills"]:
+                            marker = " ⊘" if selected["id"] in blocked_final else ""
+                            skill_labels.append(f"`{s}`{marker}")
+                        st.markdown("**Required skills:** " + "  ·  ".join(skill_labels))
                     if selected.get("success_criteria"):
                         st.markdown(
                             "**Success criteria:**\n"

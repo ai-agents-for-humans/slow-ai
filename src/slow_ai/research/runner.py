@@ -3,6 +3,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from pydantic_ai import Agent
 
@@ -28,13 +29,16 @@ from slow_ai.models import (
     SpawnRequest,
     WorkItem,
 )
+from slow_ai.skills import SkillRegistry
+from slow_ai.skills.resolver import resolve_skills, viability_assess
+from slow_ai.skills.synthesizer import synthesize_skills
 
 os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
 _MAX_WAVES = 5
 
 
-async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
+async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | None:
     """
     Orchestrate a full research run.
 
@@ -64,6 +68,84 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
         )
         _log(store, f"Context graph ready — {len(context_graph.nodes)} work items.")
 
+        # ── Step 0.5: Skill viability check + synthesis ───────────────────────
+        _log(store, "Checking skill viability...")
+        skill_registry = SkillRegistry()
+        executable_ids, blocked_ids, skill_gaps = resolve_skills(context_graph, skill_registry)
+
+        synthesis_result = None
+        if skill_gaps:
+            _log(store, f"{len(skill_gaps)} skill gap(s) found — attempting synthesis...")
+            synthesis_result = await synthesize_skills(skill_gaps, skill_registry)
+            n_synth = len(synthesis_result.synthesized)
+            n_unresolved = len(synthesis_result.needs_new_tool)
+            if n_synth:
+                names = [s.name for s in synthesis_result.synthesized]
+                _log(store, f"Synthesized {n_synth} skill(s): {names}. Registry updated.")
+            if n_unresolved:
+                _log(
+                    store,
+                    f"{n_unresolved} skill(s) need new tools: {synthesis_result.needs_new_tool}",
+                )
+            # Re-resolve with the now-expanded registry
+            executable_ids, blocked_ids, skill_gaps = resolve_skills(context_graph, skill_registry)
+
+        viability = await viability_assess(brief, context_graph, executable_ids, blocked_ids, skill_gaps)
+
+        milestone_artefacts: dict = {"viability.json": viability.model_dump()}
+        if synthesis_result:
+            milestone_artefacts["skill_synthesis.json"] = synthesis_result.model_dump()
+            store.write_live("synthesis.json", synthesis_result.model_dump())
+
+        store.write_live("viability.json", viability.model_dump())
+        store.commit_milestone(
+            "M-1-viability",
+            milestone_artefacts,
+            registry_snapshot=None,
+        )
+        _log(
+            store,
+            f"Viability: {viability.action} — "
+            f"{viability.coverage_ratio:.0%} executable "
+            f"({len(skill_gaps)} remaining gap(s)). {viability.reasoning}",
+        )
+
+        if viability.action == "no_go":
+            store.write_live("capability_checkpoint.json", {
+                "gaps": [g.model_dump() for g in viability.skill_gaps],
+                "blocked_work_items": viability.blocked_work_items,
+                "reasoning": viability.reasoning,
+            })
+            store.write_live("status.json", {"status": "blocked_on_capabilities"})
+            _log(store, "Run blocked — resolve skill gaps before retrying.")
+            return None
+
+        # Build working graph: only executable items + edges between them
+        if viability.action == "degraded":
+            for item_id in viability.blocked_work_items:
+                missing = [g.skill for g in viability.skill_gaps if item_id in g.required_by]
+                store.record_skipped_path(
+                    f"skill-gap-{item_id}",
+                    reason=f"Missing skills: {missing or ['upstream dependency on blocked item']}",
+                    triggered_by="skill_resolver",
+                )
+            executable_set = set(viability.executable_work_items)
+            working_graph = ContextGraph(
+                goal=context_graph.goal,
+                nodes=[n for n in context_graph.nodes if n.id in executable_set],
+                edges=[
+                    e for e in context_graph.edges
+                    if e["source"] in executable_set and e["target"] in executable_set
+                ],
+            )
+            _log(
+                store,
+                f"Degraded run — {len(viability.blocked_work_items)} items skipped, "
+                f"{len(working_graph.nodes)} proceeding.",
+            )
+        else:
+            working_graph = context_graph
+
         # ── Step 1: Orchestrator creates first wave ───────────────────────────
         orc_reg = registry.register(
             agent_type="orchestrator",
@@ -74,15 +156,15 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
         registry.update_status(orchestrator_id, "running")
         _emit(store, registry, artefacts)
 
-        # Wave 1: only work items with no upstream dependencies
-        wave1_ready = _ready_work_items(context_graph, covered=set())
+        # Wave 1: only work items with no upstream dependencies (from working graph)
+        wave1_ready = _ready_work_items(working_graph, covered=set())
         _log(
             store,
             f"Orchestrator assigning first wave — "
             f"{len(wave1_ready)} unblocked work items: "
             f"{[w.id for w in wave1_ready]}",
         )
-        plan = await run_orchestrator(brief, context_graph, wave1_ready, run_id)
+        plan = await run_orchestrator(brief, working_graph, wave1_ready, run_id)
 
         # Register wave 1 milestone node — specialists are children of it
         wave_node = registry.register(
@@ -100,6 +182,19 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
                 task_id=ctx.task.task_id,
                 agent_id=ctx.agent_id,
                 work_item_id=ctx.work_item_id,
+            )
+            # Resolve tools from the work item's required_skills
+            work_item = next(
+                (n for n in working_graph.nodes if n.id == ctx.work_item_id), None
+            )
+            if work_item and work_item.required_skills:
+                ctx.tools_available = skill_registry.tools_for_skills(work_item.required_skills)
+            else:
+                ctx.tools_available = ["perplexity_search", "web_browse"]
+            # Give each agent its own artefacts directory so code_execution
+            # writes files there directly rather than to the project root
+            ctx.artefacts_dir = str(
+                Path("runs") / run_id / "artefacts" / "wave1" / ctx.agent_id
             )
 
         _emit(store, registry, artefacts)
@@ -128,16 +223,46 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
             # Mark wave node completed
             registry.update_status(wave_node_id, "completed")
 
-            # Commit wave milestone
+            # Commit wave milestone — envelope + declared artefact files per agent
             wave_artefacts = {}
             for env in wave_envelopes:
+                # Always commit the full envelope
                 wave_artefacts[f"envelopes/wave{wave}/{env.agent_id}.json"] = env.model_dump()
+                # Commit each declared artefact. If the file was written to the
+                # agent's artefacts_dir by code_execution, read the actual content.
+                # Otherwise fall back to env.proof (search/browse agents).
+                agent_dir = store.run_path / "artefacts" / f"wave{wave}" / env.agent_id
+                for filename in env.artefacts:
+                    safe_name = Path(filename).name  # strip any path traversal
+                    rel_path = f"artefacts/wave{wave}/{env.agent_id}/{safe_name}"
+                    existing = agent_dir / safe_name
+                    if existing.exists():
+                        try:
+                            content = json.loads(existing.read_text(encoding="utf-8"))
+                        except (json.JSONDecodeError, UnicodeDecodeError):
+                            content = {"raw": existing.read_text(encoding="utf-8", errors="replace")}
+                    else:
+                        content = env.proof
+                    wave_artefacts[rel_path] = content
+
+                # Commit any code files (.py) produced by code_execution so they
+                # are visible in the git history alongside the outputs they produced.
+                if agent_dir.exists():
+                    for code_file in agent_dir.glob("*.py"):
+                        rel_path = f"artefacts/wave{wave}/{env.agent_id}/{code_file.name}"
+                        if rel_path not in wave_artefacts:
+                            wave_artefacts[rel_path] = {"raw": code_file.read_text(encoding="utf-8", errors="replace")}
             store.commit_milestone(
                 f"M{wave}-wave",
                 wave_artefacts,
                 registry_snapshot=registry.snapshot(),
             )
-            _log(store, f"Wave {wave} complete — {len(wave_envelopes)} envelopes collected.")
+            artefact_count = sum(len(e.artefacts) for e in wave_envelopes)
+            _log(
+                store,
+                f"Wave {wave} complete — {len(wave_envelopes)} envelopes, "
+                f"{artefact_count} artefact files committed.",
+            )
 
             # Compute which work items are now unblocked for the next wave
             covered_ids = set(
@@ -145,7 +270,7 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
                 for node in registry.get_dag()["nodes"]
                 if node.get("status") == "completed" and node.get("work_item_id")
             )
-            next_ready = _ready_work_items(context_graph, covered=covered_ids)
+            next_ready = _ready_work_items(working_graph, covered=covered_ids)
             _log(
                 store,
                 f"Dependency check: {len(covered_ids)} covered, "
@@ -155,7 +280,7 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
             # Orchestrator assesses coverage and decides next action
             _log(store, f"Orchestrator assessing coverage after wave {wave}...")
             decision = await orchestrator_assess(
-                brief, context_graph, envelopes, next_ready, run_id, wave
+                brief, working_graph, envelopes, next_ready, run_id, wave
             )
 
             # Register assessment node as child of the wave node
@@ -218,7 +343,10 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport:
                 wave_node_id = wave_node.agent_id
                 registry.update_status(wave_node_id, "running")
                 current_wave_specialists = [
-                    _assignment_to_context(a, wave_node_id, registry)
+                    _assignment_to_context(
+                        a, wave_node_id, registry, working_graph, skill_registry,
+                        run_id=run_id, wave=next_wave_num,
+                    )
                     for a in decision.next_wave
                 ]
                 _emit(store, registry, artefacts)
@@ -317,6 +445,10 @@ def _assignment_to_context(
     assignment: SpecialistAssignment,
     wave_node_id: str,
     registry: AgentRegistry,
+    working_graph: ContextGraph,
+    skill_registry: SkillRegistry,
+    run_id: str = "",
+    wave: int = 1,
 ) -> AgentContext:
     """Convert an OrchestratorDecision SpecialistAssignment into a runnable AgentContext."""
     task_id = f"task-{uuid.uuid4().hex[:6]}"
@@ -340,6 +472,17 @@ def _assignment_to_context(
         agent_type=assignment.role,
         context_budget=assignment.context_budget,
     )
+
+    # Derive tools from the work item's required_skills via the skill registry.
+    # Fall back to web_search + web_browse if the work item isn't found.
+    work_item = next(
+        (n for n in working_graph.nodes if n.id == assignment.work_item_id), None
+    )
+    if work_item and work_item.required_skills:
+        tools = skill_registry.tools_for_skills(work_item.required_skills)
+    else:
+        tools = ["perplexity_search", "web_browse"]
+
     return AgentContext(
         agent_id=agent_id,
         role=assignment.role,
@@ -347,9 +490,10 @@ def _assignment_to_context(
         task=task,
         memory=memory,
         constraints={},
-        tools_available=["perplexity_search", "web_browse"],
+        tools_available=tools,
         evidence_required=assignment.evidence_required,
         work_item_id=assignment.work_item_id,
+        artefacts_dir=str(Path("runs") / run_id / "artefacts" / f"wave{wave}" / agent_id),
     )
 
 

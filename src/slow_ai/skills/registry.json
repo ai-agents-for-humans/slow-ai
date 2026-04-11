@@ -1,0 +1,108 @@
+{
+  "skills": [
+    {
+      "name": "web_search",
+      "description": "Search the web for information using natural language queries. Returns summaries and sources from live web results.",
+      "tools": [
+        "perplexity_search"
+      ],
+      "source": "built-in",
+      "tags": [
+        "search",
+        "realtime",
+        "general"
+      ]
+    },
+    {
+      "name": "web_browse",
+      "description": "Navigate to and extract content from specific web URLs. Good for reading data portals, documentation, and landing pages.",
+      "tools": [
+        "web_browse"
+      ],
+      "source": "built-in",
+      "tags": [
+        "browse",
+        "web",
+        "scraping"
+      ]
+    },
+    {
+      "name": "code_execution",
+      "description": "Execute arbitrary Python code in an isolated subprocess. Use for data transformation, statistical analysis, geospatial processing, knowledge graph modeling, ontology engineering, RDF serialization, data visualization, document parsing, and any computation task. Always print() results to capture them.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "built-in",
+      "tags": [
+        "compute",
+        "python",
+        "analysis",
+        "transformation",
+        "modeling"
+      ]
+    },
+    {
+      "name": "document_parsing",
+      "description": "Parse and extract information from documents (PDFs, docs, etc.) using Python libraries like pypdf, docling, or BeautifulSoup.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "geospatial_processing",
+      "description": "Process and analyze geospatial data using Python libraries such as geopandas, shapely, and fiona.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "data_transformation",
+      "description": "Clean, normalize, and manipulate data structures using Python (pandas, polars).",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "image_analysis",
+      "description": "Perform image processing and computer vision tasks using libraries like OpenCV, Pillow, or scikit-image.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "statistical_analysis",
+      "description": "Run statistical tests, regressions, and data modeling using scipy, statsmodels, or scikit-learn.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "ontology_modeling_and_serialization",
+      "description": "Design and implement ontologies and knowledge graphs using rdflib, networkx, or owlready2.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "api_integration",
+      "description": "Interact with external REST or GraphQL APIs using Python's requests or httpx libraries.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    }
+  ]
+}

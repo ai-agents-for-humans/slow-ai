@@ -15,6 +15,8 @@ from slow_ai.models import (
     OrchestratorDecision,
     ProblemBrief,
     ResearchPlan,
+    SkillGap,
+    ViabilityDecision,
     SpawnRequest,
     WorkItem,
 )
@@ -23,7 +25,8 @@ os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
 # ── Context planner ───────────────────────────────────────────────────────────
 
-_CONTEXT_PLANNER_PROMPT = """
+def _context_planner_prompt(skill_registry_description: str) -> str:
+    return f"""
 You are a research planner. Given a problem brief, decompose the goal into a directed
 graph of work items — a blueprint of everything that needs to happen for the goal to
 be considered complete.
@@ -39,18 +42,32 @@ Guidelines:
 - Assign ids as "wi-1", "wi-2", etc.
 - The depends_on field on each WorkItem should mirror the edges
 
+For each work item, declare the skills it requires under required_skills.
+Express skills as abstract action types — not tool names. Examples:
+  web_search, web_browse, pdf_extraction, code_execution, database_query,
+  satellite_imagery_api, statistical_analysis, document_parsing, api_integration,
+  image_analysis, geospatial_processing, data_transformation
+
+Currently available skills:
+{skill_registry_description}
+
+IMPORTANT: You are NOT limited to these skills. If the ideal research methodology
+requires a skill that is not yet listed (e.g. "satellite_imagery_api" or
+"pdf_extraction"), declare it anyway. Undeclared skill requirements cannot be detected
+or resolved. Plan for the ideal approach — gaps will be surfaced and resolved separately.
+
 Return a ContextGraph.
 """
 
-_context_planner = Agent(
-    model="google-gla:gemini-3-flash-preview",
-    output_type=ContextGraph,
-    system_prompt=_CONTEXT_PLANNER_PROMPT,
-)
-
-
 async def run_context_planner(brief: ProblemBrief, run_id: str) -> ContextGraph:
-    result = await _context_planner.run(
+    from slow_ai.skills import SkillRegistry
+    skill_registry = SkillRegistry()
+    planner = Agent(
+        model="google-gla:gemini-3-flash-preview",
+        output_type=ContextGraph,
+        system_prompt=_context_planner_prompt(skill_registry.descriptions_for_prompt()),
+    )
+    result = await planner.run(
         f"Run ID: {run_id}\n\nProblem brief:\n{json.dumps(brief.model_dump(), indent=2)}"
     )
     graph: ContextGraph = result.output
