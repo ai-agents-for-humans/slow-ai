@@ -3,6 +3,7 @@ import os
 from pydantic_ai import Agent
 
 from slow_ai.config import settings
+from slow_ai.llm import ModelRegistry
 from slow_ai.models import ProblemBrief
 
 
@@ -26,8 +27,7 @@ Domain context: Will also be provided by the user, or you might have to infer th
 """
 
 interviewer = Agent(
-    model="google-gla:gemini-3-pro-preview",
+    model=ModelRegistry().for_task("interview"),
     output_type=str | ProblemBrief,
     system_prompt=SYSTEM_PROMPT,
-    
 )

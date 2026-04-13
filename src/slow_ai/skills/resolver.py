@@ -95,11 +95,13 @@ Several missing skills that only affect peripheral enrichment are "degraded".
 Always include clear reasoning referencing the brief's success criteria.
 """
 
-_viability_agent = Agent(
-    model="google-gla:gemini-3-flash-preview",
-    output_type=ViabilityDecision,
-    system_prompt=_VIABILITY_PROMPT,
-)
+def _make_viability_agent() -> Agent:
+    from slow_ai.llm import ModelRegistry
+    return Agent(
+        model=ModelRegistry().for_task("viability_assess"),
+        output_type=ViabilityDecision,
+        system_prompt=_VIABILITY_PROMPT,
+    )
 
 
 async def viability_assess(
@@ -160,7 +162,7 @@ async def viability_assess(
         f"Executable work item ids: {executable_item_ids}"
     )
 
-    result = await _viability_agent.run(prompt)
+    result = await _make_viability_agent().run(prompt)
     decision: ViabilityDecision = result.output
 
     # Structural overrides — the LLM cannot override these

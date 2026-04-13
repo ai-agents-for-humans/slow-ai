@@ -6,8 +6,10 @@ from datetime import datetime, timezone
 from pydantic_ai import Agent
 
 from slow_ai.config import settings
+from slow_ai.llm import ModelRegistry
 from slow_ai.models import AgentContext, EvidenceEnvelope, MemoryEntry, SpawnRequest
 from slow_ai.tools.code_execution import code_execution as _code_execution
+from slow_ai.tools.code_generation import generate_python_code
 from slow_ai.tools.perplexity import perplexity_search
 from slow_ai.tools.web_browse import web_browse
 
@@ -24,11 +26,11 @@ def _tool_descriptions(tools_available: list[str]) -> str:
             "browse(url): navigate to a URL and extract its full text content"
         ),
         "code_execution": (
-            "execute(code): run Python code in an isolated subprocess and return "
-            "stdout/stderr. Use for data transformation, statistical analysis, "
-            "geospatial processing, ontology/RDF work (rdflib), visualisation "
-            "(matplotlib), document parsing, or any computation. Always print() "
-            "results you want to capture."
+            "generate_code(task_description): generate Python code for a task using "
+            "a code-specialist LLM — returns the code and saves a .py file. "
+            "Always call this first to produce well-structured Python.\n"
+            "- execute(code): run Python code in an isolated subprocess and return "
+            "stdout/stderr. Always print() results you want to capture."
         ),
     }
     lines = [descriptions[t] for t in tools_available if t in descriptions]
@@ -85,7 +87,7 @@ async def run_specialist(
     """
 
     agent = Agent(
-        model="google-gla:gemini-3-pro-preview",
+        model=ModelRegistry().for_task("specialist_research"),
         output_type=EvidenceEnvelope,
         system_prompt=build_system_prompt(ctx),
     )
@@ -124,6 +126,32 @@ async def run_specialist(
             return json.dumps({"title": result.title, "text": result.text})
 
     if "code_execution" in ctx.tools_available:
+        @agent.tool_plain
+        async def generate_code(task_description: str) -> str:
+            """Generate Python code for the given task using a code-specialist LLM."""
+            generated = await generate_python_code(
+                task_description,
+                save_to_dir=ctx.artefacts_dir,
+            )
+            entry = MemoryEntry(
+                key=f"codegen_{uuid.uuid4().hex[:4]}",
+                value={
+                    "filename": generated.filename,
+                    "description": generated.description,
+                    "code_preview": generated.code[:300],
+                },
+                source="code_generation",
+                confidence=0.9,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                tokens_consumed=len(generated.code.split()) * 2,
+            )
+            ctx.memory.add(entry)
+            return json.dumps({
+                "code": generated.code,
+                "filename": generated.filename,
+                "description": generated.description,
+            })
+
         @agent.tool_plain
         async def execute(code: str) -> str:
             result = await _code_execution(code, working_dir=ctx.artefacts_dir)

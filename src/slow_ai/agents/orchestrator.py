@@ -6,6 +6,7 @@ from pydantic_ai import Agent
 
 from slow_ai.config import settings
 from slow_ai.execution.registry import AgentRegistry
+from slow_ai.llm import ModelRegistry
 from slow_ai.models import (
     AgentContext,
     AgentMemory,
@@ -63,7 +64,7 @@ async def run_context_planner(brief: ProblemBrief, run_id: str) -> ContextGraph:
     from slow_ai.skills import SkillRegistry
     skill_registry = SkillRegistry()
     planner = Agent(
-        model="google-gla:gemini-3-flash-preview",
+        model=ModelRegistry().for_task("context_planning"),
         output_type=ContextGraph,
         system_prompt=_context_planner_prompt(skill_registry.descriptions_for_prompt()),
     )
@@ -116,7 +117,7 @@ Return run_id and milestone_flags from the brief.
 """
 
 _orchestrator = Agent(
-    model="google-gla:gemini-3-flash-preview",
+    model=ModelRegistry().for_task("orchestration"),
     output_type=ResearchPlan,
     system_prompt=_SYSTEM_PROMPT,
 )
@@ -191,7 +192,7 @@ Always include reasoning explaining your assessment.
 """
 
 _assess_agent = Agent(
-    model="google-gla:gemini-3-flash-preview",
+    model=ModelRegistry().for_task("assessment"),
     output_type=OrchestratorDecision,
     system_prompt=_ASSESS_PROMPT,
 )

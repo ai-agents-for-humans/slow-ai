@@ -1,0 +1,68 @@
+{
+  "models": [
+    {
+      "name": "reasoning",
+      "model_id": "google-gla:gemini-3.1-pro-preview",
+      "provider": "google",
+      "strengths": [
+        "complex multi-step reasoning",
+        "planning and decomposition",
+        "assessment and judgment",
+        "ambiguity resolution"
+      ],
+      "use_for": [
+        "context_planning",
+        "orchestration",
+        "assessment",
+        "viability_assess"
+      ],
+      "notes": "Use for tasks requiring deep reasoning or high-stakes decisions."
+    },
+    {
+      "name": "fast",
+      "model_id": "google-gla:gemini-3-flash-preview",
+      "provider": "google",
+      "strengths": [
+        "fast inference",
+        "structured output",
+        "straightforward tasks",
+        "synthesis and summarisation"
+      ],
+      "use_for": [
+        "skill_synthesis",
+        "report_synthesis",
+        "interview"
+      ],
+      "notes": "Use for well-defined tasks where speed matters more than deep reasoning."
+    },
+    {
+      "name": "code",
+      "model_id": "google-gla:gemini-3.1-pro-preview",
+      "provider": "google",
+      "strengths": [
+        "Python code generation",
+        "algorithm design",
+        "data processing logic",
+        "scientific computing"
+      ],
+      "use_for": [
+        "code_generation"
+      ],
+      "notes": "Dedicated slot for code generation. Swap to a code-specialist model (e.g. Codestral, Qwen-Coder via Ollama) without changing agent code."
+    },
+    {
+      "name": "specialist",
+      "model_id": "google-gla:gemini-3.1-pro-preview",
+      "provider": "google",
+      "strengths": [
+        "research and investigation",
+        "evidence synthesis",
+        "tool use and multi-turn reasoning"
+      ],
+      "use_for": [
+        "specialist_research"
+      ],
+      "notes": "Model used for all specialist research agents."
+    }
+  ]
+}

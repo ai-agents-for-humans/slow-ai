@@ -1,9 +1,9 @@
 # Slow AI
 
-A deliberate, inspectable multi-agent workflow system. The user is interviewed to produce
-a structured problem brief, which is handed to a planner and a fleet of specialist agents
-that execute in parallel, committing all artefacts to a git-backed audit trail before
-synthesising a final report. The process templates change per domain. The principles do not.
+A deliberate, inspectable multi-agent workflow system built on distributed systems
+principles. Provenance over pace — every agent decision, every path taken or skipped,
+every piece of evidence is recorded, versioned, and auditable. Domain-agnostic by
+design. The process templates change. The principles do not.
 
 ---
 
@@ -12,272 +12,125 @@ synthesising a final report. The process templates change per domain. The princi
 - [Philosophy](#philosophy)
 - [Architecture Overview](#architecture-overview)
 - [Pipeline Stages](#pipeline-stages)
+- [Skills Registry](#skills-registry)
+- [Model Registry — Bring Your Own Model](#model-registry--bring-your-own-model)
+- [Viability Gate](#viability-gate)
 - [Agents](#agents)
-- [Data Models](#data-models)
 - [Tools](#tools)
+- [Data Models](#data-models)
 - [Execution Layer](#execution-layer)
 - [UI](#ui)
 - [Configuration](#configuration)
 - [Running the App](#running-the-app)
-- [Tests](#tests)
 - [Status](#status)
-- [Open Work](#open-work)
+- [Roadmap](#roadmap)
 
 ---
 
 ## Philosophy
 
-Slow AI is a deliberate, inspectable multi-agent workflow system. The name is not about
-pace — it is about provenance. Every decision an agent makes, every path it takes or
-skips, every piece of evidence it collects is recorded, versioned, and inspectable. You
-can always answer the question: *how did we get here?*
-
----
-
-### The core idea
+Slow AI is a deliberate, inspectable multi-agent workflow system. The name is not
+about pace — it is about provenance. Every decision an agent makes, every path it
+takes or skips, every piece of evidence it collects is recorded, versioned, and
+inspectable. You can always answer the question: *how did we get here?*
 
 Most agentic systems optimise for getting to an answer fast. Slow AI optimises for
-understanding what happened and why. Speed matters. But in any domain where the quality
-of your outputs determines the quality of everything built on top of them — reliability,
-traceability, and trust matter more.
+understanding what happened and why. Speed matters. But in any domain where the
+quality of your outputs determines the quality of everything built on top of them —
+reliability, traceability, and trust matter more.
 
 The guiding principle is borrowed from distributed systems: **Slow AI shows its work.**
 
-Slow AI is domain-agnostic. The same system that runs a data research workflow runs a
-code review workflow, a due diligence workflow, a competitive analysis workflow, or any
-other multi-step process that benefits from specialist agents, structured evidence, and a
-permanent audit trail. The process templates change. The principles do not.
+Slow AI is domain-agnostic. The same system that runs a data research workflow runs
+a due diligence workflow, a regulatory compliance review, a competitive analysis, or
+any other multi-step investigation that benefits from specialist agents, structured
+evidence, and a permanent audit trail.
 
 ---
 
 ### Why distributed systems, not AI frameworks
 
-Agents are distributed systems on steroids. The failure modes are identical — runaway
-processes, silent failures, duplicate side effects, uncontrolled costs, cascading errors.
-The solutions are also identical, and they have existed for thirty to forty years.
+Agents are distributed systems. The failure modes are identical — runaway processes,
+silent failures, duplicate side effects, uncontrolled costs, cascading errors. The
+solutions are also identical, and they have existed for thirty to forty years.
 
 Slow AI is built on five principles from distributed systems:
 
-**Blast radius** — every agent operates with minimum permissions. Read-only by default.
-Write access is explicit and justified. The worst-case action of every tool is evaluated
-before the tool is granted.
+**Blast radius** — every agent operates with minimum permissions. Tools are granted
+explicitly based on the skills required by the work item.
 
-**Circuit breakers** — a watchdog observer knows about every agent. When a threshold is
-breached — time, tokens, cost, destructive action — the circuit opens. The agent stops.
-The state is preserved. A human is informed.
+**Circuit breakers** — a watchdog observer knows about every agent. When a threshold
+is breached — time, tokens, cost — the circuit opens. The agent stops. The state is
+preserved.
 
 **Byzantine fault tolerance** — agents do not return verdicts. They return evidence
-envelopes. An envelope contains proof of the work done: sources checked, items found,
-coverage, confidence score. If the proof is absent or insufficient, the verdict is
-meaningless regardless of the status code.
+envelopes. An envelope contains proof of the work done: sources checked, findings,
+confidence score. The verdict is only as good as the proof behind it.
 
-**Idempotency** — every agent action is safe to run twice. Execution state lives outside
-the agents, in a git repository. If a run fails at any point, it resumes from the last
-committed milestone. Completed work is never repeated.
+**Idempotency** — every agent action is safe to run twice. Execution state lives
+outside the agents, in a git repository. If a run fails at any point, it resumes
+from the last committed milestone.
 
 **MAPE-K** — Monitor, Analyse, Plan, Execute, with a shared Knowledge base. The
-orchestrator plans. Specialists execute. An observer watches everything. The git
-repository is the knowledge base — the permanent, versioned record of what every agent
-in every run knew and did.
-
----
-
-### Human in the loop
-
-Human involvement is a first-class design primitive in Slow AI — not an exception handler.
-
-The orchestrator can decide at any milestone that the run should not continue until a
-human has reviewed and approved. This is not a failure state. It is a deliberate
-checkpoint — the system recognising that a decision requires human judgement before
-agents proceed.
-
-Three things make this work cleanly:
-
-**Git as the inspection surface.** Every artefact produced by every agent up to that
-point is committed to the run's git repository. A human can open the repository, read
-every evidence envelope, inspect every memory store, trace every decision, and understand
-exactly what the agents did and why — before deciding whether to continue, redirect, or
-stop.
-
-**Structured pause, not a crash.** When the orchestrator requests human review, the run
-state is fully preserved. The agent registry, all milestone commits, all memory stores —
-everything is intact. When the human approves, the run resumes from exactly where it
-paused. Nothing is lost, nothing is re-run unnecessarily.
-
-**Granular intervention.** A human interacting with a paused run is not limited to
-approve or reject. Because every artefact is a versioned file in git, a human can edit
-an artefact directly — correcting a dataset candidate, updating a search query, removing
-a bad result — and the run resumes with the corrected state. The human edit is itself a
-commit. The intervention is part of the audit trail.
-
-This model also supports asynchronous human review. The orchestrator does not block a
-thread waiting for a human. It pauses the run, emits a notification, and picks up when
-the human responds — whether that is five minutes or five days later. Long-running
-workflows that span multiple human review cycles are a natural use case, not an edge case.
-
----
-
-### The agent model
-
-Slow AI uses a heterogeneous agent model. Agents are not differentiated only by skill —
-they are differentiated by memory.
-
-Three things are independent:
-
-- **Agent type** — what the agent knows how to do (role, tools, expertise)
-- **Agent memory** — what this specific instance has accumulated in this run
-- **Agent task** — the goal right now, which may be a decomposition of a larger goal
-
-The same agent type can be instantiated many times in a single run, each carrying
-different accumulated memory. Two instances of the same specialist type, working on
-different sub-problems, build separate knowledge and return separate evidence. Same type.
-Different instance. Different knowledge. Both exist simultaneously. Both contribute to
-the same run.
-
-Context size is a first-class constraint. When a task is too large for a single agent's
-context budget, it is decomposed into sub-tasks. Each child agent gets a bounded context
-budget, does its work, writes its memory, and the parent synthesises. The decomposition
-tree is stored explicitly in git. Every split is observable and auditable.
-
----
-
-### The control plane
-
-The orchestrator is the control plane. It does not micromanage what agents do — but it
-always knows what exists, who spawned whom, and what state everything is in.
-
-Agents can spawn workers dynamically mid-execution. When a specialist agent completes
-part of its work and determines that sub-tasks should run in parallel, it sends a
-`SpawnRequest` to the orchestrator. The orchestrator registers the worker with the correct
-lineage before it runs. The control plane is always ahead of the workload.
-
-This is the Kubernetes pattern applied to agent systems. Every spawn is a registration
-event. The `AgentRegistry` is the API server. No agent runs without being known. The full
-agent tree — with lineage, status, token usage, and memory paths — is committed to git at
-every milestone and visualised as a live DAG in the interface.
-
----
-
-### Process templates
-
-A process is a reusable skeleton of milestone-ordered steps, where each step is bound to
-skills at runtime based on the domain and the problem brief.
-
-The steps of a research process are consistent regardless of what is being researched.
-The skills that fill each step — which APIs to call, which tools to use, which validation
-logic to apply — are domain-specific. A process template separates these two concerns.
-
-This means the same orchestration logic that runs a data research workflow can run a
-regulatory review workflow, a literature survey, a supplier evaluation, or any other
-structured investigation. New domains are added by registering new skills, not by
-rewriting the process.
-
-Every run of a process is a data point. Which skill bindings produced better evidence?
-Which step ordering reduced cost? Which agent configurations were most reliable? Over
-time, the system learns which processes work and improves them.
-
----
-
-### Git as the execution record
-
-Every run is a git repository. Every milestone is a commit. Every artefact — evidence
-envelopes, memory stores, agent outputs, registry snapshots, human edits — is a versioned
-file.
-
-The git repository is simultaneously:
-
-- The audit trail — what happened, in order, with full diffs
-- The recovery point — resume from the last commit if a run fails
-- The human review surface — inspect any artefact at any point before deciding to continue
-- The learning dataset — compare runs, compare paths, compare agent decisions over time
-
-Paths not taken are also committed. If a branch was considered and skipped — API timeout,
-missing skill, cost ceiling, stop verdict, human rejection — that decision is recorded.
-A run's git history is not just a record of what succeeded. It is a record of everything
-that was attempted and why each outcome happened.
+orchestrator plans. Specialists execute. The git repository is the knowledge base —
+the permanent, versioned record of what every agent in every run knew and did.
 
 ---
 
 ### The context graph
 
-Before any agent is created, the orchestrator produces a **context graph** — a directed
-graph of work items that represents a complete decomposition of the goal.
+Before any agent is created, the system produces a **context graph** — a directed
+graph of work items representing a complete decomposition of the goal.
 
-Each node in the context graph is a piece of work: a sub-goal, a question that needs
-answering, a domain to investigate. Each edge is a dependency. The graph is the blueprint
-— it captures what *needs to happen* to reach success, independently of how it will be
-executed.
+Each node is a piece of work with a name, description, success criteria, declared
+dependencies, and — critically — **the skills required to execute it**. Each edge
+is a dependency. The graph is the blueprint: it captures what *needs to happen*
+independently of how it will be executed.
 
-Only after the context graph is finalised does the orchestrator assign agents to nodes.
-An agent is bound to a work item, not the other way around. This separation matters
-because it keeps the plan honest — the shape of the problem is declared before the
-machinery is engaged.
+Only after the context graph is finalised does the orchestrator assign agents to
+nodes. This two-step orchestration gives properties a flat plan cannot:
 
-This two-step orchestration gives the system properties that a single flat plan cannot:
-
-**Completeness visibility.** Every work item in the context graph must be addressed for
-the goal to be considered met. Gaps are surfaced explicitly: a work item with no
-associated agent means an aspect of the goal was never attempted. A work item whose
-agent returned low confidence means a gap in coverage, not a silent absence.
-
-**Coverage over time.** Because the context graph is static and stored in git, two runs
-against the same brief produce two context graphs that can be compared directly. Same
-nodes, different agents, different results. The context graph becomes the unit of
-comparison across runs.
-
-**Replayability.** A context graph can be re-executed with a different agent strategy —
-different tools, different models, different specialist assignments — without changing the
-problem definition. The graph expresses the goal; the agents are a pluggable execution
-layer against it.
-
-**Retrospective clarity.** After a run, the UI shows two graphs: the context graph
-(what needed to happen) and the agent DAG (what actually ran, with lineage and
-artefacts). The overlay — which agents covered which work items — gives a complete picture
-of the run that neither graph provides alone.
-
-The context graph is not a memory. It stores no agent state, no findings, no evidence.
-It is a blueprint. Blueprints do not change when the building is constructed.
+- **Completeness visibility** — every work item must be addressed. Gaps surface
+  explicitly rather than silently.
+- **Skill-aware planning** — the context planner declares what skills each work
+  item needs, including skills that do not yet exist. Gaps are caught before a
+  single agent fires.
+- **Replayability** — a context graph can be re-executed with different agents,
+  different models, or different tools without changing the problem definition.
+- **Retrospective clarity** — the UI shows two graphs: the context graph (what
+  needed to happen) and the agent DAG (what actually ran). The overlay shows
+  which agents covered which work items.
 
 ---
 
-### The interview
+### The accumulation flywheel
 
-Workflow quality is bounded by problem definition quality. Most agentic systems start
-with a text box. Slow AI starts with a conversation.
-
-The interview agent is a consultant, not a form. It asks one question at a time. It
-pushes back on vagueness. It surfaces assumptions the user did not know they were making.
-It does not proceed until the user confirms a precise, structured problem brief.
-
-The confirmed brief is the first commit in the run's git repository. It is the contract
-that the entire workflow runs against. Every agent's task, every milestone flag, every
-evidence requirement traces back to it.
+Every run makes the system more capable. When skill gaps are detected before
+execution, a synthesizer agent attempts to resolve them by mapping missing skills
+to existing tools. Synthesized skills are written back to the registry immediately
+and persist across runs. The 50th run of a workflow is fundamentally more capable
+than the first — not because a model was retrained, but because the system learned
+what it needs and built the skills to do it.
 
 ---
 
-### What Phase 3 will add
+### Human in the loop
 
-The current system runs workflows against a fixed set of tool capabilities. Phase 3
-introduces:
+Human involvement is a first-class design primitive — not an exception handler.
 
-**Temporal** — durable execution. If the process crashes at any depth of the agent tree,
-Temporal resumes from the last committed registry state. Workers that completed are not
-re-run.
+The orchestrator can decide at any milestone that the run should pause for human
+review. The full run state is preserved. Every artefact produced up to that point
+is committed and inspectable. When the human approves, the run resumes exactly
+where it paused.
 
-**Observer operator** — a separate process that watches the `AgentRegistry` in real time.
-Detects runaway spawning, loops, cost ceiling breaches, confidence scores dropping across
-a subtree. Signals the orchestrator to prune, pause, or escalate — including triggering
-human-in-the-loop checkpoints automatically when anomalies are detected.
+Three things make this work:
 
-**Skills repository** — skills are registered artefacts with descriptions, typed I/O
-schemas, performance history, and blast radius classifications. New skills can be added
-without redeploying the system. GitHub repositories that follow the skill contract can be
-pulled, validated, and registered at runtime. Agents that repeatedly fail on a task type
-signal that a new skill is needed.
-
-**Agent repository** — agent types are registered with their prompts, expertise lists,
-and track records. The system learns which agent configurations produce better evidence
-envelopes over time. Same agent type, better context — the knowledge compounds.
+- **Git as the inspection surface** — every artefact, every evidence envelope,
+  every agent memory is a versioned file. A human can read the full record before
+  deciding whether to continue, redirect, or stop.
+- **Structured pause, not a crash** — nothing is lost, nothing is re-run.
+- **Granular intervention** — a human can edit artefacts directly in git. The
+  human edit is itself a commit and part of the audit trail.
 
 ---
 
@@ -285,14 +138,9 @@ envelopes over time. Same agent type, better context — the knowledge compounds
 
 Slow AI is not slow. It is deliberate.
 
-The speed that AI gives us is only as valuable as the reliability underneath it. Just
-because we can move fast does not mean we should forget everything we learned about
-building machines that last.
-
-This is the time to forge it all together — the new and the proven — and do what we
-humans do best.
-
-*Create.*
+The speed that AI gives us is only as valuable as the reliability underneath it.
+Just because we can move fast does not mean we should forget everything we learned
+about building machines that last.
 
 *Trust no node. Trust is built. Trust is designed.*
 
@@ -300,110 +148,273 @@ humans do best.
 
 ## Architecture Overview
 
-The system has two independent planes: a **UI plane** (Streamlit) and an **execution
-plane** (a subprocess per run). They share no memory and no event loops — the only
-contract between them is a directory of plain JSON files written by the runner and
-polled by the UI.
+Two independent planes sharing nothing except files on disk:
 
 ```mermaid
 graph TD
     subgraph UI ["UI plane — main.py (Streamlit)"]
         User["User"]
         IV["Interviewer Agent"]
-        Fragment["@st.fragment\npoll every 2 s"]
-        DAG["streamlit-flow DAG\n(live + interactive)"]
+        Fragment["@st.fragment poll every 5s"]
+        DAG["Context Graph + Agent DAG\n(live, interactive)"]
         Report["Report view"]
     end
 
     subgraph Run ["Execution plane — subprocess per run"]
+        CP["Context Planner"]
+        VG["Viability Gate\n(resolve + synthesize + assess)"]
         ORC["Orchestrator"]
-        S1["Specialist 1"]
-        S2["Specialist 2"]
-        SN["Specialist N"]
-        W["Worker\n(budget overflow)"]
+        SP["Specialists (parallel)"]
+        W["Workers (budget overflow)"]
         SYN["Synthesizer"]
     end
 
     subgraph Store ["runs/{run_id}/"]
-        LIVE["live/\nstatus · dag · artefacts · log"]
-        GIT["git commits\n[init] [M0] [M1] [M2]"]
+        LIVE["live/\nstatus · dag · context_graph\nviability · synthesis · log"]
+        GIT["git commits\n[init][M-1-context][M-1-viability]\n[M0-plan][M1-wave]...[M-final]"]
+    end
+
+    subgraph Registries ["Registries"]
+        SR["Skills Registry\nskills/registry.json"]
+        MR["Model Registry\nllm/registry.json"]
     end
 
     User -->|interview| IV
     IV -->|ProblemBrief| User
     User -->|Start Research| Fragment
-
-    Fragment -->|subprocess.Popen| ORC
-    ORC -->|delegates| S1 & S2 & SN
-    S1 & S2 & SN -->|SpawnRequest| W
-    S1 & S2 & SN & W -->|envelopes| SYN
+    Fragment -->|subprocess.Popen| CP
+    CP -->|ContextGraph| VG
+    VG -->|reads| SR
+    VG -->|go/degraded/no_go| ORC
+    ORC -->|delegates waves| SP
+    SP -->|SpawnRequest| W
+    SP & W -->|envelopes| SYN
     SYN -->|ResearchReport| GIT
-
-    ORC & S1 & S2 & SN & W & SYN -->|write on every\nstatus change| LIVE
-    ORC & S1 & S2 & SN & W & SYN -->|milestone commits| GIT
-
-    Fragment -->|read every 2 s| LIVE
+    CP & VG & ORC & SP & W & SYN -->|write live files| LIVE
+    CP & VG & ORC & SP & W & SYN -->|milestone commits| GIT
+    ORC & SP -->|reads| MR
+    Fragment -->|reads every 5s| LIVE
     Fragment -->|renders| DAG
-    DAG -->|completed →| Report
+    DAG -->|completed| Report
     Report -->|reads| GIT
 ```
+
+**Key contract:** the execution plane writes plain JSON to `runs/{run_id}/live/`.
+Streamlit polls those files via `@st.fragment(run_every="5s")`. No shared state,
+no threading, no asyncio coupling. Any future UI (React, CLI) can replace Streamlit
+without touching the execution plane.
 
 ---
 
 ## Pipeline Stages
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant UI as Streamlit UI
-    participant IV as Interviewer
-    participant SUB as Research subprocess
-    participant ORC as Orchestrator
-    participant SP as Specialists (parallel)
-    participant SYN as Synthesiser
-    participant LIVE as live/ files
-    participant GIT as git commits
-
-    U->>UI: start session
-    UI->>IV: run_sync (in-process)
-    loop interview
-        U->>UI: answer
-        IV-->>UI: next question or ProblemBrief
-    end
-    U->>UI: Confirm & Save
-
-    U->>UI: Start Research
-    UI->>SUB: subprocess.Popen (run_id)
-    Note over UI,SUB: UI is now free — no blocking
-
-    SUB->>LIVE: status = initializing
-    SUB->>ORC: run_orchestrator(brief)
-    ORC-->>SUB: ResearchPlan
-    SUB->>GIT: commit [M0-plan]
-    SUB->>LIVE: dag + status = running
-
-    SUB->>SP: asyncio.gather (all specialists)
-    loop each specialist
-        SP->>LIVE: dag (status = running)
-        SP-->>SP: search + browse
-        SP-->>SP: SpawnRequest → worker
-        SP->>LIVE: dag + artefacts (status = completed)
-    end
-    SUB->>GIT: commit [M1-source-discovery]
-
-    SUB->>SYN: brief + all envelopes
-    SYN-->>SUB: ResearchReport
-    SUB->>GIT: commit [M2-final-report]
-    SUB->>LIVE: status = completed
-
-    loop every 2 s (st.fragment)
-        UI->>LIVE: read status + dag + artefacts
-        UI-->>U: live DAG (streamlit-flow)
-    end
-    Note over UI,U: on status=completed → st.rerun(scope="app")
-    UI->>GIT: read report.json
-    UI-->>U: interactive DAG + datasets + summary + git log
 ```
+Interview → ProblemBrief confirmed
+  │
+  ▼
+run_context_planner(brief)                    ← reasoning model
+  │  Produces ContextGraph
+  │  Each WorkItem declares required_skills
+  │  Committed as [M-1-context]
+  ▼
+Viability Gate
+  │  1. resolve_skills() — structural BFS, finds gaps
+  │  2. synthesize_skills() — LLM maps gaps to existing tools
+  │     Writes new skills to registry.json immediately
+  │  3. resolve_skills() — re-run with expanded registry
+  │  4. viability_assess() — semantic go/degraded/no_go decision
+  │  Committed as [M-1-viability]
+  │
+  ├── no_go (coverage = 0%) → write capability_checkpoint.json
+  │                            status = blocked_on_capabilities
+  │                            STOP
+  │
+  └── go / degraded → build working_graph (executable items only)
+  │
+  ▼
+run_orchestrator(brief, working_graph, ready_items)   ← reasoning model
+  │  Produces ResearchPlan (wave 1 specialists)
+  │  Each specialist gets tools resolved from required_skills
+  │  Committed as [M0-plan]
+  ▼
+┌──────────────────────────────────────────────────────┐
+│  WAVE LOOP (max 5 waves, circuit breaker)            │
+│                                                      │
+│  Run specialists in parallel                         │
+│    web_search → perplexity_search tool               │
+│    web_browse → web_browse tool                      │
+│    code_execution → generate_code() + execute()      │
+│  Commit [M{N}-wave] — envelopes + artefacts + .py    │
+│                                                      │
+│  orchestrator_assess(brief, graph, envelopes, ready) │
+│  Commit [M{N}-assessment]                            │
+│                                                      │
+│  synthesize → exit                                   │
+│  spawn_specialists → next wave                       │
+│  escalate_to_human → checkpoint + pause              │
+└──────────────────────────────────────────────────────┘
+  │
+  ▼
+Synthesizer → ResearchReport
+Committed as [M-final-report]
+status = completed
+```
+
+---
+
+## Skills Registry
+
+`src/slow_ai/skills/registry.json`
+
+Skills are abstract abilities. Tools are concrete implementations. Work items declare
+the skills they require. The registry maps skills to the tools that implement them.
+
+```json
+{
+  "skills": [
+    {
+      "name": "web_search",
+      "description": "Search the web using natural language queries.",
+      "tools": ["perplexity_search"],
+      "source": "built-in"
+    },
+    {
+      "name": "code_execution",
+      "description": "Execute arbitrary Python in an isolated subprocess.",
+      "tools": ["code_execution"],
+      "source": "built-in"
+    },
+    {
+      "name": "statistical_analysis",
+      "description": "Statistical tests and modelling using scipy/pandas.",
+      "tools": ["code_execution"],
+      "source": "synthesized"
+    }
+  ]
+}
+```
+
+**Skill resolution at dispatch time:** `work_item.required_skills` → registry →
+`tools_for_skills()` → `AgentContext.tools_available`. Agents only receive the
+tools their work item actually needs.
+
+**Skill synthesis:** when a skill gap is detected, the synthesizer agent attempts
+to map the missing skill to existing tools. Synthesized entries are written back
+to `registry.json` immediately and persist across runs. Over time the registry
+accumulates institutional knowledge about what the system knows how to do.
+
+**Adding external skills:** add a JSON entry to `registry.json` with the skill
+name, description, and the tools that implement it. No code changes required.
+Future support for pulling skill definitions from open source repositories
+(openclaw, nemoclaw, opencode) without redeploying.
+
+---
+
+## Model Registry — Bring Your Own Model
+
+`src/slow_ai/llm/registry.json`
+
+Every agent resolves its model from the registry by task type. No model IDs are
+hardcoded in agent code.
+
+```json
+{
+  "models": [
+    {
+      "name": "reasoning",
+      "model_id": "google-gla:gemini-3.1-pro-preview",
+      "provider": "google",
+      "use_for": ["context_planning", "orchestration", "assessment", "viability_assess"]
+    },
+    {
+      "name": "fast",
+      "model_id": "google-gla:gemini-3-flash-preview",
+      "provider": "google",
+      "use_for": ["skill_synthesis", "report_synthesis", "interview"]
+    },
+    {
+      "name": "code",
+      "model_id": "google-gla:gemini-3.1-pro-preview",
+      "provider": "google",
+      "use_for": ["code_generation"]
+    }
+  ]
+}
+```
+
+**Supported provider types:**
+
+| Provider | Format | Notes |
+|---|---|---|
+| `google` | `google-gla:model-id` | Native pydantic_ai Google provider |
+| `openai` | `openai:model-id` | Native pydantic_ai OpenAI provider |
+| `anthropic` | `anthropic:model-id` | Native pydantic_ai Anthropic provider |
+| `openai_compatible` | any model name | Ollama, vLLM, LM Studio, any custom endpoint |
+
+**Running a local model (e.g. Qwen via Ollama):**
+
+```json
+{
+  "name": "qwen_code",
+  "model_id": "qwen2.5-coder:7b",
+  "provider": "openai_compatible",
+  "base_url": "http://localhost:11434/v1",
+  "api_key": "ollama",
+  "use_for": ["code_generation"]
+}
+```
+
+Add the entry, restart the app. No code changes. The code generation slot
+immediately routes to Qwen running on your own infrastructure.
+
+**Current task → model routing:**
+
+| Task | Model tier | Why |
+|---|---|---|
+| `context_planning` | reasoning | Complex goal decomposition |
+| `orchestration` | reasoning | Wave planning, dependency analysis |
+| `assessment` | reasoning | Coverage evaluation, next-wave decisions |
+| `viability_assess` | reasoning | Semantic gap judgment |
+| `specialist_research` | reasoning | Multi-turn research with tool use |
+| `code_generation` | code | Dedicated slot — swap to specialist without touching agents |
+| `skill_synthesis` | fast | Straightforward skill-to-tool mapping |
+| `report_synthesis` | fast | Structured summarisation |
+| `interview` | fast | Conversational brief elicitation |
+
+---
+
+## Viability Gate
+
+Before a single wave fires, the viability gate checks whether the planned work can
+actually be executed with the skills currently in the registry.
+
+```
+resolve_skills(graph, registry)
+  → gap items (direct missing skills)
+  → all_blocked items (gap items + transitive dependents via BFS)
+  → SkillGap objects (per missing skill, with downstream impact)
+
+if gaps:
+    synthesize_skills(gaps, registry)
+      → synthesized skills written to registry.json immediately
+      → needs_new_tool: GitHub search queries for unresolvable gaps
+    resolve_skills(graph, registry)   ← re-run with expanded registry
+
+viability_assess(brief, graph, executable_ids, blocked_ids, gaps)
+  → "go"       — all skills available
+  → "degraded" — some gaps remain, but sufficient work can proceed
+                 blocked items committed to paths/not_taken/
+                 working_graph filtered to executable items only
+  → "no_go"    — coverage = 0%, nothing can execute, run aborted
+```
+
+**Hard rule:** if any items are executable (coverage > 0%), the system always runs
+in at least `degraded` mode. Partial results are more useful than no results.
+`no_go` only fires when literally nothing can execute.
+
+The viability decision and synthesis results are committed to git as
+`[M-1-viability]` — the gap record accumulates across runs and becomes a durable
+capability backlog.
 
 ---
 
@@ -412,178 +423,80 @@ sequenceDiagram
 ### Interviewer
 | Property | Value |
 |---|---|
-| Model | `gemini-3-pro-preview` |
+| Model | `fast` (from registry) |
 | Output | `str \| ProblemBrief` |
 | File | `src/slow_ai/agents/interviewer.py` |
 
-Conducts a structured conversation, asking one question at a time, pushing back on vague
-answers, surfacing assumptions, and presenting a complete brief for user confirmation before
-returning a `ProblemBrief`.
+Conducts a structured conversation — one question at a time, pushing back on
+vagueness, surfacing assumptions — until a complete `ProblemBrief` is confirmed.
+The brief is the first git commit and the contract the entire run executes against.
+
+---
+
+### Context Planner
+| Property | Value |
+|---|---|
+| Model | `reasoning` (from registry) |
+| Output | `ContextGraph` |
+| File | `src/slow_ai/agents/orchestrator.py` |
+
+Decomposes the brief into a directed graph of work items. Each item declares
+`required_skills` — the abstract abilities needed to execute it. The planner is
+given the current skill registry as context but is explicitly instructed to plan
+for the ideal approach, declaring skills that don't exist yet. Gaps surface in the
+viability gate rather than being silently omitted.
 
 ---
 
 ### Orchestrator
 | Property | Value |
 |---|---|
-| Model | `gemini-2.0-flash` |
+| Model | `reasoning` (from registry) |
 | Output | `ResearchPlan` |
 | File | `src/slow_ai/agents/orchestrator.py` |
 
-Reads the `ProblemBrief` and decides which specialist roles are needed and what their
-individual tasks are. For earth observation briefs it typically assigns:
-
-| Specialist role | Covers |
-|---|---|
-| `copernicus_specialist` | Sentinel-2, Sentinel-1 SAR, ESA Open Access Hub |
-| `nasa_earthdata_specialist` | MODIS, Landsat, SRTM, NASA CMR API |
-| `google_earth_engine_specialist` | GEE catalogue, STAC APIs |
-| `open_data_specialist` | national agencies, data.gov, OpenAfrica |
-
-Context budgets are set per specialist (3 000–6 000 tokens) based on task complexity.
+Assigns specialist agents to the current wave's ready work items (those whose
+upstream dependencies are satisfied). Dependency ordering is enforced in code via
+`_ready_work_items(graph, covered)` — not left to the LLM.
 
 ---
 
 ### Specialist
 | Property | Value |
 |---|---|
-| Model | `gemini-3-pro-preview` |
+| Model | `specialist_research` (from registry) |
 | Output | `EvidenceEnvelope` |
 | File | `src/slow_ai/agents/specialist.py` |
 
-Each specialist is built dynamically from an `AgentContext`. It has two tools:
+Built dynamically from an `AgentContext`. Receives only the tools that correspond
+to its work item's required skills. Available tools:
 
-- `search(query)` — calls Perplexity; returns answer + citation URLs
-- `browse(url)` — fetches and strips a web page; returns clean text
+| Tool | Registered when |
+|---|---|
+| `search(query)` | skill includes `perplexity_search` |
+| `browse(url)` | skill includes `web_browse` |
+| `generate_code(description)` | skill includes `code_execution` |
+| `execute(code)` | skill includes `code_execution` |
 
-Workflow per specialist:
-1. Formulate search query from task goal + brief constraints.
-2. Call `search()`, collect citation URLs.
-3. Call `browse()` on top URLs, extract dataset details.
-4. Store findings as `MemoryEntry` objects with confidence scores.
-5. If token budget is running low, emit a `SpawnRequest` to create a focused worker.
-6. Return an `EvidenceEnvelope` with all datasets found, overall confidence, and a verdict
-   (`continue` / `stop` / `escalate`).
+For code execution work items, the specialist calls `generate_code()` first (which
+uses the `code` model to produce well-structured Python and saves the `.py` file to
+the artefacts directory), then `execute()` to run it. Generated code files are
+committed to git alongside the outputs they produced.
 
-All specialists run concurrently via `asyncio.gather()`.
+Returns an `EvidenceEnvelope` with proof, verdict, confidence, and artefact
+filenames. All specialists in a wave run concurrently via `asyncio.gather()`.
 
 ---
 
-### Synthesiser (inline agent in runner)
+### Synthesizer
 | Property | Value |
 |---|---|
-| Model | `gemini-2.0-flash` |
+| Model | `report_synthesis` (from registry) |
 | Output | `ResearchReport` |
 | File | `src/slow_ai/research/runner.py` |
 
-Receives all `EvidenceEnvelope` objects, deduplicates datasets, scores each on coverage,
-resolution, licence, and completeness, ranks them, and writes a summary.
-
----
-
-## Data Models
-
-```mermaid
-classDiagram
-    class ProblemBrief {
-        +str goal
-        +str domain
-        +dict constraints
-        +list unknowns
-        +list success_criteria
-        +list milestone_flags
-        +list excluded_paths
-    }
-
-    class AgentTask {
-        +str task_id
-        +str agent_type
-        +str goal
-        +int context_budget
-        +str status
-    }
-
-    class AgentMemory {
-        +str agent_id
-        +list~MemoryEntry~ entries
-        +int total_tokens
-        +int context_budget
-        +add()
-        +budget_remaining()
-        +should_decompose()
-    }
-
-    class MemoryEntry {
-        +str key
-        +Any value
-        +str source
-        +float confidence
-        +int tokens_consumed
-    }
-
-    class AgentContext {
-        +str agent_id
-        +str role
-        +list expertise
-        +AgentTask task
-        +AgentMemory memory
-        +dict constraints
-        +list tools_available
-    }
-
-    class SpawnRequest {
-        +str requested_by
-        +str agent_type
-        +str goal
-        +int context_budget
-        +list tools
-        +str priority
-    }
-
-    class EvidenceEnvelope {
-        +str agent_id
-        +str role
-        +str status
-        +dict proof
-        +str verdict
-        +float confidence
-        +int cost_tokens
-        +list artefacts
-        +list workers_spawned
-    }
-
-    class ResearchPlan {
-        +str run_id
-        +list~AgentContext~ specialists
-        +list milestone_flags
-    }
-
-    class DatasetCandidate {
-        +str name
-        +str source
-        +str url
-        +float coverage_pct
-        +str time_range
-        +str resolution
-        +str license
-        +float quality_score
-        +str notes
-    }
-
-    class ResearchReport {
-        +str run_id
-        +str brief_goal
-        +list~DatasetCandidate~ datasets
-        +list paths_not_taken
-        +str summary
-        +str generated_at
-    }
-
-    AgentContext "1" --> "1" AgentTask
-    AgentContext "1" --> "1" AgentMemory
-    AgentMemory "1" --> "*" MemoryEntry
-    ResearchPlan "1" --> "*" AgentContext
-    ResearchReport "1" --> "*" DatasetCandidate
-```
+Receives all evidence envelopes, deduplicates findings, scores them on quality,
+ranks them, and writes a summary. Committed as `[M-final-report]`.
 
 ---
 
@@ -592,162 +505,142 @@ classDiagram
 ### `perplexity_search(query) → PerplexityResult`
 `src/slow_ai/tools/perplexity.py`
 
-Calls the Perplexity `sonar` model. Returns a synthesised answer and a list of citation
-URLs. If the API returns no citations, URLs are extracted from the answer text as a
-fallback.
+Calls the Perplexity `sonar` model. Returns a synthesised answer and citation URLs.
 
 ### `web_browse(url, max_chars=4000) → BrowseResult`
 `src/slow_ai/tools/web_browse.py`
 
-Fetches the URL with `httpx`, strips navigation, scripts, and boilerplate with
-`BeautifulSoup`, and returns up to 4 000 characters of body text.
+Fetches a URL with `httpx`, strips boilerplate with `BeautifulSoup`, returns up to
+4 000 characters of body text.
+
+### `code_execution(code, timeout=30, working_dir=None) → dict`
+`src/slow_ai/tools/code_execution.py`
+
+Runs Python code in an isolated subprocess with a configurable timeout. `working_dir`
+is set to the agent's artefacts directory so generated files land in the correct
+location for git commit. Returns `{success, stdout, stderr}`.
+
+### `generate_python_code(task_description, context, save_to_dir) → GeneratedCode`
+`src/slow_ai/tools/code_generation.py`
+
+Calls the `code_generation` model to produce complete, runnable Python for a given
+task description. Saves the `.py` file to `save_to_dir` before returning. Returns
+`{code, filename, description}`. The code file is always committed to git alongside
+the outputs it produced, so the full computation is auditable.
+
+---
+
+## Data Models
+
+Key models in `src/slow_ai/models.py`:
+
+| Model | Purpose |
+|---|---|
+| `ProblemBrief` | Confirmed goal, domain, constraints, unknowns, success criteria |
+| `WorkItem` | Node in the context graph — includes `required_skills` |
+| `ContextGraph` | Goal + work items + dependency edges |
+| `SkillGap` | Missing skill, which items need it, downstream impact, critical path flag |
+| `ViabilityDecision` | go/degraded/no_go + gaps + blocked/executable items + reasoning |
+| `SynthesizedSkill` | New skill entry produced by the synthesizer |
+| `SkillSynthesisResult` | Synthesized skills + unresolvable gaps + GitHub search queries |
+| `AgentContext` | Per-agent runtime context — role, task, memory, tools, artefacts_dir |
+| `AgentMemory` | Accumulated memory entries with token budget tracking |
+| `EvidenceEnvelope` | Agent output — proof, verdict, confidence, artefact filenames |
+| `OrchestratorDecision` | Assessment result — covered/pending/escalated + next wave |
+| `ResearchPlan` | Wave 1 specialist assignments |
+| `ResearchReport` | Final synthesised output |
 
 ---
 
 ## Execution Layer
 
-### GitStore
-`src/slow_ai/execution/git_store.py`
+### GitStore — `src/slow_ai/execution/git_store.py`
 
-Initialises a git repository at `runs/{run_id}/` and serves two roles simultaneously:
+Every run is a git repository at `runs/{run_id}/`. Milestone commits create a
+permanent, inspectable record:
 
-**Durable audit trail** — milestone commits create a permanent, inspectable record:
-
-| Commit tag | What is committed |
+| Commit | Contents |
 |---|---|
 | `[init]` | `problem_brief.json` |
+| `[M-1-context]` | `context_graph.json` |
+| `[M-1-viability]` | `viability.json`, `skill_synthesis.json` |
 | `[M0-plan]` | `research_plan.json`, `registry.json` |
-| `[M1-source-discovery]` | `envelopes/*.json`, `memory/*.json`, `registry.json` |
-| `[M2-final-report]` | `report.json`, `registry.json` |
+| `[M{N}-wave]` | `envelopes/wave{N}/*.json`, `artefacts/wave{N}/` |
+| `[M{N}-assessment]` | `assessments/wave{N}.json` |
+| `[M-final-report]` | `report.json` |
+| `[skipped]` | `paths/not_taken/*.json` |
 
-Skipped paths (failed agents, stop verdicts) are recorded as `paths/not_taken/*.json`.
+The `live/` subdirectory holds untracked files updated on every status change:
 
-**Live state surface** — the `live/` subdirectory holds untracked files updated by the
-runner on every agent status change. The UI polls these without waiting for a milestone
-commit:
+| File | Contains |
+|---|---|
+| `status.json` | `initializing \| running \| completed \| failed \| blocked_on_capabilities` |
+| `dag.json` | Live agent DAG (nodes + edges + tokens + durations) |
+| `context_graph.json` | Work items with coverage overlay data |
+| `viability.json` | Viability decision + skill gaps |
+| `synthesis.json` | Skill synthesis results |
+| `assessment.json` | Latest orchestrator assessment |
+| `log.jsonl` | Append-only progress log |
+| `capability_checkpoint.json` | Written on no_go — gap details for resolution |
 
-| File | Written when | Contains |
-|---|---|---|
-| `live/status.json` | every major transition | `{status: initializing\|running\|completed\|failed}` |
-| `live/dag.json` | every agent state change | full DAG (nodes + edges + token counts + durations) |
-| `live/artefacts.json` | each agent completes | per-agent evidence envelope + memory snapshot |
-| `live/log.jsonl` | every progress event | one JSON line per message |
+### AgentRegistry — `src/slow_ai/execution/registry.py`
 
-### AgentRegistry
-`src/slow_ai/execution/registry.py`
-
-In-memory control plane committed to git as `registry.json` at each milestone.
-Tracks every agent — orchestrator, specialists, workers, and synthesizer — across
-its full lifecycle.
-
-```mermaid
-stateDiagram-v2
-    [*] --> registered : register()
-    registered --> running : update_status("running")
-    running --> completed : update_status("completed")
-    running --> failed : update_status("failed")
-    completed --> [*]
-    failed --> [*]
-```
-
-Each registration records:
-- `agent_id`, `agent_type`, `parent_agent_id`
-- `task_id`, `status`, `spawned_at`, `completed_at`
-- `tokens_used`, `memory_path`, `children[]`
-
-`get_dag()` returns nodes and edges reflecting the full agent tree. The orchestrator
-is the root; specialists are its children; workers are children of the specialist that
-spawned them; the synthesizer is a final child of the orchestrator. This produces edges
-on every run without requiring workers to be spawned.
+In-memory control plane. Tracks every agent across its full lifecycle with lineage,
+status, token usage, and memory paths. Committed to git as `registry.json` at each
+milestone. `get_dag()` produces the full agent tree for UI rendering.
 
 ---
 
 ## UI
 
-`main.py` — single-page Streamlit app.
+`main.py` — single-page Streamlit app. Thin by design — no knowledge of research
+internals, launches a subprocess and reads files.
 
-The UI has no knowledge of the research internals. It launches a subprocess and then
-reads from files. The design is deliberately thin so the same data contract works with
-any frontend (React + ReactFlow, CLI, etc.).
+**Context graph** — shows the work blueprint with a coverage overlay:
 
-```mermaid
-flowchart TB
-    subgraph Sidebar
-        SB[Saved projects\nselect + re-run]
-    end
+| Style | Meaning |
+|---|---|
+| Grey (○) | Not yet worked |
+| Blue (◌) | Agent currently running |
+| Green (●) | Covered — confidence ≥ 0.6 |
+| Orange (◑) | Partial — confidence 0.3–0.59 |
+| Red dashed (⊘) | Skill gap — missing capability |
 
-    subgraph Interview
-        I1[Chat with Interviewer]
-        I2[Brief preview\nConfirm & Save]
-    end
+The context graph stays visible in all states including `blocked_on_capabilities`,
+so you can see exactly which work items are blocked and why.
 
-    subgraph Research
-        R1[Start Research\n→ subprocess.Popen]
-        R2["@st.fragment run_every=2s\npolls live/ files"]
-        R3[Live DAG\nstreamlit-flow]
-        R4[status=completed\nst.rerun scope=app]
-    end
+**Agent DAG** — live during execution, interactive after completion. Click any node
+to inspect its evidence envelope, memory entries, and raw artefacts.
 
-    subgraph Report
-        P1[Interactive DAG\nclick node → detail panel]
-        P2[Envelope · Memory · Raw tabs]
-        P3[Datasets · Summary · Git log]
-    end
+**Viability panel** — when a run is degraded or blocked, surfaces the skill gaps,
+what was synthesized, what remains unresolvable, and suggested GitHub searches for
+missing tools.
 
-    SB -->|load brief| R1
-    I1 --> I2 --> R1
-    R1 --> R2 --> R3 --> R4
-    R4 --> P1
-    P1 -->|node click| P2
-    P1 --> P3
-```
-
-Session state keys: `messages`, `history`, `brief`, `saved`, `report`, `research_log`,
-`current_run_id`, `dag`, `agent_artefacts`, `flow_state`.
+**Sidebar** — saved projects with all historical runs, live status badges, and
+one-click load for any previous run.
 
 ---
 
 ## Configuration
 
-Copy `.env.example` to `.env` and fill in:
+Copy `.env.example` to `.env`:
 
 ```
 GEMINI_API_KEY=...
 PERPLEXITY_KEY=...
 ```
 
-Settings are loaded via `pydantic-settings` from `src/slow_ai/config.py`.
+Settings loaded via `pydantic-settings` from `src/slow_ai/config.py`.
+
+To add or change models, edit `src/slow_ai/llm/registry.json`. To add skills,
+edit `src/slow_ai/skills/registry.json`. No code changes required for either.
 
 ---
 
 ## Running the App
 
 ```bash
-# install
-pip install -e .
-
-# run
-streamlit run main.py
-```
-
----
-
-## Tests
-
-| File | Type | What it covers |
-|---|---|---|
-| `tests/test_registry.py` | Unit | `AgentRegistry` — register, hierarchy, status transitions, memory paths, snapshot, DAG |
-| `tests/test_runner.py` | Integration | Full `run_research()` pipeline end-to-end (requires API keys) |
-| `tests/test_specialists.py` | Manual/exploratory | Orchestrator planning output; single-specialist execution |
-
-Run unit tests only:
-```bash
-pytest tests/test_registry.py -v
-```
-
-Run full integration test (costs API quota):
-```bash
-pytest tests/test_runner.py -v -s
+uv run streamlit run main.py
 ```
 
 ---
@@ -757,22 +650,87 @@ pytest tests/test_runner.py -v -s
 | Component | State |
 |---|---|
 | Interviewer agent | Working |
-| ProblemBrief save / load | Working |
-| Orchestrator planning | Working |
-| Specialist parallel execution | Working |
-| Perplexity search tool | Working |
-| Web browse tool | Working |
-| Worker spawning (SpawnRequest) | Implemented — under test |
+| Context planner (skill-aware) | Working |
+| Skills registry + resolution | Working |
+| Skill synthesizer (gap → registry) | Working |
+| Viability gate (go/degraded/no_go) | Working |
+| Model registry (BYOM) | Working |
+| Orchestrator (dependency-aware waves) | Working |
+| Specialist — web_search | Working |
+| Specialist — web_browse | Working |
+| Specialist — code_execution | Working |
+| Specialist — code generation (LLM) | Working |
+| Artefacts in correct run directory | Working |
+| Generated .py files committed to git | Working |
 | GitStore milestone commits | Working |
-| AgentRegistry + DAG | Working |
+| AgentRegistry + live DAG | Working |
+| Context graph UI + coverage overlay | Working |
+| Skill gap UI (⊘ nodes, viability panel) | Working |
 | Synthesis agent | Working |
-| Streamlit UI — interview flow | Working |
-| Streamlit UI — sidebar project reload | Working |
-| Registry unit tests | Passing |
-| Specialist integration tests | In progress — failures being debugged |
-| Runner integration test | In progress — failures being debugged |
+| Run history + sidebar | Working |
+| Human-in-the-loop (escalate_to_human) | Partial — checkpoint written, resume not yet implemented |
+| MAPE-K observer / circuit breaker | Planned — V2 |
 
 ---
 
-## Open Work
+## Roadmap
 
+### V2 — Observe and Reason
+
+**Temporal integration** — durable execution. If a run crashes at any depth of the
+agent tree, Temporal resumes from the last committed milestone. Workers that
+completed are not re-run. The current orchestrator loop maps naturally to a Temporal
+workflow; each wave and each specialist becomes an activity. The `escalate_to_human`
+path becomes a `workflow.wait_for_signal()` — a run can pause for days while a
+human reviews, without holding any resources.
+
+**LLM-powered outcome analysis** — after a run, an analysis agent reads the full
+git history and produces: a plain-language narrative of what happened and why, an
+explanation of why specific agents underperformed, and a comparison between this run
+and previous runs on the same brief. The run record becomes something you can
+*converse with*, not just inspect.
+
+**Full human-in-the-loop** — the current checkpoint mechanism writes state but does
+not block and resume. V2 completes this: the UI surfaces the checkpoint with an
+input form, the human responds, and the runner resumes from the exact point it
+paused. During a run, humans can approve waves before they fire, inject context
+mid-execution, and provide data agents could not find.
+
+**MAPE-K observer** — a separate process that watches the AgentRegistry in real
+time. Detects runaway spawning, cost ceiling breaches, and confidence scores
+dropping across subtrees. Signals the orchestrator to prune, pause, or escalate.
+
+---
+
+### V3 — Learn and Improve
+
+**Reinforcement learning on context graphs** — the context planner is a policy.
+Its job is to produce a graph (action) given a brief (state). The quality of the
+final synthesis — coverage, confidence, human ratings — is the reward signal. Over
+time the system learns which planning patterns produce better outcomes for similar
+problem types. This is not RL on model weights. It is preference learning on
+planning strategy, using the corpus of `(brief, context_graph, outcome)` triples
+that accumulates across runs.
+
+**Human feedback as reward signal** — post-run ratings, corrections to agent
+conclusions, and approvals during execution become the labels that tell the system
+what good looks like. Without human feedback, RL has only proxy metrics to optimise.
+With it, the system gets ground truth.
+
+**Richer HITL contract** — V3 defines the full human-agent handoff: approve waves
+before they fire, steer running agents with injected context, rate findings per work
+item, correct conclusions, and trigger targeted follow-up investigations on specific
+work items. Human interventions propagate into the RL reward signal, closing the
+loop between human judgement and system improvement.
+
+**Local model support at scale** — as local inference improves (Qwen, Llama,
+Mistral running on local infrastructure), V3 introduces routing logic that selects
+between cloud and local models based on task sensitivity, data residency
+requirements, and cost. The model registry already supports local endpoints; V3
+adds the routing intelligence.
+
+---
+
+*Every run is a data point. The system learns from every run. The registry grows
+with every gap resolved. This is what it means for institutional knowledge to
+compound.*

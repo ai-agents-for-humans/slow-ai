@@ -103,6 +103,31 @@
       ],
       "source": "synthesized",
       "tags": []
+    },
+    {
+      "name": "data_visualization",
+      "description": "Create charts, graphs, and visual representations of data using Python libraries such as matplotlib, seaborn, or plotly via the code_execution tool.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": [
+        "visualization",
+        "plotting",
+        "charts"
+      ]
+    },
+    {
+      "name": "remote_sensing_analysis",
+      "description": "Perform analysis on satellite and aerial imagery by combining image processing, geospatial data handling, and API-based data retrieval. Uses Python libraries like rasterio, rioxarray, and geopandas within the code_execution environment.",
+      "tools": [
+        "code_execution",
+        "geospatial_processing",
+        "image_analysis",
+        "api_integration"
+      ],
+      "source": "synthesized",
+      "tags": []
     }
   ]
 }

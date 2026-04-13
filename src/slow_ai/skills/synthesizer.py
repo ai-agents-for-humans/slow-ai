@@ -48,11 +48,13 @@ Rules:
 Always include reasoning explaining your decisions.
 """
 
-_synthesizer_agent = Agent(
-    model="google-gla:gemini-3-flash-preview",
-    output_type=SkillSynthesisResult,
-    system_prompt=_SYNTHESIZER_PROMPT,
-)
+def _make_synthesizer_agent() -> Agent:
+    from slow_ai.llm import ModelRegistry
+    return Agent(
+        model=ModelRegistry().for_task("skill_synthesis"),
+        output_type=SkillSynthesisResult,
+        system_prompt=_SYNTHESIZER_PROMPT,
+    )
 
 
 async def synthesize_skills(
@@ -79,7 +81,7 @@ async def synthesize_skills(
         f"Missing skills to resolve:\n{gap_descriptions}"
     )
 
-    result = await _synthesizer_agent.run(prompt)
+    result = await _make_synthesizer_agent().run(prompt)
     synthesis: SkillSynthesisResult = result.output
 
     # Persist synthesized skills to the registry so future runs benefit

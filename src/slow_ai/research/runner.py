@@ -29,6 +29,7 @@ from slow_ai.models import (
     SpawnRequest,
     WorkItem,
 )
+from slow_ai.llm import ModelRegistry
 from slow_ai.skills import SkillRegistry
 from slow_ai.skills.resolver import resolve_skills, viability_assess
 from slow_ai.skills.synthesizer import synthesize_skills
@@ -506,7 +507,7 @@ async def _synthesise(
 ) -> ResearchReport:
 
     synthesis_agent = Agent(
-        model="google-gla:gemini-3-flash-preview",
+        model=ModelRegistry().for_task("report_synthesis"),
         output_type=ResearchReport,
         system_prompt="""
 You are a research synthesiser. You receive evidence envelopes from multiple
