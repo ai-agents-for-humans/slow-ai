@@ -1,9 +1,10 @@
 # Slow AI
 
-A deliberate, inspectable multi-agent workflow system built on distributed systems
-principles. Provenance over pace — every agent decision, every path taken or skipped,
-every piece of evidence is recorded, versioned, and auditable. Domain-agnostic by
-design. The process templates change. The principles do not.
+A deliberate, inspectable multi-agent work orchestration platform built on distributed
+systems principles. Define the work. Declare the skills. Bring your models and tools.
+Provenance over pace — every agent decision, every path taken or skipped, every piece
+of evidence is recorded, versioned, and auditable. Domain-agnostic by design. The
+workflow templates change. The principles do not.
 
 ---
 
@@ -41,10 +42,12 @@ reliability, traceability, and trust matter more.
 
 The guiding principle is borrowed from distributed systems: **Slow AI shows its work.**
 
-Slow AI is domain-agnostic. The same system that runs a data research workflow runs
-a due diligence workflow, a regulatory compliance review, a competitive analysis, or
-any other multi-step investigation that benefits from specialist agents, structured
-evidence, and a permanent audit trail.
+Slow AI is domain-agnostic. Research was the first domain built on it — but the same
+orchestration layer runs software delivery pipelines, content production workflows,
+sales intelligence, incident response, compliance monitoring, or any structured work
+that benefits from specialist agents, a skills registry that compounds over time, and
+a permanent audit trail. If the work can be expressed as a directed graph of tasks
+with declared skill requirements, Slow AI can run it.
 
 ---
 
@@ -207,6 +210,11 @@ without touching the execution plane.
 ---
 
 ## Pipeline Stages
+
+The pipeline is domain-agnostic. The brief describes the work; the context planner
+decomposes it into a skill-annotated graph; specialists execute using whatever tools
+the registry provides. The current implementation uses research terminology in its
+data model names — the same engine runs any structured agentic work.
 
 ```
 Interview → ProblemBrief confirmed
@@ -699,6 +707,15 @@ mid-execution, and provide data agents could not find.
 **MAPE-K observer** — a separate process that watches the AgentRegistry in real
 time. Detects runaway spawning, cost ceiling breaches, and confidence scores
 dropping across subtrees. Signals the orchestrator to prune, pause, or escalate.
+
+**MCP tool integration** — Model Context Protocol servers expose standardised tools
+(GitHub, Slack, Notion, Linear, databases, file systems) that the skills registry
+can reference without writing custom tool code. A skill entry points to an MCP
+server rather than a bespoke Python function. The synthesizer can propose MCP-backed
+skills when resolving gaps — `create_github_issue` routes to the GitHub MCP server,
+`send_slack_message` routes to the Slack MCP server, no integration code required.
+This turns the skills registry into a gateway to the entire MCP ecosystem and makes
+Slow AI applicable to any workflow domain that has MCP coverage.
 
 ---
 
