@@ -1,10 +1,18 @@
-# Slow AI
+```
+ ██████  ██       ██████  ██     ██      █████  ██
+██        ██      ██    ██ ██     ██    ██   ██  ██
+ █████    ██      ██    ██ ██  █  ██    ███████  ██
+     ██   ██      ██    ██ ██ ███ ██    ██   ██  ██
+ ██████   ███████  ██████   ███ ███     ██   ██  ██
+```
 
-A deliberate, inspectable multi-agent work orchestration platform built on distributed
-systems principles. Define the work. Declare the skills. Bring your models and tools.
-Provenance over pace — every agent decision, every path taken or skipped, every piece
-of evidence is recorded, versioned, and auditable. Domain-agnostic by design. The
-workflow templates change. The principles do not.
+> **Agentic work orchestration. Built like a distributed system.**
+
+![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)
+![pydantic-ai](https://img.shields.io/badge/built%20with-pydantic--ai-7c3aed?style=flat-square)
+![BYOM](https://img.shields.io/badge/BYOM-any%20model%20provider-f97316?style=flat-square)
+![status](https://img.shields.io/badge/status-active-0ea5e9?style=flat-square)
 
 ---
 
