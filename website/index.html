@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SLOW_AI | Orchestration &amp; Distributed Systems Discipline</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-error-container": "#ffdad6",
+                    "surface-container-low": "#1c1b1b",
+                    "on-tertiary-fixed": "#001f24",
+                    "on-tertiary-fixed-variant": "#004f58",
+                    "surface-container-highest": "#353534",
+                    "on-surface": "#e5e2e1",
+                    "primary-container": "#ff6b00",
+                    "on-primary-container": "#572000",
+                    "on-primary-fixed-variant": "#7a3000",
+                    "primary-fixed-dim": "#ffb693",
+                    "surface-tint": "#ffb693",
+                    "on-background": "#e5e2e1",
+                    "surface-dim": "#131313",
+                    "on-surface-variant": "#e2bfb0",
+                    "surface-container-lowest": "#0e0e0e",
+                    "secondary-container": "#374c56",
+                    "error": "#ffb4ab",
+                    "tertiary-fixed-dim": "#00daf3",
+                    "on-secondary-container": "#a6bcc7",
+                    "outline": "#a98a7d",
+                    "tertiary-fixed": "#9cf0ff",
+                    "on-primary": "#561f00",
+                    "inverse-surface": "#e5e2e1",
+                    "surface": "#131313",
+                    "surface-container": "#201f1f",
+                    "surface-bright": "#393939",
+                    "tertiary": "#00daf3",
+                    "on-tertiary-container": "#00373e",
+                    "surface-variant": "#353534",
+                    "inverse-primary": "#a04100",
+                    "on-secondary-fixed": "#071e27",
+                    "on-error": "#690005",
+                    "outline-variant": "#5a4136",
+                    "secondary-fixed-dim": "#b4cad6",
+                    "secondary": "#b4cad6",
+                    "on-secondary": "#1e333c",
+                    "surface-container-high": "#2a2a2a",
+                    "on-primary-fixed": "#351000",
+                    "on-secondary-fixed-variant": "#354a53",
+                    "on-tertiary": "#00363d",
+                    "background": "#131313",
+                    "secondary-fixed": "#cfe6f2",
+                    "primary": "#ffb693",
+                    "primary-fixed": "#ffdbcc",
+                    "inverse-on-surface": "#313030",
+                    "error-container": "#93000a",
+                    "tertiary-container": "#00a8bb"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0px",
+                    "lg": "0px",
+                    "xl": "0px",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Space Grotesk"],
+                    "body": ["Inter"],
+                    "label": ["Space Grotesk"]
+            },
+            "animation": {
+                "spin-slow": "spin 8s linear infinite",
+                "pulse-gentle": "pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+            }
+          },
+        }
+      }
+    </script>
+<style>body {
+    font-family: "Inter", sans-serif;
+    background-color: #131313;
+    color: #e5e2e1
+    }
+.font-headline {
+    font-family: "Space Grotesk", sans-serif
+    }
+.font-label {
+    font-family: "Space Grotesk", sans-serif
+    }
+.material-symbols-outlined {
+    font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 24
+    }
+.noise-overlay {
+    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuBQ2aOIy3rSyjNP5wBtHxpPMNpPAjaKvfxSQAryx-BMihlNfsmju0CU6u-2lQNhX9_9nUWesVYShf8zvYu4G_NDiGOp-W36P7W1RibN0wxyejzJntYlCLj5AfimXMfcd0nGmiWFxX5lZRNosl0YQ1oKO9fLnIl_4JtrUMy9B7O8pBPSEsQX94bkxf2P7VpJOL09n2qBIUgPN7ZeDOaXw3-A2tc-dABXBQ0iM7feOhfxqBm_dp3EueEJ6NOZoSR3i-dVgWAZvV1OU-c);
+    opacity: 0.03;
+    pointer-events: none
+    }
+.arch-grid {
+    background-image: radial-gradient(circle at 1px 1px, rgba(169, 138, 125, 0.05) 1px, transparent 0);
+    background-size: 20px 20px;
+}
+.flywheel-gradient {
+    background: radial-gradient(circle at center, rgba(255, 182, 147, 0.15) 0%, transparent 70%);
+}
+</style>
+</head>
+<body class="bg-background text-on-background selection:bg-primary selection:text-on-primary">
+<div class="fixed inset-0 noise-overlay z-[100]"></div>
+<!-- TopNavBar -->
+<nav class="fixed top-0 z-50 w-full px-6 py-4 flex justify-between items-center bg-[#131313] border-b border-[#5a4136]/15 font-['Space_Grotesk'] tracking-tighter uppercase">
+<div class="text-xl font-bold text-[#ffb693]">SLOW_AI</div>
+<div class="hidden md:flex gap-8">
+<a class="text-[#e2bfb0] hover:text-[#ffb693] transition-colors duration-200" href="https://github.com/ai-agents-for-humans/slow-ai/">GitHub</a>
+<a class="text-[#e2bfb0] hover:text-[#ffb693] transition-colors duration-200" href="https://github.com/ai-agents-for-humans/slow-ai/blob/main/README.md">Documentation</a>
+<a class="text-[#ffb693] border-b-2 border-[#ffb693] pb-1" href="#tech-architecture">Architecture</a>
+</div>
+<button class="bg-[#ffb693] text-[#561f00] px-4 py-1 font-bold active:opacity-80 active:scale-95 transition-all">GET STARTED</button>
+</nav>
+<main class="pt-24">
+<!-- Hero Section -->
+<section class="px-6 md:px-12 py-20 lg:py-32 grid lg:grid-cols-2 gap-12 items-center max-w-7xl mx-auto">
+<div class="space-y-8">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-surface-container-low border border-outline-variant/20 text-tertiary font-label text-xs tracking-widest uppercase">
+<span class="w-2 h-2 bg-tertiary animate-pulse"></span> System Status: Ready
+                </div>
+<h1 class="text-5xl md:text-7xl font-headline font-bold tracking-tighter leading-[0.9] text-on-surface uppercase">RUN AGENT SWARMS <span class="text-primary">RELIABLY.</span> <br/> <span class="text-3xl md:text-5xl opacity-80">WATCH THEM GET SMARTER EVERY RUN.</span></h1>
+<p class="text-lg md:text-xl text-on-surface-variant max-w-lg leading-relaxed">
+                    Bring your own models, your own agent swarm runner, and enable compounding learning. Slow AI is the agentic orchestration platform that builds institutional knowledge with every execution.
+                </p>
+<div class="flex flex-wrap gap-4">
+<a href="https://github.com/ai-agents-for-humans/slow-ai#" class="bg-primary text-on-primary px-8 py-4 font-headline font-bold text-lg hover:bg-primary-container transition-colors ">
+                        GET STARTED ON GITHUB</a>
+<a href="#tech-architecture" class="border border-outline-variant text-on-surface px-8 py-4 font-headline font-bold text-lg hover:bg-surface-container-low transition-colors">
+                        VIEW ARCHITECTURE
+</a>
+</div>
+</div>
+<div class="relative bg-surface-container-low aspect-square border border-outline-variant/10 p-4">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent"></div>
+<div class="h-full w-full border border-outline-variant/20 overflow-hidden flex items-center justify-center relative">
+<img class="object-cover w-full h-full opacity-60" data-alt="Technical architectural diagram overlay on a deep charcoal background with glowing cyan and orange connection nodes" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAVXItSeEqMG08fjkDfm3p7Uywtu4U2Cbw6liKuLoHr7SmvC9nALGFLC_NutWfjnb25faLP5OppK2NoS9Ety9X8AwYmz5ED5l_w8N4_gpfftEpiKCu6H9aqUjmpLhp5jHlKy5OWTuvoFVfbik6slbdDAMKoLuoKoB6lwiF8Gskh62zHTtmNCLobvtwsBare664ChfheOjuSri5Y3_dV9Fmu3E92wVP0Uyd2FRKk3GqbXWzjdm42e0YEslmOIwOtYpQgn1BxDtbEvNk"/>
+<!-- Subtle Loop Graphic Overlay -->
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
+<div class="w-3/4 h-3/4 border-4 border-dashed border-primary rounded-full animate-spin-slow"></div>
+</div>
+</div>
+<div class="absolute bottom-8 right-8 bg-surface-container-highest p-6 border border-outline-variant/30 space-y-2 max-w-xs">
+<div class="text-[10px] font-label text-primary tracking-widest uppercase">Real-Time Trace</div>
+<div class="font-label text-xs text-on-surface-variant leading-tight">
+                        [09:41:02] REQUEST: INITIALIZE CONTEXT_GRAPH<br/>
+                        [09:41:03] GATE: VIABILITY CHECK SUCCESSFUL<br/>
+                        [09:41:05] WAVE: NODES 1-14 EXECUTING...
+                    </div>
+</div>
+</div>
+</section>
+<!-- The Intelligence Flywheel -->
+<section class="bg-surface-container-lowest py-32 border-y border-outline-variant/10 overflow-hidden">
+<div class="max-w-7xl mx-auto px-6 md:px-12 relative">
+<div class="flywheel-gradient absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] -z-10 animate-pulse-gentle"></div>
+<div class="text-center mb-20 space-y-4">
+<h2 class="text-xs font-label text-primary tracking-[0.3em] uppercase">The Intelligence Flywheel</h2>
+<h3 class="text-4xl md:text-6xl font-headline font-bold text-on-surface tracking-tighter">COMPOUNDING <br/> <span class="text-tertiary">REINFORCEMENT.</span></h3>
+</div>
+<div class="grid lg:grid-cols-3 gap-8">
+<div class="p-8 border border-outline-variant/20 bg-surface/50 backdrop-blur-sm space-y-4">
+<div class="w-12 h-12 flex items-center justify-center bg-primary/10 border border-primary/30 text-primary">
+<span class="material-symbols-outlined" data-icon="history_edu"></span>
+</div>
+<h4 class="text-xl font-headline font-bold uppercase tracking-tight">Full Provenance</h4>
+<p class="text-on-surface-variant text-sm leading-relaxed">Every model call, every tool execution, and every decision is captured. This creates the ground truth required for high-fidelity reward signals.</p>
+</div>
+<div class="p-8 border border-primary/40 bg-surface space-y-4 relative">
+<div class="absolute -top-3 left-8 bg-primary text-on-primary px-3 py-1 text-[10px] font-bold uppercase tracking-widest">Core Engine</div>
+<div class="w-12 h-12 flex items-center justify-center bg-tertiary/10 border border-tertiary/30 text-tertiary">
+<span class="material-symbols-outlined" data-icon="psychology"></span>
+</div>
+<h4 class="text-xl font-headline font-bold uppercase tracking-tight">RL Reward Signal</h4>
+<p class="text-on-surface-variant text-sm leading-relaxed">Human-in-the-loop approvals and system verification metrics are ingested as feedback loops, optimizing agent paths on future executions.</p>
+</div>
+<div class="p-8 border border-outline-variant/20 bg-surface/50 backdrop-blur-sm space-y-4">
+<div class="w-12 h-12 flex items-center justify-center bg-primary/10 border border-primary/30 text-primary">
+<span class="material-symbols-outlined" data-icon="schema"></span>
+</div>
+<h4 class="text-xl font-headline font-bold uppercase tracking-tight">Skill Evolution</h4>
+<p class="text-on-surface-variant text-sm leading-relaxed">Successful task decompositions are abstracted into the Skills Registry, turning one-off wins into permanent architectural capabilities.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Core Mechanics (The 5-Step Process) -->
+<section class="py-24 max-w-7xl mx-auto px-6 md:px-12">
+<h2 class="text-xs font-label text-outline tracking-[0.3em] uppercase mb-12">Orchestration Logic</h2>
+<div class="grid md:grid-cols-5 gap-1">
+<!-- Step 1 -->
+<div class="bg-surface-container-low p-6 border border-outline-variant/10 space-y-4">
+<div class="text-primary font-headline text-4xl font-bold">01</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" data-icon="description"></span>
+<h3 class="font-headline font-bold uppercase text-sm tracking-widest">Brief</h3>
+</div>
+<p class="text-xs text-on-surface-variant font-body">Ingest raw requirements and constraints. Define the boundary of the mission.</p>
+</div>
+<!-- Step 2 -->
+<div class="bg-surface-container-low p-6 border border-outline-variant/10 space-y-4">
+<div class="text-primary font-headline text-4xl font-bold">02</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" data-icon="account_tree"></span>
+<h3 class="font-headline font-bold uppercase text-sm tracking-widest">Context Graph</h3>
+</div>
+<p class="text-xs text-on-surface-variant font-body">Decompose the brief into a non-linear graph of interconnected tasks and data dependencies.</p>
+</div>
+<!-- Step 3 -->
+<div class="bg-surface-container-low p-6 border border-outline-variant/10 space-y-4">
+<div class="text-primary font-headline text-4xl font-bold">03</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" data-icon="gpp_maybe"></span>
+<h3 class="font-headline font-bold uppercase text-sm tracking-widest">Viability Gate</h3>
+</div>
+<p class="text-xs text-on-surface-variant font-body">The system assesses if the plan is logically sound and computationally feasible before execution.</p>
+</div>
+<!-- Step 4 -->
+<div class="bg-surface-container-low p-6 border border-outline-variant/10 space-y-4">
+<div class="text-primary font-headline text-4xl font-bold">04</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" data-icon="waves"></span>
+<h3 class="font-headline font-bold uppercase text-sm tracking-widest">Wave Execution</h3>
+</div>
+<p class="text-xs text-on-surface-variant font-body">Parallel execution of graph nodes with dynamic re-routing based on intermediate results.</p>
+</div>
+<!-- Step 5 -->
+<div class="bg-surface-container-low p-6 border border-outline-variant/10 space-y-4">
+<div class="text-primary font-headline text-4xl font-bold">05</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tertiary" data-icon="auto_awesome_motion"></span>
+<h3 class="font-headline font-bold uppercase text-sm tracking-widest">Synthesis</h3>
+</div>
+<p class="text-xs text-on-surface-variant font-body">Aggregating outputs into the final deliverable with complete audit logs of every model call.</p>
+</div>
+</div>
+</section>
+<!-- Domain Table -->
+<section class="bg-surface-container-low py-24">
+<div class="max-w-7xl mx-auto px-6 md:px-12">
+<h2 class="text-xs font-label text-outline tracking-[0.3em] uppercase mb-12">System Domains</h2>
+<div class="overflow-x-auto border border-outline-variant/20">
+<table class="w-full text-left font-label">
+<thead>
+<tr class="bg-surface-container-highest border-b border-outline-variant/20">
+<th class="px-6 py-4 text-xs uppercase tracking-widest text-primary">Domain</th>
+<th class="px-6 py-4 text-xs uppercase tracking-widest text-primary">Application</th>
+<th class="px-6 py-4 text-xs uppercase tracking-widest text-primary">Metrics tracked</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<tr>
+<td class="px-6 py-6 text-on-surface font-bold uppercase text-sm">Research</td>
+<td class="px-6 py-6 text-on-surface-variant text-sm">Deep competitive analysis &amp; synthesis</td>
+<td class="px-6 py-6 font-mono text-tertiary text-xs">SOURCE_PROVENANCE_INDEX</td>
+</tr>
+<tr class="bg-surface/30">
+<td class="px-6 py-6 text-on-surface font-bold uppercase text-sm">Software Delivery</td>
+<td class="px-6 py-6 text-on-surface-variant text-sm">Automated refactoring &amp; PR generation</td>
+<td class="px-6 py-6 font-mono text-tertiary text-xs">TEST_PASS_VELOCITY</td>
+</tr>
+<tr>
+<td class="px-6 py-6 text-on-surface font-bold uppercase text-sm">Ops &amp; Sec</td>
+<td class="px-6 py-6 text-on-surface-variant text-sm">Continuous vulnerability scanning &amp; patching</td>
+<td class="px-6 py-6 font-mono text-tertiary text-xs">BLAST_RADIUS_LIMIT</td>
+</tr>
+<tr class="bg-surface/30">
+<td class="px-6 py-6 text-on-surface font-bold uppercase text-sm">Content Engine</td>
+<td class="px-6 py-6 text-on-surface-variant text-sm">Multi-channel campaign orchestration</td>
+<td class="px-6 py-6 font-mono text-tertiary text-xs">VOICE_CONSISTENCY_SCORE</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</section>
+<!-- Accumulation Flywheel -->
+<section class="py-24 max-w-7xl mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-16 items-center">
+<div class="relative">
+<div class="w-full aspect-square bg-surface-container-lowest border border-dashed border-outline-variant/30 flex items-center justify-center p-12">
+<div class="relative w-full h-full flex items-center justify-center">
+<div class="absolute inset-0 border-[8px] border-primary/20 animate-pulse"></div>
+<div class="text-center space-y-4">
+<span class="material-symbols-outlined text-primary text-6xl" data-icon="memory"></span>
+<div class="font-headline font-black text-2xl tracking-tighter uppercase">Skills Registry</div>
+</div>
+</div>
+</div>
+<div class="absolute -top-4 -left-4 bg-tertiary text-on-tertiary px-3 py-1 text-[10px] font-label uppercase tracking-widest font-bold">Compounding</div>
+</div>
+<div class="space-y-8">
+<h2 class="text-xs font-label text-outline tracking-[0.3em] uppercase">Accumulation Flywheel</h2>
+<h3 class="text-4xl font-headline font-bold text-on-surface leading-tight">Every run makes the next run <span class="text-primary">smarter.</span></h3>
+<p class="text-on-surface-variant text-lg">
+                    As Slow AI executes work, it identifies reusable "skills"—modularized sub-routines that are registered back into the system. Over time, the Context Graph doesn't just plan from scratch; it retrieves proven strategies from the Registry.
+                </p>
+<ul class="space-y-4">
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-tertiary" data-icon="check_circle"></span>
+<span class="text-sm font-label uppercase tracking-wide">Automatic pattern recognition</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-tertiary" data-icon="check_circle"></span>
+<span class="text-sm font-label uppercase tracking-wide">Versioned skill modules</span>
+</li>
+<li class="flex items-start gap-3">
+<span class="material-symbols-outlined text-tertiary" data-icon="check_circle"></span>
+<span class="text-sm font-label uppercase tracking-wide">Cross-project skill sharing</span>
+</li>
+</ul>
+</div>
+</section>
+<!-- What's Coming Section -->
+<section class="bg-surface-container-lowest py-24 border-y border-outline-variant/10">
+<div class="max-w-7xl mx-auto px-6 md:px-12">
+<div class="flex flex-col md:flex-row justify-between items-end gap-8 mb-16">
+<div class="space-y-4">
+<h2 class="text-xs font-label text-outline tracking-[0.3em] uppercase">What's Coming</h2>
+<h3 class="text-4xl font-headline font-bold text-on-surface">The Next Milestone</h3>
+</div>
+<div class="bg-tertiary/10 border border-tertiary/30 px-4 py-2 text-tertiary font-label text-xs uppercase tracking-widest font-bold">
+Q4 2024 ROADMAP
+</div>
+</div>
+<div class="grid md:grid-cols-2 gap-12 items-center">
+<div class="space-y-8">
+<div class="p-8 bg-surface-container-low border-l-4 border-tertiary space-y-4">
+<h4 class="text-2xl font-headline font-bold text-on-surface uppercase tracking-tight">Reinforcement Learning on Context Graphs</h4>
+<p class="text-on-surface-variant leading-relaxed">We are moving beyond static orchestration. Our next major update enables the system to autonomously re-weight graph edges based on multi-run success rates, optimizing the shortest path to high-confidence outcomes.</p>
+</div>
+<ul class="space-y-3 font-label text-sm uppercase tracking-wide text-on-surface-variant">
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-tertiary"></span> Multi-Agent Competitive Synthesis</li>
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-tertiary"></span> Dynamic Graph Pruning via RL</li>
+<li class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-tertiary"></span> Cross-Model Verification Loops</li>
+</ul>
+</div>
+<div class="bg-black/20 p-8 border border-outline-variant/10 font-mono text-xs text-tertiary-fixed-dim/70 leading-relaxed overflow-hidden">
+<div class="mb-4 text-outline uppercase tracking-widest text-[10px]">TRAINING_LOG_BETA.PROMPT</div>
+&gt; ANALYZING EXECUTION_RUN_1294...<br/>
+&gt; SUCCESS_PATH DETECTED: [NODE_04 -&gt; NODE_09 -&gt; NODE_12]<br/>
+&gt; REWARD_SIGNAL: +0.85 (Human Approval)<br/>
+&gt; UPDATING_GRAPH_WEIGHTS...<br/>
+&gt; RE-RANKING SKILLS_REGISTRY: "SQL_OPTIMIZER_V2" -&gt; PRIORITY_HIGH<br/>
+<div class="mt-4 flex gap-2">
+<span class="inline-block w-2 h-4 bg-tertiary animate-pulse"></span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Technical Detail: JSON Model Routing -->
+<section class="py-24 border-b border-outline-variant/10">
+<div class="max-w-7xl mx-auto px-6 md:px-12 grid lg:grid-cols-2 gap-12">
+<div class="space-y-8">
+<h2 class="text-xs font-label text-outline tracking-[0.3em] uppercase">Bring Your Own Models</h2>
+<h3 class="text-4xl font-headline font-bold text-on-surface">Dynamic Routing &amp; Provider Agnostic.</h3>
+<p class="text-on-surface-variant">
+                        Route different nodes of your Context Graph to different models based on latency, cost, or specialty. Slow AI handles the abstraction layer, ensuring consistent data formats across providers.
+                    </p>
+<div class="flex gap-4">
+<div class="bg-surface-container-low p-4 border border-outline-variant/20 flex-1">
+<div class="text-[10px] font-label text-outline uppercase tracking-widest mb-1">Provider Support</div>
+<div class="text-sm font-bold text-on-surface uppercase">OpenAI, Anthropic, Mistral, Llama 3</div>
+</div>
+<div class="bg-surface-container-low p-4 border border-outline-variant/20 flex-1">
+<div class="text-[10px] font-label text-outline uppercase tracking-widest mb-1">Local Hosting</div>
+<div class="text-sm font-bold text-on-surface uppercase">Ollama, vLLM, Text-Gen-UI</div>
+</div>
+</div>
+</div>
+<div class="bg-black/40 border border-outline-variant/30 p-6 font-mono text-sm overflow-hidden">
+<div class="flex justify-between items-center mb-4 border-b border-outline-variant/20 pb-2">
+<span class="text-xs text-outline tracking-widest">ROUTING_CONFIG.JSON</span>
+<div class="flex gap-1">
+<div class="w-2 h-2 rounded-full bg-red-500/50"></div>
+<div class="w-2 h-2 rounded-full bg-yellow-500/50"></div>
+<div class="w-2 h-2 rounded-full bg-green-500/50"></div>
+</div>
+</div>
+<pre class="text-tertiary-fixed-dim leading-relaxed">{
+  "routing": {
+    "default": "gpt-4-turbo",
+    "specialized": {
+      "coding": "claude-3-opus",
+      "fast_validation": "mistral-tiny",
+      "sensitive_data": "llama-3-70b-local"
+    },
+    "fallbacks": [
+      {
+        "if": "rate_limit",
+        "then": "provider_2"
+      }
+    ]
+  }
+}</pre>
+</div>
+</div>
+</section>
+<!-- Technical Architecture Visual -->
+<section class="bg-surface py-32" id="tech-architecture">
+<div class="max-w-7xl mx-auto px-6 md:px-12">
+<div class="text-center space-y-4 mb-20">
+<h2 class="text-xs font-label text-outline tracking-[0.3em] uppercase">Technical Blueprints</h2>
+<h3 class="text-4xl font-headline font-bold text-on-surface">The Orchestration Engine</h3>
+<p class="text-on-surface-variant max-w-2xl mx-auto">A rigorous, multi-layered architecture designed for deterministic outcomes in a non-deterministic world.</p>
+</div>
+<div class="arch-grid bg-surface-container-lowest border border-outline-variant/20 p-8 md:p-16 relative overflow-hidden">
+<!-- Background decorative elements -->
+<div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[100px]"></div>
+<div class="absolute bottom-0 left-0 w-64 h-64 bg-tertiary/5 blur-[100px]"></div>
+<!-- Dual Plane Callouts -->
+<div class="absolute top-4 right-4 flex flex-col items-end gap-2 text-[10px] font-mono uppercase tracking-widest text-outline-variant/60">
+<div class="flex items-center gap-2">UI PLANE <span class="w-2 h-2 border border-outline-variant"></span></div>
+<div class="flex items-center gap-2">EXECUTION PLANE <span class="w-2 h-2 bg-primary/40"></span></div>
+<div class="mt-2 text-right opacity-40">Zero-shared state<br/>(File-system sync only)</div>
+</div>
+<div class="grid grid-cols-1 gap-12 relative z-10">
+<!-- 1. Input Phase -->
+<div class="flex flex-col md:flex-row items-center gap-8">
+<div class="w-full md:w-64 p-6 bg-surface-container border-l-4 border-primary">
+<div class="text-[10px] font-label text-primary uppercase tracking-widest mb-2">Input Phase</div>
+<div class="font-headline font-bold text-on-surface uppercase text-lg">WorkBrief</div>
+<div class="text-xs text-on-surface-variant mt-2 italic">Structured requirements &amp; objective definitions</div>
+</div>
+<div class="hidden md:block">
+<span class="material-symbols-outlined text-outline-variant" data-icon="east"></span>
+</div>
+<div class="w-full md:w-64 p-6 border border-outline-variant/30 bg-surface">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-tertiary text-sm" data-icon="verified_user"></span>
+<div class="text-[10px] font-label text-tertiary uppercase tracking-widest">Confirmation</div>
+</div>
+<div class="font-headline font-bold text-on-surface uppercase text-lg">Domain Expert</div>
+<div class="text-xs text-on-surface-variant mt-2">Constraint validation &amp; scope lock</div>
+</div>
+</div>
+<!-- 2. Planning Layer -->
+<div class="relative py-12">
+<div class="absolute inset-0 flex items-center justify-center -z-10 opacity-20">
+<div class="w-full h-px border-t border-dashed border-outline-variant"></div>
+</div>
+<div class="flex flex-col items-center">
+<div class="bg-surface-container-high border border-outline-variant/40 p-10 max-w-2xl w-full">
+<div class="flex justify-between items-start mb-6">
+<div>
+<div class="text-[10px] font-label text-primary uppercase tracking-widest mb-1">Planning Layer</div>
+<h4 class="font-headline font-bold text-on-surface uppercase text-2xl tracking-tight">Context Graph (DAG)</h4>
+</div>
+<div class="bg-tertiary/10 text-tertiary px-3 py-1 text-[10px] font-bold uppercase tracking-widest border border-tertiary/30">Reviewable</div>
+</div>
+<!-- Minimal DAG visual -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+<div class="p-3 bg-surface border border-outline-variant/20 text-[10px] font-mono uppercase text-center">WorkItem_01</div>
+<div class="p-3 bg-surface border border-outline-variant/20 text-[10px] font-mono uppercase text-center">WorkItem_02</div>
+<div class="p-3 bg-surface border border-outline-variant/20 text-[10px] font-mono uppercase text-center">WorkItem_03</div>
+</div>
+<div class="flex justify-center">
+<div class="w-1 h-8 border-l border-dashed border-outline-variant"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- 3. The Gate -->
+<div class="flex flex-col items-center">
+<div class="w-full max-w-4xl grid md:grid-cols-3 gap-8">
+<!-- Skills Synthesis -->
+<div class="md:order-1 flex flex-col justify-center gap-4">
+<div class="p-6 border border-outline-variant/20 bg-surface-container-lowest text-center">
+<div class="text-[10px] font-label text-tertiary uppercase tracking-widest mb-2">Refinement</div>
+<div class="font-headline font-bold text-on-surface uppercase text-sm">Skills Synthesizer</div>
+</div>
+<div class="flex justify-center">
+<span class="material-symbols-outlined text-outline-variant rotate-90" data-icon="south"></span>
+</div>
+<div class="p-4 bg-surface border border-dashed border-outline-variant/30 text-center">
+<span class="material-symbols-outlined text-primary text-xl" data-icon="memory"></span>
+<div class="text-[10px] font-mono text-outline uppercase mt-1">Skills Registry</div>
+</div>
+</div>
+<!-- The Gate Center -->
+<div class="md:order-2 bg-primary p-1 flex flex-col items-center justify-center">
+<div class="bg-surface-container-highest w-full h-full p-8 flex flex-col items-center text-center">
+<span class="material-symbols-outlined text-primary text-4xl mb-4" data-icon="gpp_maybe"></span>
+<div class="text-[10px] font-label text-primary uppercase tracking-widest mb-1">Gatekeeper</div>
+<h4 class="font-headline font-bold text-on-surface uppercase text-xl">Viability Gate</h4>
+</div>
+</div>
+<!-- Decision Branches -->
+<div class="md:order-3 flex flex-col justify-center space-y-3">
+<div class="flex items-center gap-4 p-3 bg-surface border border-green-500/20">
+<div class="w-2 h-2 rounded-full bg-green-500"></div>
+<div class="text-xs font-bold uppercase tracking-widest text-on-surface">GO (Full coverage)</div>
+</div>
+<div class="flex items-center gap-4 p-3 bg-surface border border-orange-500/20">
+<div class="w-2 h-2 rounded-full bg-orange-500"></div>
+<div class="text-xs font-bold uppercase tracking-widest text-on-surface">Degraded (Partial)</div>
+</div>
+<div class="flex items-center gap-4 p-3 bg-surface border border-red-500/20">
+<div class="w-2 h-2 rounded-full bg-red-500"></div>
+<div class="text-xs font-bold uppercase tracking-widest text-on-surface">No Go (Halt)</div>
+</div>
+</div>
+</div>
+</div>
+<!-- 4. Execution Layer -->
+<div class="mt-12 flex flex-col items-center relative">
+<div class="w-full max-w-4xl p-10 bg-surface-container-low border border-outline-variant/30">
+<div class="flex justify-between items-center mb-8">
+<div>
+<div class="text-[10px] font-label text-primary uppercase tracking-widest mb-1">Execution Layer</div>
+<h4 class="font-headline font-bold text-on-surface uppercase text-2xl">Wave Executor</h4>
+</div>
+<div class="flex gap-2">
+<div class="w-8 h-8 rounded-full bg-tertiary/20 flex items-center justify-center"><span class="material-symbols-outlined text-tertiary text-xs" data-icon="smart_toy"></span></div>
+<div class="w-8 h-8 rounded-full bg-tertiary/20 flex items-center justify-center"><span class="material-symbols-outlined text-tertiary text-xs" data-icon="smart_toy"></span></div>
+<div class="w-8 h-8 rounded-full bg-tertiary/20 flex items-center justify-center"><span class="material-symbols-outlined text-tertiary text-xs" data-icon="smart_toy"></span></div>
+</div>
+</div>
+<div class="grid md:grid-cols-2 gap-8">
+<div class="space-y-4">
+<div class="text-xs text-on-surface-variant font-mono p-4 bg-black/40 border border-outline-variant/10">
+&gt; SPAWNING SPECIALIST AGENTS...<br/>
+&gt; WORK_ITEM_01: IN_PROGRESS<br/>
+&gt; WORK_ITEM_02: QUEUED
+</div>
+</div>
+<div class="relative">
+<div class="absolute -top-4 -right-4 bg-error text-on-error text-[10px] font-bold px-2 py-1 uppercase">Active</div>
+<div class="h-full border border-dashed border-outline-variant p-4 flex flex-col justify-center items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="contact_support"></span>
+<div class="text-[10px] font-label text-on-surface uppercase tracking-widest">Human Inspection Bridge</div>
+<div class="text-[10px] text-on-surface-variant text-center leading-tight">Live course-correction &amp; oversight</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- 5. Output & Storage -->
+<div class="mt-12 flex flex-col md:flex-row items-stretch gap-8">
+<div class="flex-1 p-6 bg-surface-container border border-outline-variant/20 flex flex-col justify-center">
+<div class="flex items-center gap-4 mb-4">
+<span class="material-symbols-outlined text-primary" data-icon="folder_zip"></span>
+<div class="font-headline font-bold text-on-surface uppercase">Evidence Envelopes</div>
+</div>
+<div class="text-xs text-on-surface-variant">Packaged logs, intermediate artefacts, and model traces.</div>
+</div>
+<div class="hidden md:flex items-center">
+<span class="material-symbols-outlined text-outline-variant" data-icon="east"></span>
+</div>
+<div class="flex-1 p-6 bg-surface-container border border-outline-variant/20 flex flex-col justify-center">
+<div class="font-headline font-bold text-on-surface uppercase mb-4">Synthesis Engine</div>
+<div class="text-xs text-on-surface-variant">Collating multithreaded outputs into unified delivery.</div>
+</div>
+<div class="hidden md:flex items-center">
+<span class="material-symbols-outlined text-outline-variant" data-icon="east"></span>
+</div>
+<div class="flex-1 p-6 bg-primary text-on-primary flex flex-col justify-center">
+<div class="font-headline font-black uppercase text-xl italic">Final Output</div>
+<div class="text-[10px] uppercase font-bold tracking-widest mt-1 opacity-80">Artifact Verified</div>
+</div>
+</div>
+<!-- Git Integration Footer -->
+<div class="mt-16 pt-8 border-t border-outline-variant/20 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-4">
+<div class="p-3 bg-surface-container-highest">
+<img alt="Git" class="w-6 h-6 invert" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAzNbjnPADqBGJWDglKHUoUS0Jfgyqs6KllruYw9ybKXbY-gy9GZMvi-iKLim4R1BiBBpU4-OPzAJ5deqvLPrQf6hGxjb5zHlUX5vqNOVUFBTD1gFoEnhnDXH66JG3iiclx5B28kL-DGXVyKeZvVvuQR6-L7m4cyYmjPMTSkrAj4SGc3zbl4irvGXwp5QWVwNCb73_yrZXLA0tHIUheDsiMcWwXeq3Z3cmsRIMYO5LcEjWcCJoxIHvRSPZqV7GBKrg6H3j9LrIFVm4"/>
+</div>
+<div>
+<div class="font-headline font-bold text-on-surface uppercase text-sm">Git-First Persistence</div>
+<div class="text-xs text-on-surface-variant">Everything (logs, code, plans) committed to repo.</div>
+</div>
+</div>
+<div class="flex gap-8 text-[10px] font-mono text-outline uppercase tracking-widest">
+<div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-primary"></span> AUDIT TRAIL</div>
+<div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-primary"></span> ARTEFACTS</div>
+<div class="flex items-center gap-2"><span class="w-1.5 h-1.5 bg-primary"></span> CODEBASE</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Get Started: CLI -->
+<section class="bg-primary py-20">
+<div class="max-w-4xl mx-auto px-6 text-center space-y-8">
+<h2 class="text-5xl font-headline font-black text-on-primary tracking-tighter uppercase">Initialize the engine.</h2>
+<div class="bg-on-primary text-primary p-6 font-mono text-lg text-left border-4 border-primary-container shadow-[12px_12px_0px_rgba(87,32,0,0.2)]">
+<div class="flex items-center gap-4 mb-2 opacity-50 text-xs">
+<span>$ bash</span>
+</div>
+<span>git clone git@github.com:ai-agents-for-humans/slow-ai.git</span>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full px-8 py-12 flex flex-col gap-8 md:flex-row justify-between items-start bg-[#0e0e0e] border-t border-[#5a4136]/15 font-['Space_Grotesk'] text-[12px] uppercase tracking-widest">
+<div class="space-y-4">
+<div class="text-lg font-black text-[#ffb693]">SLOW_AI</div>
+<p class="text-[#a6bcc7] max-w-xs normal-case tracking-normal opacity-60">Architecting resilient systems for the age of non-deterministic compute.</p>
+<div class="text-[#a6bcc7]">© 2026 SLOW_AI ORCHESTRATION. DISTRIBUTED SYSTEMS DISCIPLINE.</div>
+</div>
+<div class="flex gap-12">
+<div class="flex flex-col gap-3">
+<span class="text-[#ffb693] font-bold">Resources</span>
+<a class="text-[#a6bcc7] hover:text-[#ffb693] transition-colors" href="https://github.com/ai-agents-for-humans/slow-ai/blob/main">GitHub</a>
+<a class="text-[#a6bcc7] hover:text-[#ffb693] transition-colors" href="https://github.com/ai-agents-for-humans/slow-ai/blob/main/README.md">Documentation</a>
+<a class="text-[#a6bcc7] hover:text-[#ffb693] transition-colors" href="#">Changelog</a>
+</div>
+<div class="flex flex-col gap-3">
+<span class="text-[#ffb693] font-bold">Community</span>
+</div>
+</div>
+</footer>
+</body></html>
