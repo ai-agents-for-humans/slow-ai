@@ -11,6 +11,7 @@
 ![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)
 ![pydantic-ai](https://img.shields.io/badge/built%20with-pydantic--ai-7c3aed?style=flat-square)
+![git](https://img.shields.io/badge/built%20with-git-7c3aed?style=flat-square)
 ![BYOM](https://img.shields.io/badge/BYOM-any%20model%20provider-f97316?style=flat-square)
 ![status](https://img.shields.io/badge/status-active-0ea5e9?style=flat-square)
 
@@ -22,7 +23,9 @@ AI agents produce answers. They do not produce evidence.
 
 When you use a research assistant, a coding agent, or a workflow automation tool today, you get an output — but you cannot see the plan that produced it, verify the reasoning behind it, or know what it chose to ignore. When it goes wrong, you cannot tell why. When you run it again, it starts from zero.
 
-For any work where the quality of the output determines the quality of everything built on top of it — due diligence, compliance, engineering decisions, strategic research — this is not enough.
+If you have tried to solve this with workflow tools like n8n, Make, or Zapier, you have hit a different wall. Someone still has to design the workflow — every node, every branch, every edge case — by hand. When the input changes even slightly, you are back to reconfiguring. A different company, a different jurisdiction, a different question: the workflow does not adapt. You rebuild. The workflow is a static artefact. The work it represents is dynamic.
+
+For any work where the quality of the output determines the quality of everything built on top of it — due diligence, compliance, engineering decisions, strategic research — neither approach is enough.
 
 ---
 
@@ -32,7 +35,76 @@ For any work where the quality of the output determines the quality of everythin
 
 **Skills accumulate. The system improves.** Every run that hits a missing skill either synthesises a new one into a shared registry — making it available to every future run — or surfaces a concrete gap with actionable steps to close it. The 50th run is fundamentally more capable than the first. No retraining. No reconfiguration. The registry grows.
 
+**No cold start. No brittle templates.** The context graph is not configured — it is generated from the brief by an agent. Describe the work in plain language. The system designs the workflow, declares the skills each step needs, and validates it can execute before a single agent fires. Run it again identically, or change the brief and let the system adapt. What takes hours to wire up in a workflow tool takes a sentence here.
+
 **Humans stay in the loop by design, not by exception.** At any point in a run, an expert can inspect every evidence envelope, correct agent conclusions before they propagate, approve the next wave, or redirect the work entirely. The system earns trust by showing its work. Every claim has a source. Every source has a commit.
+
+---
+
+## Memory Architecture
+
+Most AI systems treat memory as "bigger is better" — put everything into one large
+context window and let the model sort it out. This produces unverifiable outputs,
+scales poorly, and gives you no way to inspect or correct what the model actually
+attended to.
+
+Slow AI treats memory the way distributed systems treat state: **scoped, bounded,
+explicit, and persisted outside the computation.**
+
+```
+  ┌──────────────────────────────────────────────────────────────┐
+  │  BRIEF  (intent memory)                                      │
+  │  Committed at run start. Never changes. Every agent is       │
+  │  measured against it. The contract that survives the run.    │
+  └──────────────────────────────────────────────────────────────┘
+                              │
+              flows into orchestrator and each wave
+                              │
+  ┌──────────────────────────────────────────────────────────────┐
+  │  WAVE CONTEXT  (working memory per dependency)               │
+  │  Each agent receives upstream evidence from the nodes it     │
+  │  directly depends on — not a broadcast of everything.        │
+  │  Information flows through DAG edges, not dumped into        │
+  │  every agent's context.                                      │
+  └──────────────────────────────────────────────────────────────┘
+                              │
+              scoped to each specialist
+                              │
+  ┌──────────────────────────────────────────────────────────────┐
+  │  AGENT WORKING MEMORY  (8K token budget per agent)           │
+  │  Each specialist accumulates findings within a hard token    │
+  │  ceiling. When the budget runs low, the agent returns        │
+  │  partial results and surfaces remaining work — the runner    │
+  │  spawns continuations. No hallucinated completeness.         │
+  │  The constraint is the feature: it forces decomposition.     │
+  └──────────────────────────────────────────────────────────────┘
+                              │
+              committed at every milestone
+                              │
+  ┌──────────────────────────────────────────────────────────────┐
+  │  GIT  (persistent memory)                                    │
+  │  Every evidence envelope, agent memory dump, artefact, and   │
+  │  generated file committed to a versioned branch. The run     │
+  │  is permanent. Past runs are auditable and referenceable.    │
+  │  Long-term memory lives outside the model — in version       │
+  │  control — where it can be inspected, branched, and diffed.  │
+  └──────────────────────────────────────────────────────────────┘
+                              │
+              accumulates across runs
+                              │
+  ┌──────────────────────────────────────────────────────────────┐
+  │  SKILLS REGISTRY  (institutional memory)                     │
+  │  What the system has learned about resolving skill gaps      │
+  │  persists permanently. The registry is the memory that       │
+  │  compounds — every gap closed makes every future run         │
+  │  smarter, without retraining anything.                       │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+The 8K token budget per agent is configurable — but the default is intentionally
+tight. An agent that cannot complete its work within budget does not fabricate a
+conclusion. It reports what it found and flags what remains. The system continues.
+This is the behaviour you want in any serious agentic pipeline.
 
 ---
 
@@ -169,6 +241,13 @@ The install script handles uv, dependencies, and walks you through API key setup
 ## Roadmap
 
 ### V2 — Observe, Benchmark, and Connect
+
+**Brief-adaptive context graphs** — modify the brief and re-run against an existing
+context graph. The system identifies which nodes are still valid, which need updating,
+and which are new — then replans only the delta. Particularly valuable for recurring
+workflows where the input varies slightly: a different target company, a different
+time period, a different jurisdiction. The structure of the work stays the same; the
+graph adapts to the new input automatically. No reconfiguration. No rebuild from zero.
 
 **Benchmark against deep research tools** — a structured evaluation of Slow AI against
 Perplexity Deep Research, OpenAI Deep Research, and Gemini Deep Research on identical
