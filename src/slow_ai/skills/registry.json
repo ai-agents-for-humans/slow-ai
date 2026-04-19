@@ -142,6 +142,86 @@
         "query",
         "data-access"
       ]
+    },
+    {
+      "name": "medical_literature_research",
+      "description": "Find, retrieve, and summarize medical research papers and clinical evidence using web search and browsing.",
+      "tools": [
+        "web_search",
+        "web_browse",
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "healthcare_policy_analysis",
+      "description": "Analyze healthcare policies and regulatory frameworks by retrieving documents from the web and parsing them for key insights.",
+      "tools": [
+        "web_search",
+        "web_browse",
+        "document_parsing"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "medical_data_extraction",
+      "description": "Extract structured data from medical documents, reports, or records using parsing and transformation techniques.",
+      "tools": [
+        "document_parsing",
+        "data_transformation",
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "local_directory_search",
+      "description": "Search for files and content within a local file system using Python's directory traversal capabilities.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "clinical_trials_search",
+      "description": "Identify and extract information about clinical trials from registry websites and APIs.",
+      "tools": [
+        "web_search",
+        "web_browse",
+        "api_integration"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "document_generation",
+      "description": "Create and format documents (PDFs, reports, etc.) programmatically using Python libraries.",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "dataset_inspection",
+      "description": "Download a dataset from a URL and inspect its actual contents — schema, column types, shape, sample rows, and null counts. Supports CSV, Parquet, Excel, JSON, and JSONL. Use this to look inside a dataset, not just its landing page.",
+      "tools": [
+        "url_fetch"
+      ],
+      "source": "built-in",
+      "tags": ["data", "datasets", "inspection", "schema", "tabular"]
+    },
+    {
+      "name": "pdf_extraction",
+      "description": "Download a PDF from a URL and extract its full text — ideal for research papers, reports, and documentation. Returns page count and extracted text.",
+      "tools": [
+        "url_fetch"
+      ],
+      "source": "built-in",
+      "tags": ["pdf", "research", "papers", "documents", "extraction"]
     }
   ]
 }

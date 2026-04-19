@@ -25,24 +25,71 @@ st.caption("Describe the problem or workflow you want to automate — we'll desi
 
 # ── Research subprocess ───────────────────────────────────────────────────────
 
-def _start_research(brief: ProblemBrief, project_id: str) -> str:
+def _start_research(brief: ProblemBrief, project_id: str, run_id: str | None = None, approved_graph: dict | None = None) -> str:
     """
     Write the brief to disk, record the run against the project, and launch
-    a research subprocess.
+    the agent swarm subprocess.
 
-    Returns the run_id so the caller can store it in session state.
+    If run_id is provided (graph was pre-planned), reuse that directory.
+    If approved_graph is provided, save it so the runner skips context planning.
+    Returns the run_id.
     """
-    run_id = (
-        f"{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
-        f"-{uuid.uuid4().hex[:6]}"
-    )
+    if run_id is None:
+        run_id = (
+            f"{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+            f"-{uuid.uuid4().hex[:6]}"
+        )
     run_dir = Path("runs") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "input_brief.json").write_text(
         brief.model_dump_json(), encoding="utf-8"
     )
 
+    if approved_graph is not None:
+        import json as _json
+        (run_dir / "approved_graph.json").write_text(
+            _json.dumps(approved_graph), encoding="utf-8"
+        )
+
     # Record this run against the project so it can be listed later
+    runs_file = Path("output") / project_id / "runs.jsonl"
+    # Avoid duplicate entry if run_id was pre-allocated during graph planning
+    existing_ids: set[str] = set()
+    if runs_file.exists():
+        for line in runs_file.read_text(encoding="utf-8").splitlines():
+            try:
+                existing_ids.add(json.loads(line)["run_id"])
+            except Exception:
+                pass
+    if run_id not in existing_ids:
+        with runs_file.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "run_id": run_id,
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            }) + "\n")
+
+    subprocess.Popen(
+        [sys.executable, "-m", "slow_ai.research", run_id],
+        cwd=str(Path.cwd()),
+    )
+    return run_id
+
+
+# ── Workflow planning helpers ─────────────────────────────────────────────────
+
+def _plan_workflow(brief: ProblemBrief, project_id: str):
+    """Run context planner in the UI process and enter graph review mode."""
+    from slow_ai.agents.orchestrator import run_context_planner
+    from slow_ai.research.runner import _graph_for_ui
+
+    run_id = (
+        f"{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+        f"-{uuid.uuid4().hex[:6]}"
+    )
+    run_dir = Path("runs") / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "input_brief.json").write_text(brief.model_dump_json(), encoding="utf-8")
+
     runs_file = Path("output") / project_id / "runs.jsonl"
     with runs_file.open("a", encoding="utf-8") as f:
         f.write(json.dumps({
@@ -50,11 +97,54 @@ def _start_research(brief: ProblemBrief, project_id: str) -> str:
             "started_at": datetime.now(timezone.utc).isoformat(),
         }) + "\n")
 
-    subprocess.Popen(
-        [sys.executable, "-m", "slow_ai.research", run_id],
-        cwd=str(Path.cwd()),
+    loop = asyncio.get_event_loop()
+    graph = loop.run_until_complete(run_context_planner(brief, run_id))
+
+    n_phases = len(graph.phases)
+    n_items = sum(len(p.work_items) for p in graph.phases)
+
+    st.session_state.pending_run_id = run_id
+    st.session_state.graph_pending_model = graph.model_dump()
+    st.session_state.context_graph = _graph_for_ui(graph)
+    st.session_state.context_graph_state = None
+    st.session_state.graph_review_mode = True
+    st.session_state.graph_review_messages = [{
+        "role": "assistant",
+        "content": (
+            f"I've designed a workflow with **{n_phases} phase{'s' if n_phases != 1 else ''}** "
+            f"and **{n_items} work item{'s' if n_items != 1 else ''}**. "
+            f"Review the graph below. Tell me what you'd like to change, "
+            f"or click **Launch Agent Swarm** to proceed."
+        ),
+    }]
+    st.session_state.graph_review_history = []
+
+
+def _refine_graph(feedback: str):
+    """Apply user feedback to the pending graph via the graph editor agent."""
+    from slow_ai.agents.orchestrator import run_graph_editor
+    from slow_ai.models import ContextGraph as CG
+    from slow_ai.research.runner import _graph_for_ui
+
+    current = CG.model_validate(st.session_state.graph_pending_model)
+    brief = st.session_state.brief
+    run_id = st.session_state.pending_run_id
+
+    loop = asyncio.get_event_loop()
+    updated = loop.run_until_complete(run_graph_editor(brief, current, feedback, run_id))
+
+    n_phases = len(updated.phases)
+    n_items = sum(len(p.work_items) for p in updated.phases)
+
+    st.session_state.graph_pending_model = updated.model_dump()
+    st.session_state.context_graph = _graph_for_ui(updated)
+    st.session_state.context_graph_state = None
+
+    return (
+        f"Updated — now **{n_phases} phase{'s' if n_phases != 1 else ''}** "
+        f"and **{n_items} work item{'s' if n_items != 1 else ''}**. "
+        f"Anything else to change, or ready to launch?"
     )
-    return run_id
 
 
 # ── DAG rendering helpers ─────────────────────────────────────────────────────
@@ -414,6 +504,11 @@ def init_state():
         "latest_viability": None,
         "phase_summaries": [],
         "processed_attachments": set(),
+        "graph_review_mode": False,
+        "pending_run_id": None,
+        "graph_pending_model": None,
+        "graph_review_messages": [],
+        "graph_review_history": [],
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -485,6 +580,11 @@ def load_brief_into_session(project_id: str, brief: ProblemBrief):
     st.session_state.context_graph_state_live = None
     st.session_state.latest_assessment = None
     st.session_state.phase_summaries = []
+    st.session_state.graph_review_mode = False
+    st.session_state.pending_run_id = None
+    st.session_state.graph_pending_model = None
+    st.session_state.graph_review_messages = []
+    st.session_state.graph_review_history = []
 
 
 def load_project_runs(project_id: str) -> list[dict]:
@@ -546,7 +646,7 @@ init_state()
 
 # Sidebar — saved projects
 with st.sidebar:
-    st.header("Saved Projects")
+    st.header("Projects")
     saved_briefs = load_saved_briefs()
     if not saved_briefs:
         st.caption("No saved briefs yet.")
@@ -564,7 +664,7 @@ with st.sidebar:
         with st.expander("Brief details"):
             st.markdown(f"**Goal:** {selected_brief.goal}")
             st.markdown(f"**Domain:** {selected_brief.domain}")
-        if st.button("Load & Re-run Research", type="primary"):
+        if st.button("Load Project", type="primary"):
             load_brief_into_session(selected_id, selected_brief)
             st.rerun()
 
@@ -620,26 +720,65 @@ if st.session_state.brief and not st.session_state.saved:
         st.session_state.brief = None
         st.rerun()
 
-# ── Research area ─────────────────────────────────────────────────────────────
+# ── Workflow area ──────────────────────────────────────────────────────────────
 
 if st.session_state.saved:
     st.success("Brief confirmed and saved.")
     st.divider()
-    st.subheader("Research")
 
-    # Start / re-run button
-    if not st.session_state.current_run_id:
-        btn_label = "Start New Run" if st.session_state.report else "Start Research"
-        if st.button(btn_label, type="primary"):
+    # ── Graph review (HITL) ────────────────────────────────────────────────────
+    if st.session_state.graph_review_mode:
+        st.subheader("Workflow Design")
+        st.caption("Review the workflow below. Chat to refine it, then launch when ready.")
+
+        # Context graph preview
+        cg = st.session_state.context_graph
+        if cg and cg.get("nodes"):
+            if st.session_state.context_graph_state is None:
+                st.session_state.context_graph_state = _build_context_graph_state(
+                    cg, {"nodes": [], "edges": []}, {}, set()
+                )
+            streamlit_flow(
+                "cg_review",
+                st.session_state.context_graph_state,
+                layout=TreeLayout(direction="down"),
+                fit_view=True,
+                height=380,
+            )
+
+        # Graph review chat
+        for msg in st.session_state.graph_review_messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        launch = st.button("Launch Agent Swarm ⚡", type="primary")
+        graph_input = st.chat_input("Describe what you'd like to change…")
+
+        if graph_input:
+            st.session_state.graph_review_messages.append(
+                {"role": "user", "content": graph_input}
+            )
+            with st.spinner("Updating workflow…"):
+                reply = _refine_graph(graph_input)
+            st.session_state.graph_review_messages.append(
+                {"role": "assistant", "content": reply}
+            )
+            st.rerun()
+
+        if launch:
             run_id = _start_research(
                 st.session_state.brief,
                 st.session_state.current_project_id,
+                run_id=st.session_state.pending_run_id,
+                approved_graph=st.session_state.graph_pending_model,
             )
             st.session_state.current_run_id = run_id
-            st.session_state.report = None
+            st.session_state.graph_review_mode = False
+            st.session_state.pending_run_id = None
+            st.session_state.graph_pending_model = None
+            st.session_state.graph_review_messages = []
             st.session_state.dag = None
             st.session_state.agent_artefacts = {}
-            st.session_state.context_graph = None
             st.session_state.flow_state = None
             st.session_state.flow_state_live = None
             st.session_state.context_graph_state = None
@@ -648,8 +787,21 @@ if st.session_state.saved:
             st.session_state.phase_summaries = []
             st.rerun()
 
-    # Live view — auto-refreshes every 2 s while a run is in progress
+    # ── Plan / re-plan trigger ─────────────────────────────────────────────────
+    elif not st.session_state.current_run_id:
+        btn_label = "Plan a New Workflow" if st.session_state.report else "Plan Workflow"
+        if st.button(btn_label, type="primary"):
+            st.session_state.report = None
+            with st.spinner("Designing your workflow…"):
+                _plan_workflow(
+                    st.session_state.brief,
+                    st.session_state.current_project_id,
+                )
+            st.rerun()
+
+    # ── Agent Swarm live view ──────────────────────────────────────────────────
     if st.session_state.current_run_id:
+        st.subheader("Agent Swarm")
 
         @st.fragment(run_every="5s")
         def _live_panel():
@@ -686,7 +838,7 @@ if st.session_state.saved:
 
             if status == "failed":
                 error = status_data.get("error", "unknown error")
-                st.error(f"Research failed: {error}")
+                st.error(f"Agent swarm failed: {error}")
                 if st.button("Reset", key="reset_btn"):
                     st.session_state.current_run_id = None
                     st.rerun()

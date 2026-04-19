@@ -11,6 +11,7 @@ from slow_ai.models import AgentContext, EvidenceEnvelope, MemoryEntry, SpawnReq
 from slow_ai.tools.code_execution import code_execution as _code_execution
 from slow_ai.tools.code_generation import generate_python_code
 from slow_ai.tools.perplexity import perplexity_search
+from slow_ai.tools.url_fetch import url_fetch as _url_fetch
 from slow_ai.tools.web_browse import web_browse
 
 os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
@@ -31,6 +32,12 @@ def _tool_descriptions(tools_available: list[str]) -> str:
             "Always call this first to produce well-structured Python.\n"
             "- execute(code): run Python code in an isolated subprocess and return "
             "stdout/stderr. Always print() results you want to capture."
+        ),
+        "url_fetch": (
+            "fetch_url(url): download a file from a URL and inspect its contents. "
+            "Returns schema + sample rows for CSV/Parquet/Excel, full text for PDFs, "
+            "structure + sample for JSON. Use this to look inside actual datasets and "
+            "research papers — not just their landing pages."
         ),
     }
     lines = [descriptions[t] for t in tools_available if t in descriptions]
@@ -124,6 +131,33 @@ async def run_specialist(
             if not result.success:
                 return json.dumps({"error": result.error})
             return json.dumps({"title": result.title, "text": result.text})
+
+    if "url_fetch" in ctx.tools_available:
+        @agent.tool_plain
+        async def fetch_url(url: str) -> str:
+            result = await _url_fetch(url)
+            entry = MemoryEntry(
+                key=f"fetch_{uuid.uuid4().hex[:4]}",
+                value={
+                    "url": url,
+                    "content_type": result.content_type,
+                    "summary": result.summary,
+                    "success": result.success,
+                    "error": result.error,
+                },
+                source="url_fetch",
+                confidence=0.95 if result.success else 0.1,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                tokens_consumed=len(str(result.data)) // 4,
+            )
+            ctx.memory.add(entry)
+            if not result.success:
+                return json.dumps({"error": result.error})
+            return json.dumps({
+                "content_type": result.content_type,
+                "summary": result.summary,
+                "data": result.data,
+            })
 
     if "code_execution" in ctx.tools_available:
         @agent.tool_plain
