@@ -128,6 +128,20 @@
       ],
       "source": "synthesized",
       "tags": []
+    },
+    {
+      "name": "database_query",
+      "description": "Query and interact with databases (SQL, NoSQL, etc.) by writing and executing Python code using appropriate libraries (e.g., sqlite3, sqlalchemy, pymongo).",
+      "tools": [
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": [
+        "database",
+        "sql",
+        "query",
+        "data-access"
+      ]
     }
   ]
 }

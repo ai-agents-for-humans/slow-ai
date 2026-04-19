@@ -19,7 +19,8 @@ from slow_ai.models import ProblemBrief
 nest_asyncio.apply()
 
 st.set_page_config(page_title="Slow AI", layout="wide")
-st.title("Slow AI — Problem Brief Interview")
+st.title("Slow AI")
+st.caption("Describe the problem or workflow you want to automate — we'll design a multi-agent workflow and run it for you.")
 
 
 # ── Research subprocess ───────────────────────────────────────────────────────
@@ -94,6 +95,11 @@ _ASSESSMENT_STYLE = {
     "background": "#1c1917", "color": "#d6d3d1",
     "border": "1px dashed #78716c", "borderRadius": "6px",
     "fontSize": "12px", "padding": "8px 12px",
+}
+_PHASE_NODE_STYLE = {
+    "background": "#1e1b4b", "color": "#a5b4fc",
+    "border": "2px solid #6366f1", "borderRadius": "8px",
+    "fontSize": "13px", "padding": "12px 16px", "fontWeight": "bold",
 }
 
 
@@ -177,6 +183,20 @@ def _build_context_graph_state(
     blocked_skill_items = blocked_skill_items or set()
     nodes = []
     for item in context_graph.get("nodes", []):
+        node_type = item.get("node_type", "work_item")
+        if node_type == "phase":
+            nodes.append(StreamlitFlowNode(
+                id=item["id"],
+                pos=(0, 0),
+                data={"label": f"▣  {item['name']}"},
+                node_type="default",
+                style=_PHASE_NODE_STYLE,
+                source_position="bottom",
+                target_position="top",
+                selectable=False,
+            ))
+            continue
+
         wid = item["id"]
         if wid in blocked_skill_items:
             cov_status, conf = "missing_skill", 0.0
@@ -212,6 +232,58 @@ def _build_context_graph_state(
         for e in context_graph.get("edges", [])
     ]
     return StreamlitFlowState(nodes=nodes, edges=edges)
+
+
+def _render_phase_summaries(phase_summaries: list[dict], expanded: bool = False):
+    """Render phase synthesis panels — one expander per completed phase."""
+    if not phase_summaries:
+        return
+    st.markdown("**Phase Summaries**")
+    for ps in phase_summaries:
+        conf = ps.get("mean_confidence", 0.0)
+        covered = len(ps.get("covered_item_ids", []))
+        partial = len(ps.get("partial_item_ids", []))
+        uncovered = len(ps.get("uncovered_item_ids", []))
+        header = (
+            f"{ps['phase_name']} — conf: {conf:.2f}  "
+            f"({covered} covered · {partial} partial · {uncovered} uncovered)"
+        )
+        with st.expander(header, expanded=expanded):
+            synthesis = ps.get("synthesis", "")
+            if synthesis:
+                st.write(synthesis)
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Confidence", f"{conf:.2f}")
+            c2.metric("Covered", covered)
+            c3.metric("Partial", partial)
+            c4.metric("Uncovered", uncovered)
+            tokens = ps.get("total_tokens", 0)
+            if tokens:
+                st.caption(f"Tokens used: {tokens:,}")
+
+
+def _extract_file_content(uploaded_file) -> str:
+    """Extract text from an uploaded PDF or CSV file."""
+    name = uploaded_file.name.lower()
+    if name.endswith(".pdf"):
+        import pdfplumber
+        import io
+        text_parts = []
+        with pdfplumber.open(io.BytesIO(uploaded_file.read())) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    text_parts.append(text)
+        return "\n\n".join(text_parts) if text_parts else "(no text found in PDF)"
+    elif name.endswith(".csv"):
+        import pandas as pd
+        import io
+        df = pd.read_csv(io.BytesIO(uploaded_file.read()))
+        rows, cols = df.shape
+        preview = df.head(20).to_string(index=False)
+        return f"CSV with {rows} rows × {cols} columns:\n\n{preview}"
+    else:
+        return uploaded_file.read().decode("utf-8", errors="replace")
 
 
 def _duration_secs(spawned_at: str | None, completed_at: str | None) -> int | None:
@@ -340,6 +412,8 @@ def init_state():
         "context_graph_state_live": None,
         "latest_assessment": None,
         "latest_viability": None,
+        "phase_summaries": [],
+        "processed_attachments": set(),
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -410,6 +484,7 @@ def load_brief_into_session(project_id: str, brief: ProblemBrief):
     st.session_state.context_graph_state = None
     st.session_state.context_graph_state_live = None
     st.session_state.latest_assessment = None
+    st.session_state.phase_summaries = []
 
 
 def load_project_runs(project_id: str) -> list[dict]:
@@ -457,6 +532,7 @@ def load_historical_run(run_id: str):
     st.session_state.context_graph = store.read_live("context_graph.json", None)
     st.session_state.latest_assessment = store.read_live("assessment.json", None)
     st.session_state.latest_viability = store.read_live("viability.json", None)
+    st.session_state.phase_summaries = store.read_live("phase_summaries.json", [])
     st.session_state.research_log = store.read_live_log()
     st.session_state.flow_state = None
     st.session_state.context_graph_state = None
@@ -569,6 +645,7 @@ if st.session_state.saved:
             st.session_state.context_graph_state = None
             st.session_state.context_graph_state_live = None
             st.session_state.latest_assessment = None
+            st.session_state.phase_summaries = []
             st.rerun()
 
     # Live view — auto-refreshes every 2 s while a run is in progress
@@ -597,6 +674,7 @@ if st.session_state.saved:
                 st.session_state.context_graph = store.read_live("context_graph.json", None)
                 st.session_state.latest_assessment = store.read_live("assessment.json", None)
                 st.session_state.latest_viability = store.read_live("viability.json", None)
+                st.session_state.phase_summaries = store.read_live("phase_summaries.json", [])
                 st.session_state.research_log = store.read_live_log()
                 st.session_state.current_run_id = None
                 st.session_state.flow_state = None
@@ -668,15 +746,18 @@ if st.session_state.saved:
             # ── Latest orchestrator assessment ─────────────────────────────────
             assessment = store.read_live("assessment.json", None)
             if assessment:
+                phase_label = assessment.get("phase_id", "?")
                 with st.expander(
-                    f"Wave {assessment.get('wave', '?')} assessment — {assessment.get('action', '?')}",
+                    f"Phase {phase_label} assessment — {assessment.get('action', '?')}",
                     expanded=False,
                 ):
                     ac, pc, ec = st.columns(3)
                     ac.metric("Covered", len(assessment.get("work_items_covered", [])))
-                    pc.metric("Pending", len(assessment.get("work_items_pending", [])))
-                    ec.metric("Escalated", len(assessment.get("work_items_escalated", [])))
+                    pc.metric("Partial", len(assessment.get("work_items_partial", [])))
+                    ec.metric("Uncovered", len(assessment.get("work_items_uncovered", [])))
                     st.caption(assessment.get("reasoning", ""))
+                    if assessment.get("circuit_break_reason"):
+                        st.error(f"Circuit break: {assessment['circuit_break_reason']}")
 
             # ── Skill synthesis results ────────────────────────────────────────
             synthesis = store.read_live("synthesis.json", None)
@@ -717,6 +798,11 @@ if st.session_state.saved:
                             f"- `{g['skill']}` — needed by {g['required_by']}, "
                             f"blocks {g['downstream_blocked']} item(s){critical}"
                         )
+
+            # ── Phase summaries (live) ─────────────────────────────────────────
+            live_phase_summaries = store.read_live("phase_summaries.json", [])
+            if live_phase_summaries:
+                _render_phase_summaries(live_phase_summaries, expanded=False)
 
             # ── Context graph (blueprint) ──────────────────────────────────────
             cg = store.read_live("context_graph.json", None)
@@ -787,20 +873,26 @@ if st.session_state.saved:
                         f"blocks {g['downstream_blocked']} item(s){critical}"
                     )
 
+        # ── Phase summaries (completed run) ────────────────────────────────────
+        _render_phase_summaries(st.session_state.phase_summaries or [], expanded=False)
+
         # ── Final orchestrator assessment ──────────────────────────────────────
         assessment = st.session_state.latest_assessment
         if assessment:
             st.subheader("Orchestrator Assessment")
             ac, pc, ec = st.columns(3)
             ac.metric("Work items covered", len(assessment.get("work_items_covered", [])))
-            pc.metric("Work items pending", len(assessment.get("work_items_pending", [])))
-            ec.metric("Work items escalated", len(assessment.get("work_items_escalated", [])))
-            st.caption(f"Final action: **{assessment.get('action', '?')}** — wave {assessment.get('wave', '?')}")
+            pc.metric("Work items partial", len(assessment.get("work_items_partial", [])))
+            ec.metric("Work items uncovered", len(assessment.get("work_items_uncovered", [])))
+            phase_label = assessment.get("phase_id", "?")
+            st.caption(f"Final action: **{assessment.get('action', '?')}** — phase {phase_label}")
             with st.expander("Reasoning"):
                 st.write(assessment.get("reasoning", ""))
-            if assessment.get("work_items_pending"):
-                with st.expander("Pending work items"):
-                    for wid in assessment["work_items_pending"]:
+            if assessment.get("circuit_break_reason"):
+                st.error(f"Circuit break: {assessment['circuit_break_reason']}")
+            if assessment.get("work_items_uncovered"):
+                with st.expander("Uncovered work items"):
+                    for wid in assessment["work_items_uncovered"]:
                         st.markdown(f"- `{wid}`")
             if assessment.get("escalation_notes"):
                 with st.expander("Escalation notes"):
@@ -908,6 +1000,33 @@ if st.session_state.saved:
 
 # Chat input — only during the interview phase
 if not st.session_state.saved:
+    # File attachment
+    uploaded = st.file_uploader(
+        "Attach a file for context (PDF or CSV)",
+        type=["pdf", "csv"],
+        key="file_uploader",
+        label_visibility="collapsed",
+        help="Attach a PDF or CSV to give the interviewer additional context",
+    )
+    if uploaded and uploaded.name not in st.session_state.processed_attachments:
+        st.session_state.processed_attachments.add(uploaded.name)
+        try:
+            content = _extract_file_content(uploaded)
+            attachment_msg = (
+                f"I'm attaching a file for context: **{uploaded.name}**\n\n"
+                f"```\n{content[:4000]}\n```"
+                + ("*(truncated)*" if len(content) > 4000 else "")
+            )
+            st.session_state.messages.append({"role": "user", "content": attachment_msg})
+            response = call_agent(attachment_msg)
+            if isinstance(response, ProblemBrief):
+                st.session_state.brief = response
+            else:
+                st.session_state.messages.append({"role": "assistant", "content": response})
+        except Exception as e:
+            st.error(f"Could not read {uploaded.name}: {e}")
+        st.rerun()
+
     user_input = st.chat_input("Your response...")
     if user_input:
         st.session_state.messages.append({"role": "user", "content": user_input})

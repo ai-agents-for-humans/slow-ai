@@ -4,26 +4,15 @@ import os
 from pydantic_ai import Agent
 
 from slow_ai.config import settings
-from slow_ai.models import ContextGraph, ProblemBrief, SkillGap, ViabilityDecision
+from slow_ai.models import ContextGraph, ProblemBrief, SkillGap, ViabilityDecision, WorkItem
 from slow_ai.skills import SkillRegistry
 
 os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
 
-def _compute_all_blocked(direct_blocked: set[str], graph: ContextGraph) -> set[str]:
-    """
-    BFS: find all items that transitively depend on any directly blocked item.
-    An item is blocked if any of its upstream dependencies are blocked.
-    """
-    blocked = set(direct_blocked)
-    changed = True
-    while changed:
-        changed = False
-        for item in graph.nodes:
-            if item.id not in blocked and any(dep in blocked for dep in item.depends_on):
-                blocked.add(item.id)
-                changed = True
-    return blocked
+def _all_work_items(graph: ContextGraph) -> list[WorkItem]:
+    """Flatten all work items across all phases."""
+    return [wi for phase in graph.phases for wi in phase.work_items]
 
 
 def resolve_skills(
@@ -33,40 +22,39 @@ def resolve_skills(
     """
     Pure structural analysis — no LLM.
 
+    Within a phase, all work items are parallel and independent.
+    Blocking is per-work-item based on missing skills only (no intra-phase
+    dependency propagation — that concept no longer exists in the model).
+
     Returns:
         executable_item_ids: work items where all required skills are available
-        blocked_item_ids:    gap items + their transitive dependents
+        blocked_item_ids:    items with at least one missing skill
         gaps:                one SkillGap per missing skill
     """
-    total = len(graph.nodes)
+    all_items = _all_work_items(graph)
+    total = len(all_items)
 
-    # Find which skills are missing and which items directly need them
     missing_skill_to_items: dict[str, list[str]] = {}
     direct_gap_items: set[str] = set()
 
-    for item in graph.nodes:
+    for item in all_items:
         for skill in item.required_skills:
             if not registry.has(skill):
                 missing_skill_to_items.setdefault(skill, []).append(item.id)
                 direct_gap_items.add(item.id)
 
-    # Expand to transitive dependents
-    all_blocked = _compute_all_blocked(direct_gap_items, graph)
-    executable = [item.id for item in graph.nodes if item.id not in all_blocked]
+    executable = [item.id for item in all_items if item.id not in direct_gap_items]
 
-    # Build SkillGap objects
     gaps: list[SkillGap] = []
     for skill, required_by in missing_skill_to_items.items():
-        # How many items are blocked because of this specific skill gap?
-        skill_blocked = _compute_all_blocked(set(required_by), graph)
         gaps.append(SkillGap(
             skill=skill,
             required_by=required_by,
-            downstream_blocked=len(skill_blocked),
-            is_critical_path=(len(skill_blocked) / total > 0.5) if total > 0 else False,
+            downstream_blocked=len(required_by),
+            is_critical_path=(len(required_by) / total > 0.5) if total > 0 else False,
         ))
 
-    return executable, list(all_blocked), gaps
+    return executable, list(direct_gap_items), gaps
 
 
 # ── Viability assessor ────────────────────────────────────────────────────────
@@ -115,14 +103,15 @@ async def viability_assess(
     If there are no gaps, return "go" immediately without an LLM call.
     Otherwise, ask the LLM to make the semantic judgment.
     """
-    total = len(graph.nodes)
+    all_items = _all_work_items(graph)
+    total = len(all_items)
 
     if not gaps:
         return ViabilityDecision(
             action="go",
             skill_gaps=[],
             blocked_work_items=[],
-            executable_work_items=[n.id for n in graph.nodes],
+            executable_work_items=[n.id for n in all_items],
             coverage_ratio=1.0,
             reasoning="All required skills are available.",
         )

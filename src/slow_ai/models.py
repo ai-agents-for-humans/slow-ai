@@ -18,18 +18,25 @@ class ProblemBrief(BaseModel):
 # --- Context graph ---
 
 class WorkItem(BaseModel):
-    id: str                         # e.g. "wi-1"
+    id: str                         # e.g. "wi-1-1" (phase-1, item-1)
     name: str                       # short label
-    description: str                # what research needs to happen
+    description: str                # what needs to happen
     success_criteria: list[str] = []
-    depends_on: list[str] = []      # ids of WorkItems this item depends on
     required_skills: list[str] = [] # e.g. ["web_search", "pdf_extraction"]
+
+
+class Phase(BaseModel):
+    id: str                          # e.g. "phase-1"
+    name: str                        # e.g. "Explore", "Investigate", "Critique"
+    purpose: str                     # what this phase is trying to achieve
+    work_items: list[WorkItem]       # all run in parallel within this phase
+    depends_on_phases: list[str] = [] # phase ids that must complete before this
+    synthesis_instruction: str = ""  # guidance for phase-level synthesis agent
 
 
 class ContextGraph(BaseModel):
     goal: str
-    nodes: list[WorkItem]
-    edges: list[dict[str, str]] = []  # [{"source": "wi-1", "target": "wi-2"}]
+    phases: list[Phase]
 
 
 # --- Skill gap / viability ---
@@ -80,7 +87,7 @@ class MemoryEntry(BaseModel):
 
 class AgentMemory(BaseModel):
     agent_id: str
-    agent_type: str             # "copernicus_specialist" — the reusable template name
+    agent_type: str             # reusable template name
     entries: list[MemoryEntry] = []
     total_tokens: int = 0
     context_budget: int = 8000  # max tokens before decomposition is triggered
@@ -100,7 +107,7 @@ class AgentMemory(BaseModel):
 
 class AgentTask(BaseModel):
     task_id: str = ""
-    parent_task_id: str | None = None   # None = root task from orchestrator
+    parent_task_id: str | None = None
     agent_type: str
     goal: str
     context_budget: int = 8000
@@ -111,14 +118,12 @@ class AgentTask(BaseModel):
 # --- Spawn request ---
 
 class SpawnRequest(BaseModel):
-    requested_by: str                           # parent agent_id
+    requested_by: str
     agent_type: str
     goal: str
     context_budget: int = 4000
     tools: list[str] = ["perplexity_search", "web_browse"]
     priority: Literal["blocking", "background"] = "blocking"
-    # blocking = parent waits for result before continuing
-    # background = parent continues, result collected at milestone
 
 
 # --- Registry ---
@@ -131,10 +136,10 @@ class AgentRegistration(BaseModel):
     status: Literal["registered", "running", "completed", "failed"] = "registered"
     spawned_at: str = ""
     completed_at: str | None = None
-    memory_path: str | None = None     # git path to memory snapshot
+    memory_path: str | None = None
     tokens_used: int = 0
-    children: list[str] = []          # agent_ids of workers this agent spawned
-    work_item_id: str | None = None    # WorkItem.id this agent addresses
+    children: list[str] = []
+    work_item_id: str | None = None
 
 
 # --- Agent context ---
@@ -148,20 +153,21 @@ class AgentContext(BaseModel):
     constraints: dict[str, Any]
     tools_available: list[str] = ["perplexity_search", "web_browse"]
     evidence_required: dict[str, str]
-    work_item_id: str | None = None    # WorkItem.id this agent addresses
-    artefacts_dir: str | None = None   # absolute path; code_execution runs here
+    work_item_id: str | None = None
+    artefacts_dir: str | None = None
 
 
 # --- Research plan ---
 
 class ResearchPlan(BaseModel):
     run_id: str
+    phase_id: str                        # which phase this plan covers
     context_graph: ContextGraph | None = None
     specialists: list[AgentContext]
     milestone_flags: list[str]
 
 
-# --- Orchestrator decision (assess step) ---
+# --- Orchestrator decision (phase assessment) ---
 
 class SpecialistAssignment(BaseModel):
     role: str
@@ -172,13 +178,13 @@ class SpecialistAssignment(BaseModel):
 
 
 class OrchestratorDecision(BaseModel):
-    action: Literal["spawn_specialists", "escalate_to_human", "synthesize"]
-    wave: int
-    work_items_covered: list[str] = []     # wi-ids considered done
-    work_items_pending: list[str] = []     # wi-ids still needing work
-    work_items_escalated: list[str] = []   # wi-ids needing human input
-    next_wave: list[SpecialistAssignment] = []   # populated when action == "spawn_specialists"
-    escalation_notes: dict[str, str] = {}  # wi-id → reason, when action == "escalate_to_human"
+    action: Literal["proceed", "synthesize", "escalate_to_human", "circuit_break"]
+    phase_id: str
+    work_items_covered: list[str] = []    # wi-ids with confidence >= 0.6
+    work_items_partial: list[str] = []    # wi-ids with confidence 0.3-0.59
+    work_items_uncovered: list[str] = []  # wi-ids with confidence < 0.3
+    escalation_notes: dict[str, str] = {}
+    circuit_break_reason: str = ""
     reasoning: str
 
 
@@ -192,8 +198,22 @@ class EvidenceEnvelope(BaseModel):
     verdict: Literal["continue", "stop", "escalate"]
     confidence: float
     cost_tokens: int
-    artefacts: list[str]               # filenames to commit to git
-    workers_spawned: list[str] = []    # agent_ids of any workers this agent spawned
+    artefacts: list[str]
+    workers_spawned: list[str] = []
+
+
+# --- Phase summary (synthesis + raw envelopes) ---
+
+class PhaseSummary(BaseModel):
+    phase_id: str
+    phase_name: str
+    synthesis: str                        # LLM-generated narrative
+    envelopes: list[EvidenceEnvelope]     # raw envelopes preserved alongside synthesis
+    covered_item_ids: list[str] = []      # confidence >= 0.6
+    partial_item_ids: list[str] = []      # confidence 0.3-0.59
+    uncovered_item_ids: list[str] = []    # confidence < 0.3
+    mean_confidence: float = 0.0
+    total_tokens: int = 0
 
 
 # --- Dataset output ---

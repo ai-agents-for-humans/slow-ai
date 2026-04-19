@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+from datetime import datetime, timezone
 
 from pydantic_ai import Agent
 
@@ -14,6 +15,8 @@ from slow_ai.models import (
     ContextGraph,
     EvidenceEnvelope,
     OrchestratorDecision,
+    Phase,
+    PhaseSummary,
     ProblemBrief,
     ResearchPlan,
     SkillGap,
@@ -28,37 +31,75 @@ os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
 def _context_planner_prompt(skill_registry_description: str) -> str:
     return f"""
-You are a research planner. Given a problem brief, decompose the goal into a directed
-graph of work items — a blueprint of everything that needs to happen for the goal to
-be considered complete.
+You are a work planner. Given a problem brief, decompose the goal into a structured
+plan of phases — each phase containing parallel work items.
 
-Guidelines:
-- Create 3-8 work items depending on scope (fewer for narrow goals, more for broad ones)
-- Each work item should be atomic enough for a single specialist agent to address
-- Give each item a short, clear name (5-10 words) and a description of what research
-  needs to happen
-- List 1-3 concrete success criteria per item (what "done" looks like)
-- Add dependency edges where one item's findings are genuinely required before another
-  can proceed: edge source depends on edge target
-- Assign ids as "wi-1", "wi-2", etc.
-- The depends_on field on each WorkItem should mirror the edges
+STRUCTURE:
+- Design 2-5 phases in logical sequence (e.g. Explore → Investigate → Critique →
+  Synthesise, or whatever fits the domain)
+- Each phase has a clear purpose: what collectively needs to be true before the next
+  phase can start
+- Within each phase, all work items run in parallel — so they must be genuinely
+  independent of each other
+- Each work item is atomic enough for a single specialist agent to address
 
-For each work item, declare the skills it requires under required_skills.
-Express skills as abstract action types — not tool names. Examples:
+PHASE IDS: "phase-1", "phase-2", etc.
+WORK ITEM IDS: "wi-{{phase_number}}-{{item_number}}" e.g. "wi-1-1", "wi-1-2", "wi-2-1"
+
+PHASE FIELDS:
+- id: "phase-1" etc.
+- name: short descriptive name (e.g. "Landscape Scan", "Deep Investigation", "Quality Critique")
+- purpose: 1-2 sentences on what this phase must achieve
+- work_items: list of WorkItem objects
+- depends_on_phases: list of phase ids that must complete first ([] for the first phase)
+- synthesis_instruction: how to combine this phase's work item outputs (e.g.
+  "Summarise findings by source, flag contradictions, identify gaps for the next phase")
+
+WORK ITEM FIELDS:
+- id, name, description, success_criteria
+- required_skills: abstract skill names (NOT tool names). Examples:
   web_search, web_browse, pdf_extraction, code_execution, database_query,
-  satellite_imagery_api, statistical_analysis, document_parsing, api_integration,
-  image_analysis, geospatial_processing, data_transformation
+  statistical_analysis, document_parsing, api_integration, data_transformation,
+  image_analysis, geospatial_processing
 
 Currently available skills:
 {skill_registry_description}
 
-IMPORTANT: You are NOT limited to these skills. If the ideal research methodology
-requires a skill that is not yet listed (e.g. "satellite_imagery_api" or
-"pdf_extraction"), declare it anyway. Undeclared skill requirements cannot be detected
-or resolved. Plan for the ideal approach — gaps will be surfaced and resolved separately.
+IMPORTANT: Plan for the ideal methodology. Declare skills that do not yet exist if
+the work genuinely requires them — gaps are surfaced and resolved before execution.
+Do not constrain the plan to currently available skills.
 
-Return a ContextGraph.
+Return a ContextGraph with phases.
 """
+
+
+async def run_graph_editor(
+    brief: ProblemBrief,
+    current_graph: ContextGraph,
+    feedback: str,
+    run_id: str,
+) -> ContextGraph:
+    """Refine an existing context graph based on user feedback."""
+    from slow_ai.skills import SkillRegistry
+    skill_registry = SkillRegistry()
+    editor = Agent(
+        model=ModelRegistry().for_task("context_planning"),
+        output_type=ContextGraph,
+        system_prompt=_context_planner_prompt(skill_registry.descriptions_for_prompt()),
+    )
+    result = await editor.run(
+        f"Run ID: {run_id}\n\n"
+        f"Problem brief:\n{json.dumps(brief.model_dump(), indent=2)}\n\n"
+        f"Current context graph (update this based on user feedback — preserve what is correct, "
+        f"change only what the user requests):\n"
+        f"{json.dumps(current_graph.model_dump(), indent=2)}\n\n"
+        f"User feedback / requested changes:\n{feedback}\n\n"
+        f"Return an updated ContextGraph."
+    )
+    graph: ContextGraph = result.output
+    graph.goal = brief.goal
+    return graph
+
 
 async def run_context_planner(brief: ProblemBrief, run_id: str) -> ContextGraph:
     from slow_ai.skills import SkillRegistry
@@ -73,71 +114,66 @@ async def run_context_planner(brief: ProblemBrief, run_id: str) -> ContextGraph:
     )
     graph: ContextGraph = result.output
     graph.goal = brief.goal
-    # Rebuild edges from depends_on so the two representations stay consistent
-    edges = []
-    for node in graph.nodes:
-        for dep_id in node.depends_on:
-            edges.append({"source": node.id, "target": dep_id})
-    graph.edges = edges
     return graph
 
 
-# ── Orchestrator ──────────────────────────────────────────────────────────────
+# ── Phase orchestrator ────────────────────────────────────────────────────────
 
-# TODO: replace this static prompt with an LLM-generated one derived from the
-# project brief — the brief's domain, constraints and milestone_flags should
-# drive which specialist types are selected and how budgets are allocated.
-_SYSTEM_PROMPT = """
-You are a research orchestrator for earth observation data.
+def _phase_orchestrator_prompt(brief: ProblemBrief, phase: Phase, graph: ContextGraph) -> str:
+    other_phases = [p.name for p in graph.phases if p.id != phase.id]
+    return f"""
+You are a work orchestrator assigning specialist agents to a specific phase of work.
 
-You will receive a problem brief, the full context graph, and a list of READY work
-items — those whose upstream dependencies are already satisfied and can be worked on
-now. Your job is to assign specialist agents only to the ready work items.
+OVERALL GOAL: {brief.goal}
+DOMAIN: {brief.domain}
 
-Do NOT assign specialists to work items that are not in the ready list — their
-dependencies have not been met yet and they will be dispatched in a later wave.
+CURRENT PHASE: {phase.name}
+PHASE PURPOSE: {phase.purpose}
 
-Always consider these specialist types for earth observation:
-- copernicus_specialist: Sentinel-2, Sentinel-1 SAR, ESA Open Access Hub, free optical data
-- nasa_earthdata_specialist: MODIS, Landsat, SRTM, NASA CMR search API
-- google_earth_engine_specialist: GEE data catalogue, cloud-based processing, STAC APIs
-- open_data_specialist: national agencies, data.gov, OpenAfrica, RCMRD, regional portals
+OTHER PHASES (context only — do not assign work to these):
+{', '.join(other_phases) if other_phases else 'None — this is the only phase.'}
 
-For each specialist:
-- Set work_item_id to the id of one of the READY work items (e.g. "wi-1")
-- Assign a specific task based on brief constraints (region, time range, resolution)
-- Set evidence_required: what proof they must return (sources_checked, datasets_found,
-  coverage_pct, license, resolution, format, download_url)
-- Set context_budget based on task complexity:
-  - Single country, single time range: 6000 tokens
-  - Multiple countries or long time range: 4000 tokens (expect decomposition)
-  - Broad survey: 3000 tokens (will need workers)
+YOUR JOB:
+Assign one specialist agent per work item in this phase. All specialists will run
+in parallel. For each work item, define:
+- role: a descriptive specialist name matching the work (e.g. "market_analyst",
+  "regulatory_researcher", "financial_data_specialist")
+- goal: a specific, actionable instruction for what to find or produce
+- evidence_required: what proof the agent must return (source-specific, measurable)
+- context_budget: tokens (3000-8000 based on task complexity)
 
-Return run_id and milestone_flags from the brief.
+WORK ITEMS TO ASSIGN (one specialist each):
+{json.dumps([wi.model_dump() for wi in phase.work_items], indent=2)}
+
+CONSTRAINTS:
+{json.dumps(brief.constraints, indent=2)}
+
+SUCCESS CRITERIA:
+{json.dumps(brief.success_criteria, indent=2)}
+
+Return a ResearchPlan with phase_id="{phase.id}" and one specialist per work item.
 """
-
-_orchestrator = Agent(
-    model=ModelRegistry().for_task("orchestration"),
-    output_type=ResearchPlan,
-    system_prompt=_SYSTEM_PROMPT,
-)
 
 
 async def run_orchestrator(
     brief: ProblemBrief,
+    phase: Phase,
     context_graph: ContextGraph,
-    ready_work_items: list[WorkItem],
     run_id: str,
 ) -> ResearchPlan:
-    ready_data = json.dumps([w.model_dump() for w in ready_work_items], indent=2)
-    result = await _orchestrator.run(
+    orchestrator = Agent(
+        model=ModelRegistry().for_task("orchestration"),
+        output_type=ResearchPlan,
+        system_prompt=_phase_orchestrator_prompt(brief, phase, context_graph),
+    )
+    result = await orchestrator.run(
         f"Run ID: {run_id}\n\n"
-        f"Problem brief:\n{json.dumps(brief.model_dump(), indent=2)}\n\n"
-        f"Full context graph:\n{json.dumps(context_graph.model_dump(), indent=2)}\n\n"
-        f"READY work items (assign specialists only to these):\n{ready_data}"
+        f"Assign specialists for phase '{phase.name}' ({phase.id}).\n"
+        f"Work items:\n{json.dumps([wi.model_dump() for wi in phase.work_items], indent=2)}"
     )
     plan: ResearchPlan = result.output
     plan.run_id = run_id
+    plan.phase_id = phase.id
     plan.context_graph = context_graph
 
     for ctx in plan.specialists:
@@ -160,74 +196,160 @@ async def run_orchestrator(
     return plan
 
 
-_ASSESS_PROMPT = """
-You are a research orchestrator assessing progress after a wave of specialist agents.
+# ── Phase synthesis ───────────────────────────────────────────────────────────
+
+async def synthesise_phase(
+    phase: Phase,
+    envelopes: list[EvidenceEnvelope],
+    brief: ProblemBrief,
+) -> PhaseSummary:
+    """
+    Synthesise the results of a completed phase into a PhaseSummary.
+    The summary includes both the LLM narrative AND the raw envelopes —
+    nothing is abstracted away from downstream phases.
+    """
+    synthesis_agent = Agent(
+        model=ModelRegistry().for_task("report_synthesis"),
+        output_type=str,
+        system_prompt=f"""
+You are synthesising the results of a completed phase of work.
+
+PHASE: {phase.name}
+PHASE PURPOSE: {phase.purpose}
+SYNTHESIS INSTRUCTION: {phase.synthesis_instruction or 'Summarise key findings, note gaps and contradictions.'}
+
+You receive evidence envelopes from all agents that ran in this phase.
+Produce a concise synthesis (3-8 paragraphs) that:
+- Summarises what was found across all work items
+- Notes contradictions or conflicts between agents
+- Identifies what remains unclear or unresolved
+- States what the next phase should know coming in
+
+Do NOT hallucinate. Every claim must be grounded in the evidence provided.
+If evidence is thin, say so clearly.
+""",
+    )
+
+    envelope_data = json.dumps([e.model_dump() for e in envelopes], indent=2)
+    result = await synthesis_agent.run(
+        f"Phase: {phase.name}\nGoal context: {brief.goal}\n\n"
+        f"Evidence envelopes:\n{envelope_data}"
+    )
+    synthesis_text: str = result.output
+
+    # Classify work items by confidence
+    envelope_by_item: dict[str, EvidenceEnvelope] = {}
+    for env in envelopes:
+        # match envelope to work item via agent registry's work_item_id
+        # envelopes carry work_item_id indirectly through agent registration;
+        # here we match by position (one specialist per work item)
+        pass
+
+    # Compute per-item confidence from envelopes
+    # Since each work item gets one specialist, map by order
+    covered, partial, uncovered = [], [], []
+    for wi, env in zip(phase.work_items, envelopes):
+        if env.confidence >= 0.6:
+            covered.append(wi.id)
+        elif env.confidence >= 0.3:
+            partial.append(wi.id)
+        else:
+            uncovered.append(wi.id)
+
+    # Handle case where envelope count doesn't match work item count
+    # (failures, skips) — remaining items are uncovered
+    for wi in phase.work_items[len(envelopes):]:
+        uncovered.append(wi.id)
+
+    mean_conf = sum(e.confidence for e in envelopes) / len(envelopes) if envelopes else 0.0
+    total_tokens = sum(e.cost_tokens for e in envelopes)
+
+    return PhaseSummary(
+        phase_id=phase.id,
+        phase_name=phase.name,
+        synthesis=synthesis_text,
+        envelopes=envelopes,
+        covered_item_ids=covered,
+        partial_item_ids=partial,
+        uncovered_item_ids=uncovered,
+        mean_confidence=mean_conf,
+        total_tokens=total_tokens,
+    )
+
+
+# ── Phase assessment ──────────────────────────────────────────────────────────
+
+_PHASE_ASSESS_PROMPT = """
+You are assessing whether a phase of work is complete and whether to proceed.
 
 You receive:
-1. The full context graph — the complete blueprint with all work items and dependencies
-2. Evidence envelopes collected so far — what specialists have found and at what confidence
-3. The original problem brief
-4. READY work items — those whose dependencies are now satisfied and can be worked on next
+1. The phase that just completed — its name, purpose, work items
+2. A phase summary — synthesis narrative + confidence breakdown
+3. The full context graph — all phases and their purposes
+4. The problem brief — goal, constraints, success criteria
 
-Your job is to assess coverage of the work items worked so far and decide the next action.
+Decide:
+- "proceed": the phase produced sufficient evidence to meaningfully inform the next
+  phase. Gaps are acceptable if they do not block the overall goal.
+- "synthesize": skip remaining phases and produce the final output now. Use this
+  when all important questions have been answered or no further phases can add value.
+- "escalate_to_human": a critical finding is ambiguous, contradictory, or requires
+  a human judgment call before the next phase can proceed.
+- "circuit_break": the phase failed so badly (mean confidence < 0.2, all items
+  uncovered) that continuing would waste resources and produce a meaningless result.
 
-Coverage rules (for items that have been worked):
-- A work item is COVERED if at least one envelope maps to it with confidence >= 0.6
-- A work item is PARTIAL if the best envelope confidence is 0.3–0.59
-- A work item is UNCOVERED if no envelope exists for it, or best confidence < 0.3
-
-Then decide:
-- "synthesize": all work items across the entire context graph are covered (>= 0.6),
-  OR no ready items remain and everything possible has been addressed.
-- "spawn_specialists": there are ready work items that still need to be addressed.
-  Provide next_wave with assignments ONLY for items in the READY list.
-  Do not re-assign work items that are already covered.
-- "escalate_to_human": a ready work item requires human judgement before it can proceed —
-  ambiguous requirements, conflicting evidence, or decisions outside research scope.
-  Document each escalation in escalation_notes.
-
-IMPORTANT: Only include work_item_ids from the provided context graph in your lists.
-Only assign next_wave specialists to items in the READY list.
-Always include reasoning explaining your assessment.
+Include clear reasoning referencing the phase purpose and overall goal.
+Note which work items were covered, partial, or uncovered.
 """
 
-_assess_agent = Agent(
+_phase_assess_agent = Agent(
     model=ModelRegistry().for_task("assessment"),
     output_type=OrchestratorDecision,
-    system_prompt=_ASSESS_PROMPT,
+    system_prompt=_PHASE_ASSESS_PROMPT,
 )
 
 
 async def orchestrator_assess(
     brief: ProblemBrief,
     context_graph: ContextGraph,
-    envelopes: list[EvidenceEnvelope],
-    ready_work_items: list[WorkItem],
+    phase: Phase,
+    phase_summary: PhaseSummary,
     run_id: str,
-    wave: int,
 ) -> OrchestratorDecision:
-    envelope_data = json.dumps([e.model_dump() for e in envelopes], indent=2)
-    ready_data = json.dumps([w.model_dump() for w in ready_work_items], indent=2)
-    result = await _assess_agent.run(
-        f"Run ID: {run_id} | Wave: {wave}\n\n"
+    result = await _phase_assess_agent.run(
+        f"Run ID: {run_id}\n\n"
         f"Problem brief:\n{json.dumps(brief.model_dump(), indent=2)}\n\n"
         f"Full context graph:\n{json.dumps(context_graph.model_dump(), indent=2)}\n\n"
-        f"Evidence envelopes collected so far:\n{envelope_data}\n\n"
-        f"READY work items (unblocked, can be worked on now):\n{ready_data}"
+        f"Completed phase: {phase.name} ({phase.id})\n"
+        f"Phase purpose: {phase.purpose}\n\n"
+        f"Phase summary:\n"
+        f"  Synthesis: {phase_summary.synthesis}\n"
+        f"  Covered items: {phase_summary.covered_item_ids}\n"
+        f"  Partial items: {phase_summary.partial_item_ids}\n"
+        f"  Uncovered items: {phase_summary.uncovered_item_ids}\n"
+        f"  Mean confidence: {phase_summary.mean_confidence:.2f}\n"
+        f"  Total tokens used: {phase_summary.total_tokens}"
     )
     decision: OrchestratorDecision = result.output
-    decision.wave = wave
+    decision.phase_id = phase.id
+
+    # Circuit breaker: enforce hard threshold regardless of LLM decision
+    if phase_summary.mean_confidence < 0.15 and not phase_summary.covered_item_ids:
+        decision.action = "circuit_break"
+        decision.circuit_break_reason = (
+            f"Phase '{phase.name}' mean confidence {phase_summary.mean_confidence:.2f} "
+            f"with zero covered items — continuing would not add value."
+        )
+
     return decision
 
+
+# ── Spawn handler ─────────────────────────────────────────────────────────────
 
 async def handle_spawn_request(
     request: SpawnRequest,
     registry: AgentRegistry,
 ) -> AgentContext:
-    """
-    Called when an agent requests a worker mid-execution.
-    Registers the worker in the registry and returns its context.
-    """
     task_id = f"task-{uuid.uuid4().hex[:6]}"
     reg = registry.register(
         agent_type=request.agent_type,
