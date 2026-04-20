@@ -36,6 +36,7 @@ from slow_ai.llm import ModelRegistry
 from slow_ai.skills import SkillRegistry
 from slow_ai.skills.resolver import resolve_skills, viability_assess
 from slow_ai.skills.synthesizer import synthesize_skills
+from slow_ai.tools.code_execution import setup_run_venv
 
 os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
@@ -57,6 +58,10 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
 
     store.write_live("status.json", {"status": "initializing"})
 
+    # ── Sandboxed venv for this run ────────────────────────────────────────────
+    venv_path = setup_run_venv(run_id)
+    _log(store, f"Run venv ready: {venv_path}")
+
     try:
         store.commit_brief(brief.model_dump())
         _log(store, f"Run `{run_id}` initialised.")
@@ -71,7 +76,8 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
             _log(store, "Using approved context graph from workflow review.")
         else:
             _log(store, "Building context graph...")
-            context_graph = await run_context_planner(brief, run_id)
+            prior_context = _load_prior_context(brief.prior_run_ids)
+            context_graph = await run_context_planner(brief, run_id, prior_context=prior_context)
 
         store.write_live("context_graph.json", _graph_for_ui(context_graph))
         store.commit_milestone(
@@ -196,6 +202,8 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
                 ctx.artefacts_dir = str(
                     Path("runs") / run_id / "artefacts" / phase.id / ctx.agent_id
                 )
+                ctx.venv_path = str(venv_path)
+                ctx.prior_run_ids = brief.prior_run_ids
 
             store.commit_milestone(
                 f"M-{phase.id}-plan",
@@ -333,6 +341,36 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _load_prior_context(prior_run_ids: list[str]) -> str:
+    """
+    Build a summary of prior runs to inject into the context planner prompt.
+    Returns an empty string if there are no prior runs or none have summaries.
+    """
+    if not prior_run_ids:
+        return ""
+    sections = []
+    for run_id in prior_run_ids:
+        summaries_path = Path("runs") / run_id / "live" / "phase_summaries.json"
+        if not summaries_path.exists():
+            continue
+        try:
+            summaries = json.loads(summaries_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        for s in summaries:
+            covered = s.get("covered_item_ids", [])
+            partial = s.get("partial_item_ids", [])
+            uncovered = s.get("uncovered_item_ids", [])
+            conf = s.get("mean_confidence", 0)
+            synthesis = s.get("synthesis", "")[:600]
+            sections.append(
+                f"[Run {run_id}] Phase '{s['phase_name']}' (conf {conf:.2f}):\n"
+                f"  Covered: {covered}\n  Partial: {partial}\n  Uncovered: {uncovered}\n"
+                f"  Summary: {synthesis}"
+            )
+    return "\n\n".join(sections) if sections else ""
+
 
 def _phases_in_order(graph: ContextGraph) -> list[Phase]:
     """

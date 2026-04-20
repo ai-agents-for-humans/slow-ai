@@ -212,7 +212,13 @@
         "url_fetch"
       ],
       "source": "built-in",
-      "tags": ["data", "datasets", "inspection", "schema", "tabular"]
+      "tags": [
+        "data",
+        "datasets",
+        "inspection",
+        "schema",
+        "tabular"
+      ]
     },
     {
       "name": "pdf_extraction",
@@ -221,7 +227,79 @@
         "url_fetch"
       ],
       "source": "built-in",
-      "tags": ["pdf", "research", "papers", "documents", "extraction"]
+      "tags": [
+        "pdf",
+        "research",
+        "papers",
+        "documents",
+        "extraction"
+      ]
+    },
+    {
+      "name": "schedule_modeling",
+      "description": "Model, simulate, and optimize schedules, timelines, and resource allocations using graph theory (networkx), mathematical optimization (scipy/pulp), and temporal data manipulation.",
+      "tools": [
+        "code_execution",
+        "data_transformation",
+        "statistical_analysis"
+      ],
+      "source": "synthesized",
+      "tags": [
+        "scheduling",
+        "optimization",
+        "planning"
+      ]
+    },
+    {
+      "name": "report_generation",
+      "description": "Programmatically generate and format structured reports and documents (PDF, Markdown) to communicate research findings and data analysis results.",
+      "tools": [
+        "document_generation",
+        "code_execution",
+        "data_visualization"
+      ],
+      "source": "synthesized",
+      "tags": [
+        "reporting",
+        "automation",
+        "document-creation"
+      ]
+    },
+    {
+      "name": "environmental_policy_analysis",
+      "description": "Analyze environmental policies, regulatory frameworks, and compliance standards by retrieving official documents from the web, extracting relevant clauses, and synthesizing insights using data analysis and document parsing tools.",
+      "tools": [
+        "web_search",
+        "web_browse",
+        "pdf_extraction",
+        "document_parsing",
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "german_healthcare_expertise",
+      "description": "Research and interpret the German healthcare system, including its regulatory framework (SGB), insurance structures (GKV/PKV), and clinical standards. This is achieved by searching official German portals, browsing regulatory documents, and applying healthcare policy analysis techniques to the retrieved information.",
+      "tools": [
+        "web_search",
+        "web_browse",
+        "healthcare_policy_analysis",
+        "medical_literature_research"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "german_language_analysis",
+      "description": "Extract, process, and analyze German-language text from various sources. This includes parsing German documents, scraping German websites, and using Python-based text processing or the agent's multilingual reasoning to interpret linguistic nuances and data.",
+      "tools": [
+        "document_parsing",
+        "web_browse",
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
     }
   ]
 }

@@ -2,6 +2,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from pydantic_ai import Agent
 
@@ -38,6 +39,10 @@ def _tool_descriptions(tools_available: list[str]) -> str:
             "Returns schema + sample rows for CSV/Parquet/Excel, full text for PDFs, "
             "structure + sample for JSON. Use this to look inside actual datasets and "
             "research papers — not just their landing pages."
+        ),
+        "read_prior_evidence": (
+            "read_prior_evidence(topic): search prior run evidence for a topic or keyword. "
+            "Use this FIRST to avoid repeating work already done in previous runs."
         ),
     }
     lines = [descriptions[t] for t in tools_available if t in descriptions]
@@ -188,7 +193,9 @@ async def run_specialist(
 
         @agent.tool_plain
         async def execute(code: str) -> str:
-            result = await _code_execution(code, working_dir=ctx.artefacts_dir)
+            result = await _code_execution(
+                code, working_dir=ctx.artefacts_dir, venv_path=ctx.venv_path
+            )
             entry = MemoryEntry(
                 key=f"exec_{uuid.uuid4().hex[:4]}",
                 value={
@@ -203,6 +210,14 @@ async def run_specialist(
             )
             ctx.memory.add(entry)
             return json.dumps(result)
+
+    if ctx.prior_run_ids:
+        @agent.tool_plain
+        async def read_prior_evidence(topic: str) -> str:
+            """Search prior run evidence for a topic. Call this first to avoid repeating work."""
+            from slow_ai.tools.run_reader import search_across_runs
+            run_paths = [Path("runs") / rid for rid in ctx.prior_run_ids]
+            return search_across_runs(run_paths, topic)
 
     if registry:
         registry.update_status(ctx.agent_id, "running")

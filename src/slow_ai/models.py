@@ -13,6 +13,7 @@ class ProblemBrief(BaseModel):
     success_criteria: list[str]
     milestone_flags: list[str]
     excluded_paths: list[str]
+    prior_run_ids: list[str] = []   # ordered chain of prior run IDs, oldest first
 
 
 # --- Context graph ---
@@ -155,6 +156,8 @@ class AgentContext(BaseModel):
     evidence_required: dict[str, str]
     work_item_id: str | None = None
     artefacts_dir: str | None = None
+    venv_path: str | None = None        # sandboxed run environment
+    prior_run_ids: list[str] = []       # enables read_prior_evidence tool
 
 
 # --- Research plan ---

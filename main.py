@@ -80,7 +80,7 @@ def _start_research(brief: ProblemBrief, project_id: str, run_id: str | None = N
 def _plan_workflow(brief: ProblemBrief, project_id: str):
     """Run context planner in the UI process and enter graph review mode."""
     from slow_ai.agents.orchestrator import run_context_planner
-    from slow_ai.research.runner import _graph_for_ui
+    from slow_ai.research.runner import _graph_for_ui, _load_prior_context
 
     run_id = (
         f"{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
@@ -97,8 +97,11 @@ def _plan_workflow(brief: ProblemBrief, project_id: str):
             "started_at": datetime.now(timezone.utc).isoformat(),
         }) + "\n")
 
+    prior_context = _load_prior_context(brief.prior_run_ids)
     loop = asyncio.get_event_loop()
-    graph = loop.run_until_complete(run_context_planner(brief, run_id))
+    graph = loop.run_until_complete(
+        run_context_planner(brief, run_id, prior_context=prior_context)
+    )
 
     n_phases = len(graph.phases)
     n_items = sum(len(p.work_items) for p in graph.phases)
@@ -509,6 +512,11 @@ def init_state():
         "graph_pending_model": None,
         "graph_review_messages": [],
         "graph_review_history": [],
+        "conversation_messages": [],   # {role, content, timestamp} — display + persistence
+        "conversation_history": [],    # pydantic-ai message history — current session only
+        "conversation_run_id": None,   # which run the conversation is scoped to
+        "dig_deeper_prior_run_id": None,  # set when "Dig deeper" was clicked
+        "swarm_launching": False,         # True between click and actual subprocess launch
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -585,6 +593,7 @@ def load_brief_into_session(project_id: str, brief: ProblemBrief):
     st.session_state.graph_pending_model = None
     st.session_state.graph_review_messages = []
     st.session_state.graph_review_history = []
+    st.session_state.dig_deeper_prior_run_id = None
 
 
 def load_project_runs(project_id: str) -> list[dict]:
@@ -634,6 +643,9 @@ def load_historical_run(run_id: str):
     st.session_state.latest_viability = store.read_live("viability.json", None)
     st.session_state.phase_summaries = store.read_live("phase_summaries.json", [])
     st.session_state.research_log = store.read_live_log()
+    st.session_state.conversation_messages = store.read_conversation()
+    st.session_state.conversation_history = []
+    st.session_state.conversation_run_id = run_id
     st.session_state.flow_state = None
     st.session_state.context_graph_state = None
     st.session_state.current_run_id = None  # not an active run
@@ -646,6 +658,36 @@ init_state()
 
 # Sidebar — saved projects
 with st.sidebar:
+    # ── Live run status (always visible while a run is active) ─────────────────
+    if st.session_state.current_run_id:
+        from slow_ai.execution.git_store import GitStore as _SidebarGS
+        _sb_store = _SidebarGS(st.session_state.current_run_id)
+        _sb_status_data = _sb_store.read_live("status.json", {"status": "initializing"})
+        _sb_status = _sb_status_data.get("status", "initializing")
+        _sb_log = _sb_store.read_live_log()
+        _sb_summaries = _sb_store.read_live("phase_summaries.json", [])
+
+        st.markdown("**⚡ Agent Swarm Running**")
+        _badge = {
+            "initializing": "🔵 Initializing",
+            "running": "🔵 Running",
+            "completed": "🟢 Completed",
+            "failed": "🔴 Failed",
+            "waiting_for_human": "🟡 Waiting",
+            "blocked_on_capabilities": "🟠 Blocked",
+        }
+        st.caption(_badge.get(_sb_status, f"● {_sb_status}"))
+
+        if _sb_summaries:
+            st.caption(f"Phases done: {len(_sb_summaries)}")
+            latest = _sb_summaries[-1]
+            st.caption(f"Last: {latest['phase_name']} (conf {latest.get('mean_confidence', 0):.2f})")
+
+        if _sb_log:
+            st.caption(_sb_log[-1])
+
+        st.divider()
+
     st.header("Projects")
     saved_briefs = load_saved_briefs()
     if not saved_briefs:
@@ -707,7 +749,18 @@ if st.session_state.brief and not st.session_state.saved:
     display_brief(st.session_state.brief)
     col1, col2 = st.columns(2)
     if col1.button("Confirm & Save", type="primary"):
-        path, project_id = save_brief(st.session_state.brief)
+        brief_to_save = st.session_state.brief
+        # Inject prior run ID if this is a "Dig deeper" follow-on
+        if st.session_state.dig_deeper_prior_run_id:
+            prior = st.session_state.dig_deeper_prior_run_id
+            existing = brief_to_save.prior_run_ids or []
+            if prior not in existing:
+                brief_to_save = brief_to_save.model_copy(
+                    update={"prior_run_ids": existing + [prior]}
+                )
+            st.session_state.dig_deeper_prior_run_id = None
+        path, project_id = save_brief(brief_to_save)
+        st.session_state.brief = brief_to_save
         st.session_state.saved = True
         st.session_state.current_project_id = project_id
         st.success(f"Saved to `{path}`")
@@ -751,8 +804,12 @@ if st.session_state.saved:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        launch = st.button("Launch Agent Swarm ⚡", type="primary")
-        graph_input = st.chat_input("Describe what you'd like to change…")
+        _locked = bool(st.session_state.current_run_id) or st.session_state.swarm_launching
+        _btn_label = "Launching…" if st.session_state.swarm_launching else "Launch Agent Swarm ⚡"
+        launch = st.button(_btn_label, type="primary", disabled=_locked)
+        if _locked:
+            st.caption("Agent swarm already running — wait for it to complete.")
+        graph_input = st.chat_input("Describe what you'd like to change…", disabled=_locked)
 
         if graph_input:
             st.session_state.graph_review_messages.append(
@@ -765,13 +822,20 @@ if st.session_state.saved:
             )
             st.rerun()
 
-        if launch:
+        # Step 1 — user clicks: set flag and rerender so button disables immediately
+        if launch and not st.session_state.swarm_launching:
+            st.session_state.swarm_launching = True
+            st.rerun()
+
+        # Step 2 — next render with button already disabled: do the actual launch
+        if st.session_state.swarm_launching:
             run_id = _start_research(
                 st.session_state.brief,
                 st.session_state.current_project_id,
                 run_id=st.session_state.pending_run_id,
                 approved_graph=st.session_state.graph_pending_model,
             )
+            st.session_state.swarm_launching = False
             st.session_state.current_run_id = run_id
             st.session_state.graph_review_mode = False
             st.session_state.pending_run_id = None
@@ -785,19 +849,83 @@ if st.session_state.saved:
             st.session_state.context_graph_state_live = None
             st.session_state.latest_assessment = None
             st.session_state.phase_summaries = []
+            st.session_state.conversation_messages = []
+            st.session_state.conversation_history = []
+            st.session_state.conversation_run_id = None
             st.rerun()
 
     # ── Plan / re-plan trigger ─────────────────────────────────────────────────
     elif not st.session_state.current_run_id:
-        btn_label = "Plan a New Workflow" if st.session_state.report else "Plan Workflow"
-        if st.button(btn_label, type="primary"):
-            st.session_state.report = None
-            with st.spinner("Designing your workflow…"):
-                _plan_workflow(
-                    st.session_state.brief,
-                    st.session_state.current_project_id,
-                )
-            st.rerun()
+        if not st.session_state.report:
+            display_brief(st.session_state.brief)
+            st.divider()
+            if st.button("Plan Workflow", type="primary"):
+                with st.spinner("Designing your workflow…"):
+                    _plan_workflow(
+                        st.session_state.brief,
+                        st.session_state.current_project_id,
+                    )
+                st.rerun()
+        else:
+            # Post-run continuation actions
+            st.divider()
+            st.markdown("**Continue this research:**")
+            col_finish, col_deeper, col_new = st.columns(3)
+
+            if col_finish.button("Do what we didn't finish", type="primary"):
+                from slow_ai.agents.orchestrator import generate_follow_on_brief
+                report = st.session_state.report
+                phase_summaries = st.session_state.phase_summaries or []
+                with st.spinner("Analysing gaps and planning follow-on workflow…"):
+                    loop = asyncio.get_event_loop()
+                    follow_on = loop.run_until_complete(
+                        generate_follow_on_brief(
+                            st.session_state.brief,
+                            phase_summaries,
+                            report.run_id,
+                        )
+                    )
+                    path, project_id = save_brief(follow_on)
+                    st.session_state.brief = follow_on
+                    st.session_state.saved = True
+                    st.session_state.current_project_id = project_id
+                    st.session_state.report = None
+                    st.session_state.conversation_messages = []
+                    st.session_state.conversation_history = []
+                    st.session_state.conversation_run_id = None
+                    st.session_state.phase_summaries = []
+                    with st.spinner("Designing follow-on workflow…"):
+                        _plan_workflow(follow_on, project_id)
+                st.rerun()
+
+            if col_deeper.button("Dig deeper"):
+                prior_run_id = st.session_state.report.run_id
+                st.session_state.dig_deeper_prior_run_id = prior_run_id
+                st.session_state.messages = [{
+                    "role": "assistant",
+                    "content": (
+                        "Let's plan a deeper investigation, building on what was found. "
+                        "Describe the direction you'd like to explore further — "
+                        "the previous run's findings will be available to all agents."
+                    ),
+                }]
+                st.session_state.history = []
+                st.session_state.brief = None
+                st.session_state.saved = False
+                st.session_state.report = None
+                st.session_state.conversation_messages = []
+                st.session_state.conversation_history = []
+                st.session_state.phase_summaries = []
+                st.rerun()
+
+            if col_new.button("Plan a New Workflow"):
+                st.session_state.report = None
+                with st.spinner("Designing your workflow…"):
+                    _plan_workflow(
+                        st.session_state.brief,
+                        st.session_state.current_project_id,
+                    )
+                st.rerun()
 
     # ── Agent Swarm live view ──────────────────────────────────────────────────
     if st.session_state.current_run_id:
@@ -828,6 +956,9 @@ if st.session_state.saved:
                 st.session_state.latest_viability = store.read_live("viability.json", None)
                 st.session_state.phase_summaries = store.read_live("phase_summaries.json", [])
                 st.session_state.research_log = store.read_live_log()
+                st.session_state.conversation_messages = store.read_conversation()
+                st.session_state.conversation_history = []
+                st.session_state.conversation_run_id = run_id
                 st.session_state.current_run_id = None
                 st.session_state.flow_state = None
                 st.session_state.flow_state_live = None
@@ -956,29 +1087,6 @@ if st.session_state.saved:
             if live_phase_summaries:
                 _render_phase_summaries(live_phase_summaries, expanded=False)
 
-            # ── Context graph (blueprint) ──────────────────────────────────────
-            cg = store.read_live("context_graph.json", None)
-            if cg and cg.get("nodes"):
-                st.subheader("Context Graph")
-                blocked_items = set(viability.get("blocked_work_items", [])) if viability else set()
-                current_cg_live = st.session_state.context_graph_state_live
-                if (
-                    current_cg_live is None
-                    or len(current_cg_live.nodes) != len(cg["nodes"])
-                ):
-                    dag_for_cg = store.read_live("dag.json", {"nodes": [], "edges": []})
-                    artefacts_for_cg = store.read_live("artefacts.json", {})
-                    st.session_state.context_graph_state_live = _build_context_graph_state(
-                        cg, dag_for_cg, artefacts_for_cg, blocked_items
-                    )
-                streamlit_flow(
-                    "cg_live",
-                    st.session_state.context_graph_state_live,
-                    layout=TreeLayout(direction="down"),
-                    fit_view=True,
-                    height=350,
-                )
-
             # ── Agent DAG (full width) ─────────────────────────────────────────
             dag = store.read_live("dag.json", {"nodes": [], "edges": []})
             if dag.get("nodes"):
@@ -998,157 +1106,186 @@ if st.session_state.saved:
             else:
                 st.caption("Waiting for agents…")
 
+            # Keep sidebar in sync — trigger full page rerun on the same 5s cycle
+            st.rerun(scope="app")
+
         _live_panel()
 
     # Report view — shown after a run completes
     if st.session_state.report:
         report = st.session_state.report
+        from slow_ai.execution.git_store import GitStore
+        from slow_ai.agents.run_conversation import run_conversation_turn
 
-        with st.expander("Run log", expanded=False):
-            for msg in st.session_state.research_log:
-                st.markdown(f"- {msg}")
+        # Ensure conversation state is scoped to this run
+        if st.session_state.conversation_run_id != report.run_id:
+            _conv_store = GitStore(run_id=report.run_id)
+            st.session_state.conversation_messages = _conv_store.read_conversation()
+            st.session_state.conversation_history = []
+            st.session_state.conversation_run_id = report.run_id
 
-        # ── Viability decision (if degraded) ──────────────────────────────────
-        viability = st.session_state.latest_viability
-        if viability and viability.get("action") in ("degraded", "no_go"):
-            action = viability["action"]
-            gaps = viability.get("skill_gaps", [])
-            with st.expander(
-                f"Skill gaps — {action} run ({len(gaps)} missing skill(s))",
-                expanded=False,
-            ):
-                st.caption(viability.get("reasoning", ""))
-                for g in gaps:
-                    critical = " *(critical path)*" if g.get("is_critical_path") else ""
-                    st.markdown(
-                        f"- `{g['skill']}` — needed by {g['required_by']}, "
-                        f"blocks {g['downstream_blocked']} item(s){critical}"
+        tab_chat, tab_evidence, tab_report, tab_log = st.tabs([
+            "💬 Conversation", "📊 Evidence", "📋 Report", "📝 Log"
+        ])
+
+        # ── Tab 1: Conversation ────────────────────────────────────────────────
+        with tab_chat:
+            st.caption(
+                "Ask about what the agents found, why confidence was low, what was "
+                "uncovered, or request a specific artefact. No new agents are spawned."
+            )
+            for msg in st.session_state.conversation_messages:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+
+            conv_input = st.chat_input("Ask about the run…")
+            if conv_input:
+                _conv_store = GitStore(run_id=report.run_id)
+                _conv_store.append_conversation("user", conv_input)
+                st.session_state.conversation_messages.append(
+                    {"role": "user", "content": conv_input}
+                )
+                with st.spinner("Reading evidence…"):
+                    response, updated_history = run_conversation_turn(
+                        conv_input,
+                        report.run_id,
+                        st.session_state.conversation_history,
+                    )
+                _conv_store.append_conversation("assistant", response)
+                st.session_state.conversation_messages.append(
+                    {"role": "assistant", "content": response}
+                )
+                st.session_state.conversation_history = updated_history
+                st.rerun()
+
+        # ── Tab 2: Evidence ────────────────────────────────────────────────────
+        with tab_evidence:
+            # Viability warning
+            viability = st.session_state.latest_viability
+            if viability and viability.get("action") in ("degraded", "no_go"):
+                action = viability["action"]
+                gaps = viability.get("skill_gaps", [])
+                with st.expander(
+                    f"Skill gaps — {action} run ({len(gaps)} missing skill(s))",
+                    expanded=False,
+                ):
+                    st.caption(viability.get("reasoning", ""))
+                    for g in gaps:
+                        critical = " *(critical path)*" if g.get("is_critical_path") else ""
+                        st.markdown(
+                            f"- `{g['skill']}` — needed by {g['required_by']}, "
+                            f"blocks {g['downstream_blocked']} item(s){critical}"
+                        )
+
+            # Assessment
+            assessment = st.session_state.latest_assessment
+            if assessment:
+                ac, pc, ec = st.columns(3)
+                ac.metric("Covered", len(assessment.get("work_items_covered", [])))
+                pc.metric("Partial", len(assessment.get("work_items_partial", [])))
+                ec.metric("Uncovered", len(assessment.get("work_items_uncovered", [])))
+                phase_label = assessment.get("phase_id", "?")
+                st.caption(f"Final action: **{assessment.get('action', '?')}** — phase {phase_label}")
+                if assessment.get("circuit_break_reason"):
+                    st.error(f"Circuit break: {assessment['circuit_break_reason']}")
+                with st.expander("Assessment reasoning"):
+                    st.write(assessment.get("reasoning", ""))
+
+            # Agent DAG
+            dag = st.session_state.dag or {"nodes": [], "edges": []}
+            if dag.get("nodes"):
+                st.subheader("Agent DAG")
+                if (
+                    st.session_state.flow_state is None
+                    or len(st.session_state.flow_state.nodes) != len(dag["nodes"])
+                ):
+                    st.session_state.flow_state = _build_flow_state(dag)
+                new_state = streamlit_flow(
+                    "agent_dag",
+                    st.session_state.flow_state,
+                    layout=TreeLayout(direction="down"),
+                    fit_view=True,
+                    height=500,
+                    get_node_on_click=True,
+                )
+                st.session_state.flow_state = new_state
+                if new_state.selected_id:
+                    _render_agent_detail(
+                        new_state.selected_id, dag, st.session_state.agent_artefacts
                     )
 
-        # ── Phase summaries (completed run) ────────────────────────────────────
-        _render_phase_summaries(st.session_state.phase_summaries or [], expanded=False)
+            # Phase summaries — after DAG
+            _render_phase_summaries(st.session_state.phase_summaries or [], expanded=False)
 
-        # ── Final orchestrator assessment ──────────────────────────────────────
-        assessment = st.session_state.latest_assessment
-        if assessment:
-            st.subheader("Orchestrator Assessment")
-            ac, pc, ec = st.columns(3)
-            ac.metric("Work items covered", len(assessment.get("work_items_covered", [])))
-            pc.metric("Work items partial", len(assessment.get("work_items_partial", [])))
-            ec.metric("Work items uncovered", len(assessment.get("work_items_uncovered", [])))
-            phase_label = assessment.get("phase_id", "?")
-            st.caption(f"Final action: **{assessment.get('action', '?')}** — phase {phase_label}")
-            with st.expander("Reasoning"):
-                st.write(assessment.get("reasoning", ""))
-            if assessment.get("circuit_break_reason"):
-                st.error(f"Circuit break: {assessment['circuit_break_reason']}")
-            if assessment.get("work_items_uncovered"):
-                with st.expander("Uncovered work items"):
-                    for wid in assessment["work_items_uncovered"]:
-                        st.markdown(f"- `{wid}`")
-            if assessment.get("escalation_notes"):
-                with st.expander("Escalation notes"):
-                    for wid, note in assessment["escalation_notes"].items():
-                        st.markdown(f"**{wid}**: {note}")
-
-        # ── Context graph (static blueprint with final coverage) ───────────────
-        cg = st.session_state.context_graph
-        if cg and cg.get("nodes"):
-            st.subheader("Context Graph")
-            dag_final = st.session_state.dag or {"nodes": [], "edges": []}
-            artefacts_final = st.session_state.agent_artefacts or {}
-            viability_final = st.session_state.latest_viability or {}
-            blocked_final = set(viability_final.get("blocked_work_items", []))
-            if (
-                st.session_state.context_graph_state is None
-                or len(st.session_state.context_graph_state.nodes) != len(cg["nodes"])
-            ):
-                st.session_state.context_graph_state = _build_context_graph_state(
-                    cg, dag_final, artefacts_final, blocked_final
+            # Context graph
+            cg = st.session_state.context_graph
+            if cg and cg.get("nodes"):
+                st.subheader("Workflow Graph")
+                dag_final = st.session_state.dag or {"nodes": [], "edges": []}
+                artefacts_final = st.session_state.agent_artefacts or {}
+                blocked_final = set((viability or {}).get("blocked_work_items", []))
+                if (
+                    st.session_state.context_graph_state is None
+                    or len(st.session_state.context_graph_state.nodes) != len(cg["nodes"])
+                ):
+                    st.session_state.context_graph_state = _build_context_graph_state(
+                        cg, dag_final, artefacts_final, blocked_final
+                    )
+                new_cg_state = streamlit_flow(
+                    "context_graph_final",
+                    st.session_state.context_graph_state,
+                    layout=TreeLayout(direction="down"),
+                    fit_view=True,
+                    height=400,
+                    get_node_on_click=True,
                 )
-            new_cg_state = streamlit_flow(
-                "context_graph_final",
-                st.session_state.context_graph_state,
-                layout=TreeLayout(direction="down"),
-                fit_view=True,
-                height=400,
-                get_node_on_click=True,
-            )
-            st.session_state.context_graph_state = new_cg_state
-            if new_cg_state.selected_id:
-                selected = next(
-                    (n for n in cg["nodes"] if n["id"] == new_cg_state.selected_id),
-                    None,
-                )
-                if selected:
-                    st.divider()
-                    st.subheader(f"Work Item — {selected['name']}")
-                    st.write(selected["description"])
-                    if selected.get("required_skills"):
-                        skill_labels = []
-                        for s in selected["required_skills"]:
-                            marker = " ⊘" if selected["id"] in blocked_final else ""
-                            skill_labels.append(f"`{s}`{marker}")
-                        st.markdown("**Required skills:** " + "  ·  ".join(skill_labels))
-                    if selected.get("success_criteria"):
-                        st.markdown(
-                            "**Success criteria:**\n"
-                            + "\n".join(f"- {c}" for c in selected["success_criteria"])
-                        )
-                    # Show agents covering this work item
-                    covering = [
-                        n for n in dag_final.get("nodes", [])
-                        if n.get("work_item_id") == selected["id"]
-                    ]
-                    if covering:
-                        st.markdown(
-                            "**Agents:** "
-                            + "  ·  ".join(
-                                f"`{n['id'].split('-')[-1]}` ({n['type']})" for n in covering
+                st.session_state.context_graph_state = new_cg_state
+                if new_cg_state.selected_id:
+                    selected = next(
+                        (n for n in cg["nodes"] if n["id"] == new_cg_state.selected_id), None
+                    )
+                    if selected:
+                        st.divider()
+                        st.subheader(f"Work Item — {selected['name']}")
+                        st.write(selected["description"])
+                        if selected.get("required_skills"):
+                            skill_labels = []
+                            for s in selected["required_skills"]:
+                                marker = " ⊘" if selected["id"] in blocked_final else ""
+                                skill_labels.append(f"`{s}`{marker}")
+                            st.markdown("**Required skills:** " + "  ·  ".join(skill_labels))
+                        covering = [
+                            n for n in dag_final.get("nodes", [])
+                            if n.get("work_item_id") == selected["id"]
+                        ]
+                        if covering:
+                            st.markdown(
+                                "**Agents:** "
+                                + "  ·  ".join(
+                                    f"`{n['id'].split('-')[-1]}` ({n['type']})"
+                                    for n in covering
+                                )
                             )
-                        )
 
-        st.subheader("Agent DAG")
-        dag = st.session_state.dag or {"nodes": [], "edges": []}
+        # ── Tab 3: Report ──────────────────────────────────────────────────────
+        with tab_report:
+            st.subheader("Summary")
+            st.write(report.summary)
+            st.subheader("Outputs")
+            for ds in report.datasets:
+                with st.expander(f"{ds.name} — quality: {ds.quality_score:.2f}"):
+                    st.json(ds.model_dump())
 
-        if dag.get("nodes"):
-            if (
-                st.session_state.flow_state is None
-                or len(st.session_state.flow_state.nodes) != len(dag["nodes"])
-            ):
-                st.session_state.flow_state = _build_flow_state(dag)
-
-            new_state = streamlit_flow(
-                "agent_dag",
-                st.session_state.flow_state,
-                layout=TreeLayout(direction="down"),
-                fit_view=True,
-                height=500,
-                get_node_on_click=True,
-            )
-            st.session_state.flow_state = new_state
-
-            if new_state.selected_id:
-                _render_agent_detail(
-                    new_state.selected_id,
-                    dag,
-                    st.session_state.agent_artefacts,
-                )
-
-        st.divider()
-        st.subheader("Datasets found")
-        for ds in report.datasets:
-            with st.expander(f"{ds.name} — quality: {ds.quality_score:.2f}"):
-                st.json(ds.model_dump())
-
-        st.subheader("Summary")
-        st.write(report.summary)
-
-        st.subheader("Git log")
-        from slow_ai.execution.git_store import GitStore
-        store = GitStore(run_id=report.run_id)
-        for entry in store.get_log():
-            st.text(f"{entry['sha']}  {entry['message']}  {entry['timestamp']}")
+        # ── Tab 4: Log ─────────────────────────────────────────────────────────
+        with tab_log:
+            st.caption("Run log")
+            for msg in st.session_state.research_log:
+                st.markdown(f"- {msg}")
+            st.divider()
+            st.caption("Git commits")
+            store = GitStore(run_id=report.run_id)
+            for entry in store.get_log():
+                st.text(f"{entry['sha']}  {entry['message']}  {entry['timestamp']}")
 
 # Chat input — only during the interview phase
 if not st.session_state.saved:

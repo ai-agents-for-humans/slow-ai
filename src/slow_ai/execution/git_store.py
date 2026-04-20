@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -105,6 +106,32 @@ class GitStore:
         live_dir.mkdir(exist_ok=True)
         with (live_dir / "log.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps({"msg": msg}) + "\n")
+
+    def append_conversation(self, role: str, content: str) -> None:
+        """Append one turn to the post-run conversation log."""
+        live_dir = self.run_path / _LIVE_DIR
+        live_dir.mkdir(exist_ok=True)
+        entry = {
+            "role": role,
+            "content": content,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        with (live_dir / "conversation.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+
+    def read_conversation(self) -> list[dict]:
+        """Return all conversation turns as {role, content, timestamp} dicts."""
+        path = self.run_path / _LIVE_DIR / "conversation.jsonl"
+        if not path.exists():
+            return []
+        messages = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                try:
+                    messages.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
+        return messages
 
     def read_live_log(self) -> list[str]:
         """Return all live log messages in order."""

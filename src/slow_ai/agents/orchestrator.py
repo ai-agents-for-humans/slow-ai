@@ -24,6 +24,7 @@ from slow_ai.models import (
     SpawnRequest,
     WorkItem,
 )
+from typing import Any
 
 os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
@@ -101,7 +102,11 @@ async def run_graph_editor(
     return graph
 
 
-async def run_context_planner(brief: ProblemBrief, run_id: str) -> ContextGraph:
+async def run_context_planner(
+    brief: ProblemBrief,
+    run_id: str,
+    prior_context: str = "",
+) -> ContextGraph:
     from slow_ai.skills import SkillRegistry
     skill_registry = SkillRegistry()
     planner = Agent(
@@ -109,12 +114,66 @@ async def run_context_planner(brief: ProblemBrief, run_id: str) -> ContextGraph:
         output_type=ContextGraph,
         system_prompt=_context_planner_prompt(skill_registry.descriptions_for_prompt()),
     )
+    prior_section = (
+        f"\n\nPRIOR RUN CONTEXT (do not repeat work already covered — "
+        f"focus new phases on what is missing or incomplete):\n{prior_context}"
+        if prior_context else ""
+    )
     result = await planner.run(
         f"Run ID: {run_id}\n\nProblem brief:\n{json.dumps(brief.model_dump(), indent=2)}"
+        + prior_section
     )
     graph: ContextGraph = result.output
     graph.goal = brief.goal
     return graph
+
+
+async def generate_follow_on_brief(
+    original_brief: ProblemBrief,
+    phase_summaries: list[dict[str, Any]],
+    completed_run_id: str,
+) -> ProblemBrief:
+    """
+    Generate a follow-on ProblemBrief targeting what the previous run left unfinished.
+    The new brief includes completed_run_id in prior_run_ids so specialists can
+    read prior evidence and avoid repeating covered ground.
+    """
+    agent = Agent(
+        model=ModelRegistry().for_task("context_planning"),
+        output_type=ProblemBrief,
+        system_prompt="""
+You are generating a follow-on research brief based on what a previous agent swarm
+left unfinished.
+
+You receive:
+- The original brief (goal, domain, constraints, success criteria)
+- Phase summaries from the completed run (what was covered, partial, uncovered)
+
+Your job:
+- Identify which work items had low confidence (partial or uncovered)
+- Identify gaps and contradictions surfaced in phase syntheses
+- Write a new ProblemBrief focused on resolving those specific gaps
+- Inherit the original domain, constraints, and overall goal
+- Set unknowns to the specific questions that remain unanswered
+- Set success_criteria to the specific evidence that would resolve the gaps
+- Leave prior_run_ids as [] — the caller will inject the correct run IDs
+
+Do NOT repeat work that was already covered with high confidence.
+Focus the new brief on what is genuinely unfinished.
+""",
+    )
+
+    summaries_text = json.dumps(phase_summaries, indent=2)
+    result = await agent.run(
+        f"Original brief:\n{json.dumps(original_brief.model_dump(), indent=2)}\n\n"
+        f"Completed run ID: {completed_run_id}\n\n"
+        f"Phase summaries from that run:\n{summaries_text}\n\n"
+        "Generate a follow-on brief targeting what was left unfinished."
+    )
+    brief: ProblemBrief = result.output
+    # Inject prior run chain
+    brief.prior_run_ids = original_brief.prior_run_ids + [completed_run_id]
+    return brief
 
 
 # ── Phase orchestrator ────────────────────────────────────────────────────────
