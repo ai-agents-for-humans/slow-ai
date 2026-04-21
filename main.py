@@ -611,6 +611,17 @@ def load_historical_run(run_id: str):
     from slow_ai.models import ResearchReport as _Report
 
     store = GitStore(run_id)
+
+    # Load brief — session state is lost on page refresh so we always re-read
+    brief_path = store.run_path / "input_brief.json"
+    if brief_path.exists():
+        try:
+            st.session_state.brief = ProblemBrief.model_validate_json(
+                brief_path.read_text(encoding="utf-8")
+            )
+        except Exception:
+            pass
+
     report_path = store.run_path / "report.json"
     st.session_state.report = None
     if report_path.exists():
@@ -1014,31 +1025,7 @@ if st.session_state.saved:
                     if brief.constraints:
                         st.json(brief.constraints)
 
-            # ── Context graph ──────────────────────────────────────────────────
-            cg = store.read_live("context_graph.json", None)
-            if cg and cg.get("nodes"):
-                st.subheader("Context Graph")
-                viability = store.read_live("viability.json", None)
-                blocked_items = set((viability or {}).get("blocked_work_items", [])) if viability else set()
-                dag_for_cg = store.read_live("dag.json", {"nodes": [], "edges": []})
-                artefacts_for_cg = store.read_live("artefacts.json", {})
-                current_cg_live = st.session_state.context_graph_state_live
-                if (
-                    current_cg_live is None
-                    or len(current_cg_live.nodes) != len(cg["nodes"])
-                ):
-                    st.session_state.context_graph_state_live = _build_context_graph_state(
-                        cg, dag_for_cg, artefacts_for_cg, blocked_items
-                    )
-                streamlit_flow(
-                    "cg_live",
-                    st.session_state.context_graph_state_live,
-                    layout=TreeLayout(direction="down"),
-                    fit_view=True,
-                    height=380,
-                )
-            else:
-                viability = None
+            viability = store.read_live("viability.json", None)
 
             # ── Agent DAG ──────────────────────────────────────────────────────
             st.subheader("Agent Swarm")
