@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -6,6 +7,8 @@ from datetime import datetime, timezone
 from pydantic_ai import Agent
 
 from slow_ai.config import settings
+
+logger = logging.getLogger(__name__)
 from slow_ai.execution.registry import AgentRegistry
 from slow_ai.llm import ModelRegistry
 from slow_ai.models import (
@@ -126,6 +129,122 @@ async def run_context_planner(
     graph: ContextGraph = result.output
     graph.goal = brief.goal
     return graph
+
+
+async def generate_run_summary(
+    brief: ProblemBrief,
+    phase_summaries: list[PhaseSummary],
+    all_envelopes: list[EvidenceEnvelope],
+) -> str:
+    """
+    Generate a Perplexity-style summary of a completed run.
+
+    Produces a markdown narrative with inline agent citations ([abc123]) and a
+    references section — intended as the opening message in the post-run chat.
+    """
+    # Build a compact reference table the LLM can cite from
+    ref_lines = []
+    for env in all_envelopes:
+        short_id = env.agent_id.split("-")[-1] if env.agent_id else "?"
+        ref_lines.append(
+            f"[{short_id}] role={env.role} status={env.status} "
+            f"conf={env.confidence:.2f} verdict={env.verdict}"
+        )
+    references_block = "\n".join(ref_lines)
+
+    agent = Agent(
+        model=ModelRegistry().for_task("report_synthesis"),
+        output_type=str,
+        system_prompt=f"""
+You are writing a Perplexity-style research summary for a user who just ran a
+multi-agent investigation. This will be the first message they see in the
+conversation — it should feel like a high-quality briefing, not a dry log.
+
+CITATION FORMAT:
+- Cite agent findings inline using the short agent ID in square brackets, e.g. [abc123].
+- End with a "**Sources**" line listing every cited agent ID with their role and
+  confidence, formatted as:
+  `[abc123] market_analyst (conf: 0.85) · [def456] regulatory_researcher (conf: 0.72)`
+
+STRUCTURE (use these exact markdown headers):
+## What We Investigated
+One paragraph — the research goal restated in plain language and why it matters.
+
+## What We Found
+Phase-by-phase findings (one subsection per phase: ### Phase 1 — Name).
+For each phase: 2-4 sentences summarising what agents discovered, citing inline.
+Be specific — name datasets, organisations, figures, or conclusions where found.
+Note anything that surprised or contradicted expectations.
+
+## Key Takeaways
+3-6 bullet points: the most actionable or important findings across all phases.
+Each bullet should stand alone as a useful insight.
+
+## What To Explore Further
+3-5 concrete next steps or open questions the research did not resolve.
+Be specific — not "do more research" but "investigate X because Y was unclear".
+
+---
+**Sources:** [list all cited agents here]
+
+AGENT REFERENCE TABLE (use these IDs for citations):
+{references_block}
+
+FORMATTING RULES:
+- Total length: 400-700 words.
+- Write in a direct, confident tone — the user wants to know what was found.
+- Do not hallucinate findings not present in the phase summaries.
+- If confidence was low on a point, say so ("early evidence suggests…", "unclear from sources…").
+""",
+    )
+
+    phases_data = json.dumps([s.model_dump() for s in phase_summaries], indent=2)
+    result = await agent.run(
+        f"Research goal: {brief.goal}\n\n"
+        f"Phase summaries:\n{phases_data}\n\n"
+        "Write the run summary."
+    )
+    return result.output
+
+
+async def generate_graph_summary(
+    brief: ProblemBrief,
+    graph: ContextGraph,
+) -> str:
+    """
+    Generate a rich narrative that explains the planned workflow phase by phase —
+    what each phase does, what work items it contains, and why it is relevant to
+    the research brief. Returned as a markdown string for the graph review chat.
+    """
+    agent = Agent(
+        model=ModelRegistry().for_task("context_planning"),
+        output_type=str,
+        system_prompt="""
+You are explaining a planned multi-agent research workflow to the user who
+defined the research goal.
+
+Your audience is the researcher — they need to understand:
+1. The overall strategic rationale: why this sequence of phases makes sense
+2. For each phase: its name, its purpose in one clear sentence, and what each
+   work item inside it will do — in plain language, not jargon
+3. Why each phase is necessary to answer the research brief
+4. Any dependencies or sequencing logic worth highlighting
+
+Formatting rules:
+- Use markdown with phase names as bold headers (e.g. **Phase 1 — Landscape Scan**)
+- Keep the total length to 300-500 words — concise but complete
+- End with a single line asking the user if they want to change anything or are
+  ready to launch
+- Do NOT repeat the brief back verbatim — refer to it naturally
+- Do NOT use bullet lists inside bullet lists — keep it flat and readable
+""",
+    )
+    result = await agent.run(
+        f"Research brief:\n{json.dumps(brief.model_dump(), indent=2)}\n\n"
+        f"Planned workflow:\n{json.dumps(graph.model_dump(), indent=2)}\n\n"
+        "Write the workflow summary for the researcher."
+    )
+    return result.output
 
 
 async def generate_follow_on_brief(

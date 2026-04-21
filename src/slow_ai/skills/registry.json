@@ -300,6 +300,128 @@
       ],
       "source": "synthesized",
       "tags": []
+    },
+    {
+      "name": "spanish_agricultural_expertise",
+      "description": "Research and interpret the Spanish agricultural sector, including its regulatory framework (PAC/CAP), land use, and regional crop standards. This is achieved by searching official Spanish portals (e.g., MAPA), browsing regulatory documents, and applying agricultural policy analysis techniques.",
+      "tools": [
+        "web_search",
+        "web_browse",
+        "pdf_extraction",
+        "document_parsing"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "agricultural_policy_analysis",
+      "description": "Analyze agricultural policies, subsidies (CAP), and sustainability standards by retrieving official documents from the web, extracting relevant clauses, and synthesizing insights using data analysis and document parsing tools.",
+      "tools": [
+        "web_search",
+        "web_browse",
+        "pdf_extraction",
+        "document_parsing"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "spanish_language_analysis",
+      "description": "Extract, process, and analyze Spanish-language text from various sources. This includes parsing Spanish documents, scraping Spanish websites, and using Python-based text processing or the agent's multilingual reasoning to interpret linguistic nuances and data.",
+      "tools": [
+        "web_browse",
+        "document_parsing",
+        "code_execution"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "geospatial_data_discovery",
+      "description": "Identify and locate geospatial datasets (Shapefiles, GeoJSON, Raster data) using web search and verify their contents, schema, and sample data using dataset inspection tools.",
+      "tools": [
+        "web_search",
+        "web_browse",
+        "dataset_inspection"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "environmental_data_analysis",
+      "description": "Process and analyze environmental metrics (e.g., emissions data, land cover changes, water quality) by applying geospatial processing and statistical modeling to retrieved datasets via code execution.",
+      "tools": [
+        "code_execution",
+        "geospatial_processing",
+        "statistical_analysis"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "economic_data_discovery",
+      "description": "Locate and preview economic indicators, market data, and financial datasets from international organizations (World Bank, IMF) or national statistical offices using search and dataset inspection tools.",
+      "tools": [
+        "web_search",
+        "web_browse",
+        "dataset_inspection"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "economic_modeling",
+      "description": "Design and implement mathematical models to simulate economic scenarios, forecasts, or trends using statistical libraries and data modeling techniques within the code execution environment.",
+      "tools": [
+        "code_execution",
+        "statistical_analysis",
+        "data_transformation"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "data_modeling",
+      "description": "Design data schemas, logical structures, and knowledge representations for research data using Python-based modeling or ontology serialization tools.",
+      "tools": [
+        "code_execution",
+        "ontology_modeling_and_serialization"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "graph_visualization",
+      "description": "Create visual representations of complex networks, relationships, and graph-based data structures using libraries like networkx and matplotlib within the code execution tool.",
+      "tools": [
+        "code_execution",
+        "data_visualization",
+        "ontology_modeling_and_serialization"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "dashboard_development",
+      "description": "Assemble multiple data visualizations, summaries, and key performance indicators into a cohesive visual report or interactive format using Python visualization and document generation tools.",
+      "tools": [
+        "code_execution",
+        "data_visualization",
+        "report_generation"
+      ],
+      "source": "synthesized",
+      "tags": []
+    },
+    {
+      "name": "data_synthesis",
+      "description": "Integrate findings from disparate data sources, research papers, and analysis outputs into a unified narrative or structured model using data transformation and statistical synthesis.",
+      "tools": [
+        "code_execution",
+        "data_transformation",
+        "statistical_analysis"
+      ],
+      "source": "synthesized",
+      "tags": []
     }
   ]
 }

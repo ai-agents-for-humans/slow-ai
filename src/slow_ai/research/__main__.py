@@ -12,6 +12,7 @@ import asyncio
 import sys
 from pathlib import Path
 
+from slow_ai.logging_config import setup_logging
 from slow_ai.models import ProblemBrief
 from slow_ai.research.runner import run_research
 
@@ -27,6 +28,8 @@ def main() -> None:
     if not brief_path.exists():
         print(f"input_brief.json not found at {brief_path}", file=sys.stderr)
         sys.exit(1)
+
+    setup_logging(log_file=Path("runs") / run_id / "runner.log")
 
     brief = ProblemBrief.model_validate_json(brief_path.read_text(encoding="utf-8"))
     asyncio.run(run_research(brief, run_id))

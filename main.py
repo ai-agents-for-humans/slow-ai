@@ -79,7 +79,7 @@ def _start_research(brief: ProblemBrief, project_id: str, run_id: str | None = N
 
 def _plan_workflow(brief: ProblemBrief, project_id: str):
     """Run context planner in the UI process and enter graph review mode."""
-    from slow_ai.agents.orchestrator import run_context_planner
+    from slow_ai.agents.orchestrator import generate_graph_summary, run_context_planner
     from slow_ai.research.runner import _graph_for_ui, _load_prior_context
 
     run_id = (
@@ -102,30 +102,20 @@ def _plan_workflow(brief: ProblemBrief, project_id: str):
     graph = loop.run_until_complete(
         run_context_planner(brief, run_id, prior_context=prior_context)
     )
-
-    n_phases = len(graph.phases)
-    n_items = sum(len(p.work_items) for p in graph.phases)
+    summary = loop.run_until_complete(generate_graph_summary(brief, graph))
 
     st.session_state.pending_run_id = run_id
     st.session_state.graph_pending_model = graph.model_dump()
     st.session_state.context_graph = _graph_for_ui(graph)
     st.session_state.context_graph_state = None
     st.session_state.graph_review_mode = True
-    st.session_state.graph_review_messages = [{
-        "role": "assistant",
-        "content": (
-            f"I've designed a workflow with **{n_phases} phase{'s' if n_phases != 1 else ''}** "
-            f"and **{n_items} work item{'s' if n_items != 1 else ''}**. "
-            f"Review the graph below. Tell me what you'd like to change, "
-            f"or click **Launch Agent Swarm** to proceed."
-        ),
-    }]
+    st.session_state.graph_review_messages = [{"role": "assistant", "content": summary}]
     st.session_state.graph_review_history = []
 
 
 def _refine_graph(feedback: str):
     """Apply user feedback to the pending graph via the graph editor agent."""
-    from slow_ai.agents.orchestrator import run_graph_editor
+    from slow_ai.agents.orchestrator import generate_graph_summary, run_graph_editor
     from slow_ai.models import ContextGraph as CG
     from slow_ai.research.runner import _graph_for_ui
 
@@ -135,19 +125,13 @@ def _refine_graph(feedback: str):
 
     loop = asyncio.get_event_loop()
     updated = loop.run_until_complete(run_graph_editor(brief, current, feedback, run_id))
-
-    n_phases = len(updated.phases)
-    n_items = sum(len(p.work_items) for p in updated.phases)
+    summary = loop.run_until_complete(generate_graph_summary(brief, updated))
 
     st.session_state.graph_pending_model = updated.model_dump()
     st.session_state.context_graph = _graph_for_ui(updated)
     st.session_state.context_graph_state = None
 
-    return (
-        f"Updated — now **{n_phases} phase{'s' if n_phases != 1 else ''}** "
-        f"and **{n_items} work item{'s' if n_items != 1 else ''}**. "
-        f"Anything else to change, or ready to launch?"
-    )
+    return summary
 
 
 # ── DAG rendering helpers ─────────────────────────────────────────────────────
@@ -776,6 +760,37 @@ if st.session_state.brief and not st.session_state.saved:
 # ── Workflow area ──────────────────────────────────────────────────────────────
 
 if st.session_state.saved:
+    # ── Pending launch — processed before any UI is rendered ───────────────────
+    # swarm_launching is set by the Launch button click. Handling it here (before
+    # any st.xxx calls) means the transition render produces no UI output — the
+    # browser goes straight from the graph-review render to the live-panel render,
+    # with no window where the button can be clicked again.
+    if st.session_state.swarm_launching:
+        _launch_run_id = _start_research(
+            st.session_state.brief,
+            st.session_state.current_project_id,
+            run_id=st.session_state.pending_run_id,
+            approved_graph=st.session_state.graph_pending_model,
+        )
+        st.session_state.swarm_launching = False
+        st.session_state.current_run_id = _launch_run_id
+        st.session_state.graph_review_mode = False
+        st.session_state.pending_run_id = None
+        st.session_state.graph_pending_model = None
+        st.session_state.graph_review_messages = []
+        st.session_state.dag = None
+        st.session_state.agent_artefacts = {}
+        st.session_state.flow_state = None
+        st.session_state.flow_state_live = None
+        st.session_state.context_graph_state = None
+        st.session_state.context_graph_state_live = None
+        st.session_state.latest_assessment = None
+        st.session_state.phase_summaries = []
+        st.session_state.conversation_messages = []
+        st.session_state.conversation_history = []
+        st.session_state.conversation_run_id = None
+        st.rerun()
+
     st.success("Brief confirmed and saved.")
     st.divider()
 
@@ -804,12 +819,7 @@ if st.session_state.saved:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        _locked = bool(st.session_state.current_run_id) or st.session_state.swarm_launching
-        _btn_label = "Launching…" if st.session_state.swarm_launching else "Launch Agent Swarm ⚡"
-        launch = st.button(_btn_label, type="primary", disabled=_locked)
-        if _locked:
-            st.caption("Agent swarm already running — wait for it to complete.")
-        graph_input = st.chat_input("Describe what you'd like to change…", disabled=_locked)
+        graph_input = st.chat_input("Describe what you'd like to change…")
 
         if graph_input:
             st.session_state.graph_review_messages.append(
@@ -822,36 +832,11 @@ if st.session_state.saved:
             )
             st.rerun()
 
-        # Step 1 — user clicks: set flag and rerender so button disables immediately
-        if launch and not st.session_state.swarm_launching:
+        if st.button("Launch Agent Swarm ⚡", type="primary"):
+            # Set the flag — the top-of-page handler (above) will process it on
+            # the very next render before any UI is drawn, so the button is gone
+            # before the user can click again.
             st.session_state.swarm_launching = True
-            st.rerun()
-
-        # Step 2 — next render with button already disabled: do the actual launch
-        if st.session_state.swarm_launching:
-            run_id = _start_research(
-                st.session_state.brief,
-                st.session_state.current_project_id,
-                run_id=st.session_state.pending_run_id,
-                approved_graph=st.session_state.graph_pending_model,
-            )
-            st.session_state.swarm_launching = False
-            st.session_state.current_run_id = run_id
-            st.session_state.graph_review_mode = False
-            st.session_state.pending_run_id = None
-            st.session_state.graph_pending_model = None
-            st.session_state.graph_review_messages = []
-            st.session_state.dag = None
-            st.session_state.agent_artefacts = {}
-            st.session_state.flow_state = None
-            st.session_state.flow_state_live = None
-            st.session_state.context_graph_state = None
-            st.session_state.context_graph_state_live = None
-            st.session_state.latest_assessment = None
-            st.session_state.phase_summaries = []
-            st.session_state.conversation_messages = []
-            st.session_state.conversation_history = []
-            st.session_state.conversation_run_id = None
             st.rerun()
 
     # ── Plan / re-plan trigger ─────────────────────────────────────────────────
@@ -1018,6 +1003,65 @@ if st.session_state.saved:
                     st.rerun()
                 return
 
+            # ── Project brief ──────────────────────────────────────────────────
+            brief = st.session_state.brief
+            if brief:
+                with st.expander(f"Project Brief — {brief.goal[:80]}", expanded=False):
+                    st.markdown(f"**Goal:** {brief.goal}")
+                    st.markdown(f"**Domain:** {brief.domain}")
+                    if brief.success_criteria:
+                        st.markdown("**Success criteria:** " + " · ".join(brief.success_criteria))
+                    if brief.constraints:
+                        st.json(brief.constraints)
+
+            # ── Context graph ──────────────────────────────────────────────────
+            cg = store.read_live("context_graph.json", None)
+            if cg and cg.get("nodes"):
+                st.subheader("Context Graph")
+                viability = store.read_live("viability.json", None)
+                blocked_items = set((viability or {}).get("blocked_work_items", [])) if viability else set()
+                dag_for_cg = store.read_live("dag.json", {"nodes": [], "edges": []})
+                artefacts_for_cg = store.read_live("artefacts.json", {})
+                current_cg_live = st.session_state.context_graph_state_live
+                if (
+                    current_cg_live is None
+                    or len(current_cg_live.nodes) != len(cg["nodes"])
+                ):
+                    st.session_state.context_graph_state_live = _build_context_graph_state(
+                        cg, dag_for_cg, artefacts_for_cg, blocked_items
+                    )
+                streamlit_flow(
+                    "cg_live",
+                    st.session_state.context_graph_state_live,
+                    layout=TreeLayout(direction="down"),
+                    fit_view=True,
+                    height=380,
+                )
+            else:
+                viability = None
+
+            # ── Agent DAG ──────────────────────────────────────────────────────
+            st.subheader("Agent Swarm")
+            dag = store.read_live("dag.json", {"nodes": [], "edges": []})
+            if dag.get("nodes"):
+                current_live = st.session_state.flow_state_live
+                if (
+                    current_live is None
+                    or len(current_live.nodes) != len(dag["nodes"])
+                ):
+                    st.session_state.flow_state_live = _build_flow_state(dag)
+                streamlit_flow(
+                    "dag_live",
+                    st.session_state.flow_state_live,
+                    layout=TreeLayout(direction="down"),
+                    fit_view=True,
+                    height=550,
+                )
+            else:
+                st.caption("Waiting for agents…")
+
+            st.divider()
+
             # ── Progress log ──────────────────────────────────────────────────
             log = store.read_live_log()
             st.caption(f"● {status}")
@@ -1025,6 +1069,11 @@ if st.session_state.saved:
                 st.markdown("\n".join(f"- {m}" for m in log))
             else:
                 st.caption("Starting up…")
+
+            # ── Phase summaries (live) ─────────────────────────────────────────
+            live_phase_summaries = store.read_live("phase_summaries.json", [])
+            if live_phase_summaries:
+                _render_phase_summaries(live_phase_summaries, expanded=False)
 
             # ── Latest orchestrator assessment ─────────────────────────────────
             assessment = store.read_live("assessment.json", None)
@@ -1067,11 +1116,11 @@ if st.session_state.saved:
                     st.caption(synthesis.get("reasoning", ""))
 
             # ── Viability decision ─────────────────────────────────────────────
-            viability = store.read_live("viability.json", None)
+            if viability is None:
+                viability = store.read_live("viability.json", None)
             if viability and viability.get("action") in ("degraded", "no_go"):
                 action = viability["action"]
                 gaps = viability.get("skill_gaps", [])
-                colour = "warning" if action == "degraded" else "error"
                 label = "Degraded run" if action == "degraded" else "Blocked — no_go"
                 with st.expander(f"{label} — {len(gaps)} skill gap(s)", expanded=(action == "no_go")):
                     st.caption(viability.get("reasoning", ""))
@@ -1081,30 +1130,6 @@ if st.session_state.saved:
                             f"- `{g['skill']}` — needed by {g['required_by']}, "
                             f"blocks {g['downstream_blocked']} item(s){critical}"
                         )
-
-            # ── Phase summaries (live) ─────────────────────────────────────────
-            live_phase_summaries = store.read_live("phase_summaries.json", [])
-            if live_phase_summaries:
-                _render_phase_summaries(live_phase_summaries, expanded=False)
-
-            # ── Agent DAG (full width) ─────────────────────────────────────────
-            dag = store.read_live("dag.json", {"nodes": [], "edges": []})
-            if dag.get("nodes"):
-                current_live = st.session_state.flow_state_live
-                if (
-                    current_live is None
-                    or len(current_live.nodes) != len(dag["nodes"])
-                ):
-                    st.session_state.flow_state_live = _build_flow_state(dag)
-                streamlit_flow(
-                    "dag_live",
-                    st.session_state.flow_state_live,
-                    layout=TreeLayout(direction="down"),
-                    fit_view=True,
-                    height=550,
-                )
-            else:
-                st.caption("Waiting for agents…")
 
             # Keep sidebar in sync — trigger full page rerun on the same 5s cycle
             st.rerun(scope="app")

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -7,6 +8,8 @@ from pathlib import Path
 from pydantic_ai import Agent
 
 from slow_ai.config import settings
+
+logger = logging.getLogger(__name__)
 from slow_ai.llm import ModelRegistry
 from slow_ai.models import AgentContext, EvidenceEnvelope, MemoryEntry, SpawnRequest
 from slow_ai.tools.code_execution import code_execution as _code_execution
@@ -222,13 +225,23 @@ async def run_specialist(
     if registry:
         registry.update_status(ctx.agent_id, "running")
 
-    result = await agent.run(
-        "Begin research for your assigned task using the tools available to you."
-    )
+    logger.info("Specialist %s (%s) starting.", ctx.agent_id, ctx.role)
+    try:
+        result = await agent.run(
+            "Begin research for your assigned task using the tools available to you."
+        )
+    except Exception as exc:
+        logger.error("Specialist %s (%s) raised an exception: %s", ctx.agent_id, ctx.role, exc, exc_info=True)
+        raise
 
     envelope: EvidenceEnvelope = result.output
     envelope.agent_id = ctx.agent_id
     envelope.cost_tokens = ctx.memory.total_tokens
+
+    logger.info(
+        "Specialist %s (%s) finished — status=%s confidence=%.2f verdict=%s",
+        ctx.agent_id, ctx.role, envelope.status, envelope.confidence, envelope.verdict,
+    )
 
     if registry:
         registry.update_status(ctx.agent_id, "completed", tokens_used=ctx.memory.total_tokens)

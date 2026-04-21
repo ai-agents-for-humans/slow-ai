@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -8,6 +9,7 @@ from pathlib import Path
 from pydantic_ai import Agent
 
 from slow_ai.agents.orchestrator import (
+    generate_run_summary,
     handle_spawn_request,
     orchestrator_assess,
     run_context_planner,
@@ -40,6 +42,8 @@ from slow_ai.tools.code_execution import setup_run_venv
 
 os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
+logger = logging.getLogger(__name__)
+
 _MAX_PHASES = 8   # circuit breaker: never run more than this many phases
 
 
@@ -60,10 +64,12 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
 
     # ── Sandboxed venv for this run ────────────────────────────────────────────
     venv_path = setup_run_venv(run_id)
+    logger.info("Run venv ready: %s", venv_path)
     _log(store, f"Run venv ready: {venv_path}")
 
     try:
         store.commit_brief(brief.model_dump())
+        logger.info("Run %s initialised.", run_id)
         _log(store, f"Run `{run_id}` initialised.")
 
         # ── Context planning ──────────────────────────────────────────────────
@@ -73,8 +79,10 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
                 approved_graph_path.read_text(encoding="utf-8")
             )
             context_graph.goal = brief.goal
+            logger.info("Using approved context graph from workflow review.")
             _log(store, "Using approved context graph from workflow review.")
         else:
+            logger.info("Building context graph for run %s…", run_id)
             _log(store, "Building context graph...")
             prior_context = _load_prior_context(brief.prior_run_ids)
             context_graph = await run_context_planner(brief, run_id, prior_context=prior_context)
@@ -86,6 +94,10 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
             registry_snapshot=None,
         )
         total_items = sum(len(p.work_items) for p in context_graph.phases)
+        logger.info(
+            "Context graph ready — %d phases, %d work items.",
+            len(context_graph.phases), total_items,
+        )
         _log(
             store,
             f"Context graph ready — {len(context_graph.phases)} phases, "
@@ -125,6 +137,7 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
         )
 
         if viability.action == "no_go":
+            logger.warning("Run %s blocked on capabilities — %d gap(s).", run_id, len(viability.skill_gaps))
             store.write_live("capability_checkpoint.json", {
                 "gaps": [g.model_dump() for g in viability.skill_gaps],
                 "blocked_work_items": viability.blocked_work_items,
@@ -170,6 +183,7 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
                 _log(store, f"Circuit breaker: max phases ({_MAX_PHASES}) reached.")
                 break
 
+            logger.info("Phase '%s' (%s): planning specialists…", phase.name, phase.id)
             _log(store, f"Phase '{phase.name}' ({phase.id}): planning specialists...")
 
             # Plan specialists for this phase
@@ -211,6 +225,10 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
                 registry_snapshot=registry.snapshot(),
             )
             _emit(store, registry, artefacts)
+            logger.info(
+                "Phase '%s': running %d specialists in parallel…",
+                phase.name, len(plan.specialists),
+            )
             _log(store, f"Phase '{phase.name}': running {len(plan.specialists)} specialists in parallel...")
 
             # Run all specialists in the phase in parallel
@@ -295,10 +313,12 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
             completed_phase_ids.add(phase.id)
 
             if decision.action == "circuit_break":
+                logger.warning("Circuit breaker fired for phase '%s': %s", phase.name, decision.circuit_break_reason)
                 _log(store, f"Circuit breaker: {decision.circuit_break_reason}")
                 break
 
             if decision.action == "synthesize":
+                logger.info("Assessment: all key questions answered — proceeding to final synthesis.")
                 _log(store, "Assessment: all key questions answered — proceeding to final synthesis.")
                 break
 
@@ -331,11 +351,23 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
         registry.update_status(synth_reg.agent_id, "completed")
         _emit(store, registry, artefacts)
 
+        # ── Post-run conversation opener ───────────────────────────────────────
+        _log(store, "Generating run summary…")
+        try:
+            run_summary = await generate_run_summary(brief, phase_summaries, all_envelopes)
+            store.append_conversation("assistant", run_summary)
+            logger.info("Run summary generated and saved for run %s.", run_id)
+        except Exception as summary_exc:
+            logger.error("Failed to generate run summary: %s", summary_exc, exc_info=True)
+            # Non-fatal — conversation will just start empty
+
         _log(store, f"Done. Report committed to runs/{run_id}/")
+        logger.info("Run %s completed successfully.", run_id)
         store.write_live("status.json", {"status": "completed"})
         return report
 
     except Exception as exc:
+        logger.error("Run %s failed: %s", run_id, exc, exc_info=True)
         store.write_live("status.json", {"status": "failed", "error": str(exc)})
         raise
 
@@ -503,6 +535,11 @@ async def _run_wave(
     wave_envelopes = []
     for i, result in enumerate(results):
         if isinstance(result, Exception):
+            logger.error(
+                "Specialist %s (%s) failed: %s",
+                specialists[i].agent_id, specialists[i].role, result,
+                exc_info=result,
+            )
             _log(store, f"Specialist {specialists[i].agent_id} failed: {result}")
             store.record_skipped_path(
                 f"specialist-failed-{specialists[i].agent_id}",

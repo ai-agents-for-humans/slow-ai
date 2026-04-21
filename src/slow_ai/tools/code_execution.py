@@ -40,9 +40,9 @@ def setup_run_venv(run_id: str, base_path: Path = Path("runs")) -> Path:
     """
     Create a uv virtual environment for this run and pre-install common packages.
     Idempotent — safe to call multiple times; returns immediately if venv exists.
-    Returns the venv directory path.
+    Returns the absolute venv directory path.
     """
-    venv_path = base_path / run_id / ".venv"
+    venv_path = (base_path / run_id / ".venv").resolve()
     if venv_path.exists():
         return venv_path
 
@@ -150,11 +150,13 @@ async def code_execution(
         )
 
     # ── Choose interpreter ────────────────────────────────────────────────────
-    python = (
-        str(_venv_python(Path(venv_path)))
-        if venv_path and Path(venv_path).exists()
-        else sys.executable
-    )
+    # Resolve to absolute path: asyncio.create_subprocess_exec resolves a
+    # relative executable path relative to cwd (the artefacts dir), not the
+    # process working directory, which causes FileNotFoundError.
+    if venv_path and Path(venv_path).exists():
+        python = str(_venv_python(Path(venv_path).resolve()))
+    else:
+        python = sys.executable
 
     # ── Execute ───────────────────────────────────────────────────────────────
     with tempfile.NamedTemporaryFile(
