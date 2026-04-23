@@ -113,7 +113,7 @@ One JSON file. No rebuilds.
 ```json
 {
   "models": [
-    { "name": "reasoning",  "model_id": "google-gla:gemini-2.5-pro",  "use_for": ["context_planning", "orchestration"] },
+    { "name": "reasoning",  "model_id": "google-gla:gemini-3.1-pro",  "use_for": ["context_planning", "orchestration"] },
     { "name": "fast",       "model_id": "openai:gpt-4o-mini",         "use_for": ["skill_synthesis", "interview"] },
     { "name": "code",       "model_id": "ollama:qwen2.5-coder:7b",    "use_for": ["code_generation"] },
     { "name": "specialist", "model_id": "anthropic:claude-opus-4-6",  "use_for": ["specialist_research"] }
@@ -154,6 +154,8 @@ The MAPE-K observer — the circuit breaker that watches for runaway agents, cos
 The HITL gate exists and triggers correctly. It does not yet block. It logs and continues. Full blocking pause is on the roadmap.
 
 This is a working system with a point of view. Not a finished product. Not a platform with a pricing page.
+
+It currently works with Gemini API key and Perplexity API key. You cannot yet bring your own models.
 
 [Full known issues →](https://ai-agents-for-humans.github.io/slow-ai/known-issues)
 
