@@ -183,52 +183,78 @@ After launch, the approved context graph drives the agent swarm. The live run vi
 
 Each node is clickable. Click any completed node to see the full evidence envelope: what the agent found, its confidence score, the sources it used, and what it couldn't determine.
 
-**Phase summaries** appear as each phase completes — a consolidated view of what that phase established and what it passed to the next.
+**When a phase completes**, all its nodes turn green and the orchestrator pauses before opening the next wave. This is the phase boundary — synthesis happens here, confidence is assessed, and the next phase is briefed with what was just established.
+
+![Phase 1 complete — all nodes green, Phase 2 agents preparing to start](assets/images/agent_swarm_phase_1_complete.png)
+
+**Phase summaries** appear at each boundary — a consolidated view of what that phase established, what it passed forward, and what the next phase will investigate.
+
+![Phase 1 summary — synthesis, confidence scores, time per agent, tokens used, next phase plan](assets/images/phase_1_summary.png)
+
+The phase summary gives you full observability into what just happened:
+- What each agent found and how confident it was
+- How long each agent took and how many tokens it used
+- What the synthesiser concluded from the phase as a whole
+- What the next phase is planned to investigate, informed by what this phase found
+
+![Run summary after Phase 1 — structured findings with citations, gaps identified, next phase queued](assets/images/run_summary_phase_1_complete.png)
+
+This is what it means for the system to be inspectable. Not just a final answer — a live record of every decision, every finding, and every transition as the investigation unfolds.
 
 You do not need to watch it run. You can close the browser and come back later. The run continues in the background and the state is always written to disk.
 
 ---
 
-### Step 4 — Read the results
+### Step 4 — Read the results and go deeper
 
-When the run completes, the system generates a **run summary** — a structured briefing in the style of a deep research report:
+When the run completes, everything is available across four tabs — and the conversation never has to stop.
 
-- What was investigated (phase by phase)
-- What was found (key claims with inline citations linking to specific agent envelopes)
-- Where confidence was high and where it was partial
-- What was not covered and why
-- What to explore further
+![Post-run — summary, conversation, evidence, report, log, and chaining options](assets/images/post-run.gif)
 
-The summary is honest about gaps. If an agent couldn't find enough evidence, the summary says so — and scores it accordingly. Partial coverage is shown as partial.
+**Conversation tab**
 
-**Post-run conversation:**
-
-After the summary, you can ask follow-up questions. The system answers from the evidence produced during the run — not from general knowledge.
+The run opens with a structured briefing — a narrative of what was found, phase by phase, with inline citations linking every claim to the specific agent envelope that produced it. Then you can keep talking.
 
 ```
   "Why was the reimbursement section scored lower than the others?"
 
   "Show me the evidence behind the claim about AMNOG timelines."
 
-  "What would we need to add to this run to get a fuller picture
-   of the regulatory pathway?"
+  "What would we need to add to get a fuller picture of the
+   regulatory pathway?"
 ```
+
+Every response is grounded in the evidence from the run — not general knowledge.
+
+**Evidence tab**
+
+The full agent DAG with every envelope inspectable. Click any node to see what that agent found, its confidence score (0–1), the sources it cited, and what it couldn't determine. The coverage overlay shows which parts of the context graph were fully covered, which were partial, and which weren't reached.
+
+**Report tab**
+
+A structured report synthesised from the full run — findings organised by phase, confidence levels surfaced, gaps called out explicitly. Exportable for sharing.
+
+**Log tab**
+
+The complete run log — every agent action, every tool call, timing per agent, tokens used, errors surfaced. Full observability from start to finish.
 
 ---
 
-### Step 5 — Continue the investigation (optional)
+### Step 5 — Continue the investigation
 
-If the run surfaces questions you want to pursue further, click **Continue Investigation**.
+The run doesn't have to end here. At the top of the post-run view, chaining options let you build directly on what was just found.
 
-The system generates a follow-on brief from the current run's identified gaps. You review the new context graph — it will not duplicate work already done — and launch a second run that builds on the first.
+Click **Continue Investigation** and the system generates a follow-on brief from the current run's identified gaps — questions that surfaced but weren't answered. You review the new context graph (it will not duplicate work already done), confirm the direction, and launch.
 
-Each follow-on run's specialists can pull specific evidence from prior runs when relevant. The understanding compounds.
+The next run's specialists pull specific evidence from prior runs when their work item needs it. The understanding compounds.
 
 ```
   Run 1  →  Market landscape. Gaps: regulatory detail, pricing pressure.
   Run 2  →  Regulatory + pricing. Builds on Run 1. Gaps: competitive moat.
   Run 3  →  Competitive synthesis. Uses Runs 1 + 2. Strategic recommendation.
 ```
+
+Each run starts smarter than the last. This is the loop that turns a one-off investigation into a compounding body of knowledge.
 
 ---
 
