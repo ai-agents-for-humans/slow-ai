@@ -105,11 +105,7 @@ When the agent has enough, it will show you a structured **Problem Brief** for c
 
 When you're happy: click **Confirm Brief**.
 
-![The interview — one question at a time, pushing toward precision](assets/images/interview.gif)
-
-Once the interview is complete, the agent synthesises your answers into a structured brief:
-
-![The Problem Brief being generated from the interview](assets/images/problem_brief_run.gif)
+![The interview — one question at a time, pushing toward precision](assets/images/interview.png)
 
 The confirmed brief captures your goal, domain, success criteria, and constraints as a typed, committed artifact. This is the contract — everything the system does from here is measured against it.
 
@@ -168,8 +164,6 @@ When you're satisfied: click **Launch Agent Swarm**.
 
 After launch, the approved context graph drives the agent swarm. The live run view shows the agent DAG growing in real time — each work item from the graph becomes an agent node, executing in the order the graph defined.
 
-![Launching the agent swarm from the approved context graph](assets/images/context_graph_run.gif)
-
 **What you're seeing:**
 
 | Node colour | Meaning |
@@ -209,7 +203,11 @@ You do not need to watch it run. You can close the browser and come back later. 
 
 When the run completes, everything is available across four tabs — and the conversation never has to stop.
 
-![Post-run — summary, conversation, evidence, report, log, and chaining options](assets/images/post-run.gif)
+**Brief & Interview tab**
+
+The first tab shows the problem brief that drove this run — your goal, domain, constraints, and success criteria — followed by the full interview conversation that produced it. Everything that shaped this investigation, in one place.
+
+![The Brief & Interview tab — problem brief and interview conversation](assets/images/post_run_brief_interview.png)
 
 **Conversation tab**
 
@@ -226,17 +224,31 @@ The run opens with a structured briefing — a narrative of what was found, phas
 
 Every response is grounded in the evidence from the run — not general knowledge.
 
+![Starting the post-run conversation — the structured briefing](assets/images/post_run_conversation_1.png)
+
+![Asking a follow-up question — grounded in the run's evidence](assets/images/post_run_conversation_2.png)
+
+![Drilling into a specific finding](assets/images/post_run_conversation_3.png)
+
 **Evidence tab**
 
 The full agent DAG with every envelope inspectable. Click any node to see what that agent found, its confidence score (0–1), the sources it cited, and what it couldn't determine. The coverage overlay shows which parts of the context graph were fully covered, which were partial, and which weren't reached.
+
+![The Evidence tab — agent DAG with coverage overlay](assets/images/post_run_evidence_1.png)
+
+![Clicking a node to inspect the agent's evidence envelope](assets/images/post_run_evidence_2.png)
 
 **Report tab**
 
 A structured report synthesised from the full run — findings organised by phase, confidence levels surfaced, gaps called out explicitly. Exportable for sharing.
 
+![The Report tab — structured findings with confidence levels and gaps](assets/images/post_run_report.png)
+
 **Log tab**
 
 The complete run log — every agent action, every tool call, timing per agent, tokens used, errors surfaced. Full observability from start to finish.
+
+![The Log tab — every agent action, timing, and git commits](assets/images/post_run_log.png)
 
 ---
 
@@ -267,22 +279,22 @@ Out of the box, Slow AI uses Gemini models. To swap any model slot, edit `src/sl
   "models": [
     {
       "name": "reasoning",
-      "model_id": "google-gla:gemini-2.5-pro",
+      "model_id": "google-gla:gemini-3.1-pro",
       "use_for": ["context_planning", "orchestration", "assessment"]
     },
     {
       "name": "fast",
-      "model_id": "google-gla:gemini-2.5-flash",
+      "model_id": "google-gla:gemini-3.1-flash",
       "use_for": ["skill_synthesis", "report_synthesis", "interview"]
     },
     {
       "name": "code",
-      "model_id": "google-gla:gemini-2.5-pro",
+      "model_id": "google-gla:gemini-3.1-pro",
       "use_for": ["code_generation"]
     },
     {
       "name": "specialist",
-      "model_id": "google-gla:gemini-2.5-pro",
+      "model_id": "google-gla:gemini-3.1-pro",
       "use_for": ["specialist_research"]
     }
   ]
@@ -295,9 +307,9 @@ Change `model_id` to any supported provider. No code changes needed.
 
 | Provider | Example model_id |
 |---|---|
-| Google | `google-gla:gemini-2.5-pro` |
+| Google | `google-gla:gemini-3.1-pro` |
 | OpenAI | `openai:gpt-4o` |
-| Anthropic | `anthropic:claude-opus-4-5` |
+| Anthropic | `anthropic:claude-opus-4-6` |
 | Ollama (local) | `ollama:qwen2.5-coder:7b` |
 | vLLM / LM Studio | `openai:model-name` with custom base URL |
 

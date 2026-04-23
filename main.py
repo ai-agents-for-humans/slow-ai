@@ -475,6 +475,7 @@ def init_state():
         "messages": [],
         "history": [],
         "brief": None,
+        "interview_messages": [],  # persisted interview conversation for completed runs
         "saved": False,
         "report": None,
         "research_log": [],
@@ -641,6 +642,21 @@ def load_historical_run(run_id: str):
     st.session_state.conversation_messages = store.read_conversation()
     st.session_state.conversation_history = []
     st.session_state.conversation_run_id = run_id
+    # Load interview and graph review conversations if available
+    def _load_jsonl(path: Path) -> list:
+        if not path.exists():
+            return []
+        msgs = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                try:
+                    msgs.append(json.loads(line))
+                except Exception:
+                    pass
+        return msgs
+
+    st.session_state.interview_messages = _load_jsonl(store.run_path / "interview.jsonl")
+    st.session_state.graph_review_messages = _load_jsonl(store.run_path / "graph_review.jsonl")
     st.session_state.flow_state = None
     st.session_state.context_graph_state = None
     st.session_state.current_run_id = None  # not an active run
@@ -783,6 +799,17 @@ if st.session_state.saved:
             run_id=st.session_state.pending_run_id,
             approved_graph=st.session_state.graph_pending_model,
         )
+        # Persist the interview and graph review conversations before clearing session state
+        _run_dir = Path("runs") / _launch_run_id
+        _run_dir.mkdir(parents=True, exist_ok=True)
+        _interview_path = _run_dir / "interview.jsonl"
+        with _interview_path.open("w", encoding="utf-8") as _f:
+            for _msg in st.session_state.messages:
+                _f.write(json.dumps(_msg) + "\n")
+        _graph_review_path = _run_dir / "graph_review.jsonl"
+        with _graph_review_path.open("w", encoding="utf-8") as _f:
+            for _msg in st.session_state.graph_review_messages:
+                _f.write(json.dumps(_msg) + "\n")
         st.session_state.swarm_launching = False
         st.session_state.current_run_id = _launch_run_id
         st.session_state.graph_review_mode = False
@@ -1136,9 +1163,30 @@ if st.session_state.saved:
             st.session_state.conversation_history = []
             st.session_state.conversation_run_id = report.run_id
 
-        tab_chat, tab_evidence, tab_report, tab_log = st.tabs([
-            "💬 Conversation", "📊 Evidence", "📋 Report", "📝 Log"
+        tab_brief, tab_chat, tab_evidence, tab_report, tab_log = st.tabs([
+            "📋 Brief & Interview", "💬 Conversation", "📊 Evidence", "📄 Report", "📝 Log"
         ])
+
+        # ── Tab 0: Brief & Interview ───────────────────────────────────────────
+        with tab_brief:
+            if st.session_state.brief:
+                display_brief(st.session_state.brief)
+            st.divider()
+            st.subheader("Interview")
+            interview_msgs = st.session_state.get("interview_messages", [])
+            if interview_msgs:
+                for msg in interview_msgs:
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
+            else:
+                st.caption("Interview conversation not available for this run.")
+            graph_review_msgs = st.session_state.get("graph_review_messages", [])
+            if graph_review_msgs:
+                st.divider()
+                st.subheader("Graph Review")
+                for msg in graph_review_msgs:
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
 
         # ── Tab 1: Conversation ────────────────────────────────────────────────
         with tab_chat:
