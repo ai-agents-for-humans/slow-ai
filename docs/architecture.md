@@ -134,16 +134,16 @@ Three things collaborate at runtime: **agents**, the **model registry (BYOFM)**,
 Every model slot lives in a single JSON file:
 
 ```json
-{ "name": "reasoning",  "model_id": "google-gla:gemini-2.5-pro",
+{ "name": "reasoning",  "model_id": "google-gla:gemini-3.1-pro",
   "use_for": ["context_planning", "orchestration", "assessment"] }
 
-{ "name": "fast",       "model_id": "google-gla:gemini-2.5-flash",
+{ "name": "fast",       "model_id": "google-gla:gemini-3.1-flash",
   "use_for": ["skill_synthesis", "report_synthesis", "interview"] }
 
-{ "name": "code",       "model_id": "google-gla:gemini-2.5-pro",
+{ "name": "code",       "model_id": "google-gla:gemini-3.1-pro",
   "use_for": ["code_generation"] }
 
-{ "name": "specialist", "model_id": "google-gla:gemini-2.5-pro",
+{ "name": "specialist", "model_id": "google-gla:gemini-3.1-pro",
   "use_for": ["specialist_research"] }
 ```
 
