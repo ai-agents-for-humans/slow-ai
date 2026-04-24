@@ -167,11 +167,21 @@ ask_key() {
 
 configure_env() {
   if [[ -f ".env" ]]; then
-    printf "\n  ${YLW}⚠${NC}  ${BLD}.env already exists.${NC}\n"
-    printf "  Overwrite it with new keys? ${DIM}[y/N]${NC} "
+    # Only skip if both keys are already present and non-empty
+    local existing_gemini existing_perplexity
+    existing_gemini=$(grep -E '^GEMINI_API_KEY=.+' .env || true)
+    existing_perplexity=$(grep -E '^PERPLEXITY_KEY=.+' .env || true)
+    if [[ -n "$existing_gemini" && -n "$existing_perplexity" ]]; then
+      ok ".env already configured — skipping"
+      dim "To reconfigure, delete .env and re-run this script."
+      return
+    fi
+    # Keys missing or empty — ask whether to update
+    printf "\n  ${YLW}⚠${NC}  ${BLD}.env exists but one or more keys are missing.${NC}\n"
+    printf "  Add missing keys now? ${DIM}[Y/n]${NC} "
     local yn=""
     read -r yn || true
-    if [[ ! "$yn" =~ ^[Yy]$ ]]; then
+    if [[ "$yn" =~ ^[Nn]$ ]]; then
       info "Keeping existing .env"
       return
     fi
@@ -209,7 +219,7 @@ print_done() {
   printf "  ${CYN}  uv run streamlit run main.py${NC}\n"
   printf "\n"
   printf "  ${BLD}Bring your own models${NC}   ${DIM}src/slow_ai/llm/registry.json${NC}\n"
-  printf "  ${BLD}Add or edit skills${NC}      ${DIM}src/slow_ai/skills/registry.json${NC}\n"
+  printf "  ${BLD}Add or edit skills${NC}      ${DIM}src/slow_ai/skills/catalog/${NC}\n"
   printf "  ${BLD}Edit API keys${NC}           ${DIM}.env${NC}\n"
   printf "\n"
   printf "  ${DIM}Trust no node. Trust is built. Trust is designed.${NC}\n"
