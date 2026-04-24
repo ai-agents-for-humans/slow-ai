@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Slow AI{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-center" style="min-height:100vh;">
+  <div class="text-center" style="max-width:480px;">
+    <div class="mb-4" style="font-size:2rem; font-weight:600; letter-spacing:-0.03em; color:#111;">
+      Slow AI
+    </div>
+    <p class="text-muted mb-4" style="font-size:1rem; line-height:1.6;">
+      Describe what you need to understand.<br>
+      The system designs the investigation. You stay in control.
+    </p>
+    <a href="/interview" class="btn btn-dark px-4 py-2">
+      Start a new investigation →
+    </a>
+    <div class="mt-4 text-muted" style="font-size:0.8rem;">
+      Or select a previous project from the sidebar.
+    </div>
+  </div>
+</div>
+{% endblock %}

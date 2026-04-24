@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Review Plan · {{ brief.goal[:60] }}{% endblock %}
+
+{% block head %}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column" style="height:100vh;">
+
+  <!-- Header -->
+  <div class="border-bottom bg-white px-4 py-3 d-flex align-items-center gap-3">
+    <a href="/interview" class="text-muted text-decoration-none" style="font-size:0.85rem;">
+      ← New
+    </a>
+    <div class="flex-grow-1 min-width-0">
+      <div class="fw-semibold text-truncate" style="font-size:0.95rem;">Workflow Plan</div>
+      <div class="text-muted text-truncate" style="font-size:0.78rem;">{{ brief.goal }}</div>
+    </div>
+    <div id="graph-meta" class="text-muted" style="font-size:0.78rem; white-space:nowrap;"></div>
+  </div>
+
+  <!-- Split pane -->
+  <div class="d-flex flex-grow-1 overflow-hidden">
+
+    <!-- Left: Cytoscape graph -->
+    <div class="position-relative border-end" style="flex:1; min-width:0;">
+      <div id="cy" style="width:100%; height:100%;"></div>
+
+      <!-- Loading overlay -->
+      <div id="graph-loading"
+           class="position-absolute top-0 start-0 w-100 h-100 flex-column align-items-center justify-content-center"
+           style="display:flex; background:rgba(248,249,250,0.93); z-index:10;">
+        <div class="spinner-border text-secondary mb-3" style="width:2rem;height:2rem;"></div>
+        <div id="graph-status-text" class="text-muted small">Analysing brief…</div>
+      </div>
+
+      <!-- Node tooltip -->
+      <div id="cy-tooltip"
+           class="card shadow-sm"
+           style="display:none; position:absolute; z-index:20; max-width:280px; font-size:0.82rem;">
+        <div class="card-body p-3">
+          <div class="fw-semibold mb-1" id="tt-name"></div>
+          <div class="text-muted" id="tt-desc"></div>
+          <div id="tt-skills" class="mt-2 text-muted" style="font-size:0.75rem;"></div>
+        </div>
+      </div>
+
+      <!-- Launch button (hidden until graph loads) -->
+      <div id="launch-bar"
+           style="display:none; position:absolute; bottom:0; left:0; right:0; background:white; border-top:1px solid #e5e7eb; padding:16px 24px;">
+        <button id="launch-btn"
+                class="btn btn-dark w-100"
+                hx-post="/api/runs/launch"
+                hx-vals='{"project_id": "{{ project_id }}"}'
+                hx-swap="none">
+          Launch Agent Swarm →
+        </button>
+      </div>
+    </div>
+
+    <!-- Right: Refinement chat -->
+    <div class="d-flex flex-column bg-white" style="width:400px; flex-shrink:0;">
+
+      <div class="px-4 py-3 border-bottom">
+        <div class="fw-semibold" style="font-size:0.9rem;">Refine the plan</div>
+        <div class="text-muted" style="font-size:0.78rem;">Ask to reorder phases, add or remove work items.</div>
+      </div>
+
+      <!-- Chat messages -->
+      <div class="flex-grow-1 overflow-auto px-3 py-3" id="refine-scroll">
+        <div id="refine-messages">
+          <!-- Agent intro message -->
+          <div class="d-flex mb-3">
+            <div class="chat-bubble-agent" style="max-width:100%;">
+              <div class="fw-semibold mb-1" style="font-size:0.85rem;">Plan generated</div>
+              <div class="text-muted" style="font-size:0.82rem;">
+                Review the workflow on the left. Tell me if you'd like to change the order of phases,
+                add or remove work items, or adjust what each phase is trying to achieve.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Typing indicator -->
+        <div id="refine-typing" class="d-flex mb-3 htmx-indicator">
+          <div class="chat-bubble-agent d-flex align-items-center gap-1" style="padding:14px 18px;">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div class="border-top px-3 py-3">
+        <form id="refine-form"
+              hx-post="/api/graph/{{ project_id }}"
+              hx-target="#refine-messages"
+              hx-swap="beforeend"
+              hx-indicator="#refine-typing"
+              class="d-flex gap-2 align-items-end">
+          <textarea id="refine-input"
+                    name="message"
+                    class="form-control"
+                    placeholder="Suggest a change…"
+                    rows="1"
+                    required
+                    style="border-radius:8px; resize:none; overflow-y:hidden; min-height:44px; max-height:120px; line-height:1.5; font-size:0.88rem;"></textarea>
+          <button type="submit" class="btn btn-dark px-3 flex-shrink-0" style="border-radius:8px; height:44px;">
+            →
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+<script>
+const PROJECT_ID = "{{ project_id }}";
+
+// ── Cytoscape setup ────────────────────────────────────────────────────────
+
+cytoscape.use(cytoscapeDagre);
+
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: [],
+  style: [
+    {
+      selector: '.phase-node',
+      style: {
+        'background-color': '#111',
+        'label': 'data(label)',
+        'color': '#fff',
+        'font-size': '11px',
+        'font-weight': '600',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'shape': 'round-rectangle',
+        'width': '140px',
+        'height': '44px',
+        'text-wrap': 'wrap',
+        'text-max-width': '120px',
+        'padding': '8px',
+      },
+    },
+    {
+      selector: '.work-item-node',
+      style: {
+        'background-color': '#fff',
+        'border-color': '#d1d5db',
+        'border-width': '1px',
+        'label': 'data(label)',
+        'color': '#111',
+        'font-size': '10px',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'shape': 'round-rectangle',
+        'width': '120px',
+        'height': '38px',
+        'text-wrap': 'wrap',
+        'text-max-width': '104px',
+        'padding': '6px',
+      },
+    },
+    {
+      selector: '.belongs-edge',
+      style: {
+        'line-color': '#d1d5db',
+        'target-arrow-color': '#d1d5db',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'width': 1,
+        'opacity': 0.6,
+      },
+    },
+    {
+      selector: '.depends-edge',
+      style: {
+        'line-color': '#6b7280',
+        'target-arrow-color': '#6b7280',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'width': 2,
+        'line-style': 'dashed',
+      },
+    },
+    {
+      selector: ':selected',
+      style: {
+        'border-color': '#111',
+        'border-width': '2px',
+      },
+    },
+  ],
+  layout: { name: 'dagre', rankDir: 'LR', padding: 40, spacingFactor: 1.2 },
+});
+
+// ── Tooltip ────────────────────────────────────────────────────────────────
+
+const tooltip = document.getElementById('cy-tooltip');
+cy.on('tap', 'node', function(e) {
+  const node = e.target;
+  const pos = e.renderedPosition;
+  document.getElementById('tt-name').textContent = node.data('label');
+  document.getElementById('tt-desc').textContent = node.data('description') || '';
+  const skills = node.data('skills');
+  const skillEl = document.getElementById('tt-skills');
+  skillEl.textContent = skills ? 'Skills: ' + skills : '';
+  skillEl.style.display = skills ? '' : 'none';
+  tooltip.style.display = 'block';
+  tooltip.style.left = (pos.x + 16) + 'px';
+  tooltip.style.top = (pos.y - 20) + 'px';
+});
+
+cy.on('tap', function(e) {
+  if (e.target === cy) tooltip.style.display = 'none';
+});
+
+// ── Load graph on page load ────────────────────────────────────────────────
+
+async function loadGraph() {
+  const res = await fetch(`/api/graph/${PROJECT_ID}`);
+  if (!res.ok) {
+    console.error('Graph load failed', res.status);
+    return;
+  }
+  const data = await res.json();
+  applyGraph(data);
+}
+
+function applyGraph(data) {
+  cy.elements().remove();
+  cy.add(data.elements);
+  cy.layout({ name: 'dagre', rankDir: 'LR', padding: 40, spacingFactor: 1.2 }).run();
+  cy.fit(40);
+
+  document.getElementById('graph-loading').style.display = 'none';
+  document.getElementById('launch-bar').style.display = 'block';
+  document.getElementById('graph-meta').textContent =
+    `${data.phase_count} phases · ${data.item_count} work items`;
+  clearInterval(_statusTimer);
+}
+
+// ── Generation status ticker ───────────────────────────────────────────────
+
+const _statusMessages = [
+  'Analysing brief…',
+  'Designing phases…',
+  'Planning work items…',
+  'Mapping dependencies…',
+  'Finalising plan…',
+];
+let _statusIdx = 0;
+const _statusEl = document.getElementById('graph-status-text');
+const _statusTimer = setInterval(() => {
+  _statusIdx = (_statusIdx + 1) % _statusMessages.length;
+  if (_statusEl) _statusEl.textContent = _statusMessages[_statusIdx];
+}, 2200);
+
+// ── Refine form: update graph after server responds ────────────────────────
+
+document.addEventListener('htmx:afterRequest', async function(e) {
+  if (e.detail.elt && e.detail.elt.id === 'refine-form' && e.detail.successful) {
+    // Graph was updated server-side — reload it
+    const res = await fetch(`/api/graph/${PROJECT_ID}`);
+    if (res.ok) applyGraph(await res.json());
+  }
+});
+
+// ── htmx response renders user bubble + agent reply ───────────────────────
+
+document.getElementById('refine-form').addEventListener('submit', function() {
+  const input = document.getElementById('refine-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  const bubble = document.createElement('div');
+  bubble.className = 'd-flex mb-3 justify-content-end';
+  bubble.innerHTML = `<div class="chat-bubble-user" style="max-width:90%; font-size:0.85rem;">${msg.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+  document.getElementById('refine-messages').appendChild(bubble);
+  requestAnimationFrame(() => {
+    input.value = '';
+    input.style.height = '44px';
+  });
+  document.getElementById('refine-scroll').scrollTop = 99999;
+});
+
+document.addEventListener('htmx:afterSwap', function(e) {
+  if (e.detail.target.id === 'refine-messages') {
+    document.getElementById('refine-scroll').scrollTop = 99999;
+  }
+});
+
+// ── Textarea auto-grow ─────────────────────────────────────────────────────
+
+document.getElementById('refine-input').addEventListener('input', function() {
+  this.style.height = '44px';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+document.getElementById('refine-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('refine-form').requestSubmit();
+  }
+});
+
+// ── Launch button ──────────────────────────────────────────────────────────
+
+document.addEventListener('htmx:afterRequest', function(e) {
+  if (e.detail.elt && e.detail.elt.id === 'launch-btn' && e.detail.successful) {
+    try {
+      const data = JSON.parse(e.detail.xhr.responseText);
+      if (data.run_id) window.location.href = `/run/${data.run_id}`;
+    } catch (_) {}
+  }
+});
+
+// Start
+loadGraph();
+</script>
+
+<!-- Inline agent reply bubble from htmx swap -->
+<style>
+  .refine-agent-bubble {
+    display: flex;
+    margin-bottom: 0.75rem;
+  }
+</style>
+{% endblock %}

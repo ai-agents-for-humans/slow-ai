@@ -1,0 +1,41 @@
+{% if not projects %}
+  <div class="text-muted small px-2 py-2">No projects yet.</div>
+{% else %}
+  <div class="accordion accordion-flush" id="projectsAccordion">
+    {% for project in projects %}
+    <div class="accordion-item border-0">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed px-2 py-2 small fw-medium text-dark"
+                style="font-size:0.82rem; background:transparent; box-shadow:none;"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#proj-{{ project.project_id }}">
+          <span class="text-truncate" style="max-width:180px;" title="{{ project.goal }}">
+            {{ project.goal }}
+          </span>
+        </button>
+      </h2>
+      <div id="proj-{{ project.project_id }}"
+           class="accordion-collapse collapse"
+           data-bs-parent="#projectsAccordion">
+        <div class="accordion-body py-1 px-2">
+          {% if not project.runs %}
+            <div class="text-muted" style="font-size:0.75rem; padding:4px 8px;">No runs yet.</div>
+          {% else %}
+            {% for run in project.runs %}
+            <a href="/run/{{ run.run_id }}"
+               class="d-flex align-items-center gap-2 text-decoration-none text-dark rounded px-2 py-1 run-link">
+              <span class="badge bg-{{ run.badge }}-subtle text-{{ run.badge }}-emphasis border border-{{ run.badge }}-subtle"
+                    style="font-size:0.65rem; font-weight:500;">
+                {{ run.status }}
+              </span>
+              <span class="text-muted" style="font-size:0.75rem;">{{ run.started_at }}</span>
+            </a>
+            {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+{% endif %}

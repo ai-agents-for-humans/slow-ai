@@ -1,0 +1,47 @@
+<div class="d-flex mb-3">
+  <div class="chat-bubble-agent" style="max-width:90%;">
+    <div class="fw-semibold mb-2">I have enough to write your brief.</div>
+    <div class="text-muted small mb-3">Review it below — confirm when you're happy or tell me what to change.</div>
+
+    <div class="card border-0 bg-light rounded-3 p-3 mb-3">
+      <div class="mb-2">
+        <span class="text-uppercase text-muted fw-semibold" style="font-size:0.68rem; letter-spacing:0.08em;">Goal</span>
+        <div class="small mt-1">{{ brief.goal }}</div>
+      </div>
+      <div class="mb-2">
+        <span class="text-uppercase text-muted fw-semibold" style="font-size:0.68rem; letter-spacing:0.08em;">Domain</span>
+        <div class="small mt-1">{{ brief.domain }}</div>
+      </div>
+      {% if brief.success_criteria %}
+      <div class="mb-2">
+        <span class="text-uppercase text-muted fw-semibold" style="font-size:0.68rem; letter-spacing:0.08em;">Success criteria</span>
+        <ul class="small mt-1 mb-0 ps-3">
+          {% for item in brief.success_criteria %}<li>{{ item }}</li>{% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+      {% if brief.unknowns %}
+      <div class="mb-0">
+        <span class="text-uppercase text-muted fw-semibold" style="font-size:0.68rem; letter-spacing:0.08em;">Open questions</span>
+        <ul class="small mt-1 mb-0 ps-3">
+          {% for item in brief.unknowns %}<li>{{ item }}</li>{% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="d-flex gap-2">
+      <button class="btn btn-dark btn-sm px-3"
+              hx-post="/api/brief/confirm"
+              hx-target="#chat-messages"
+              hx-swap="beforeend"
+              hx-indicator="#typing">
+        Confirm Brief →
+      </button>
+      <button class="btn btn-outline-secondary btn-sm"
+              onclick="document.getElementById('chat-input').focus()">
+        Refine
+      </button>
+    </div>
+  </div>
+</div>

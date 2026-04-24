@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}New Investigation · Slow AI{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column" style="height:100vh;">
+
+  <!-- Header -->
+  <div class="border-bottom bg-white px-4 py-3 d-flex align-items-center gap-3">
+    <a href="/" class="text-muted text-decoration-none" style="font-size:0.85rem;">
+      ← Back
+    </a>
+    <span class="fw-semibold" style="font-size:0.95rem;">New Investigation</span>
+  </div>
+
+  <!-- Chat messages -->
+  <div class="flex-grow-1 overflow-auto px-4 py-4" id="chat-scroll">
+    <div style="max-width:720px; margin:0 auto;">
+
+      <div id="chat-messages"
+           hx-post="/api/interview/start"
+           hx-trigger="load"
+           hx-swap="beforeend"
+           hx-indicator="#typing">
+      </div>
+
+      <!-- Typing indicator -->
+      <div id="typing" class="d-flex mb-3 htmx-indicator">
+        <div class="chat-bubble-agent d-flex align-items-center gap-1" style="padding:14px 18px;">
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="border-top bg-white px-4 py-3">
+    <div style="max-width:720px; margin:0 auto;">
+      <form id="chat-form"
+            hx-post="/api/interview/message"
+            hx-target="#chat-messages"
+            hx-swap="beforeend"
+            hx-indicator="#typing"
+            class="d-flex gap-2 align-items-end">
+        <textarea id="chat-input"
+                  name="message"
+                  class="form-control"
+                  placeholder="Your answer..."
+                  autocomplete="off"
+                  required
+                  rows="3"
+                  style="border-radius:8px; resize:none; overflow-y:hidden; min-height:72px; max-height:160px; line-height:1.5;"></textarea>
+        <button type="submit" class="btn btn-dark px-4 flex-shrink-0" style="border-radius:8px; height:44px; align-self:flex-end;">
+          Send →
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+  // Configure marked for inline-safe rendering
+  marked.setOptions({ breaks: true, gfm: true });
+
+  function scrollToBottom() {
+    const el = document.getElementById('chat-scroll');
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // Render markdown in any .chat-bubble-agent elements inside a container
+  function renderMarkdown(container) {
+    container.querySelectorAll('.chat-bubble-agent[data-markdown]').forEach(el => {
+      el.innerHTML = marked.parse(el.dataset.markdown);
+      delete el.dataset.markdown;
+    });
+  }
+
+  // Show user bubble immediately on submit, before the request goes out
+  document.getElementById('chat-form').addEventListener('submit', function(e) {
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'd-flex mb-3 justify-content-end';
+    bubble.innerHTML = `<div class="chat-bubble-user">${msg.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+    document.getElementById('chat-messages').appendChild(bubble);
+
+    // Reset textarea height and value after htmx captures it
+    requestAnimationFrame(() => {
+      input.value = '';
+      input.style.height = '72px';
+    });
+
+    scrollToBottom();
+  });
+
+  // Render markdown + scroll after any htmx swap into the chat
+  document.addEventListener('htmx:afterSwap', function(e) {
+    if (e.detail.target.id === 'chat-messages') {
+      renderMarkdown(e.detail.target);
+      scrollToBottom();
+    }
+  });
+
+  // Also render on initial load swap (hx-trigger="load" on #chat-messages)
+  document.addEventListener('htmx:afterSettle', function(e) {
+    renderMarkdown(document.getElementById('chat-messages'));
+  });
+
+  // Auto-grow textarea
+  document.getElementById('chat-input').addEventListener('input', function() {
+    this.style.height = '72px';
+    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+  });
+
+  // Enter to submit, Shift+Enter for newline
+  document.getElementById('chat-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      document.getElementById('chat-form').requestSubmit();
+    }
+  });
+</script>
+{% endblock %}
