@@ -46,13 +46,19 @@ spin_start() {
 }
 
 spin_ok() {
-  [[ -n "$_spin_pid" ]] && kill "$_spin_pid" 2>/dev/null && wait "$_spin_pid" 2>/dev/null
+  if [[ -n "$_spin_pid" ]]; then
+    kill "$_spin_pid" 2>/dev/null || true
+    wait "$_spin_pid" 2>/dev/null || true
+  fi
   _spin_pid=
   printf "\r${GRN}  ✓${NC}  %-55s\n" "$1"
 }
 
 spin_err() {
-  [[ -n "$_spin_pid" ]] && kill "$_spin_pid" 2>/dev/null && wait "$_spin_pid" 2>/dev/null
+  if [[ -n "$_spin_pid" ]]; then
+    kill "$_spin_pid" 2>/dev/null || true
+    wait "$_spin_pid" 2>/dev/null || true
+  fi
   _spin_pid=
   printf "\r${RED}  ✗${NC}  %-55s\n" "$1"
 }
@@ -154,8 +160,20 @@ ask_key() {
   dim "$hint"
   printf "  ${DIM}Press Enter to skip — you can add it to .env later.${NC}\n"
   printf "  ${CYN}›${NC} "
-  local val=""
-  IFS= read -r -s val || true
+  local val="" ch
+  while IFS= read -r -s -n1 ch; do
+    if [[ -z "$ch" ]]; then
+      break
+    elif [[ "$ch" == $'\x7f' || "$ch" == $'\b' ]]; then
+      if [[ -n "$val" ]]; then
+        val="${val%?}"
+        printf '\b \b'
+      fi
+    else
+      val+="$ch"
+      printf '*'
+    fi
+  done
   echo
   if [[ -n "$val" ]]; then
     ok "$label configured"
@@ -230,7 +248,7 @@ configure_env() {
     PERPLEXITY_KEY \
     "Get yours → perplexity.ai/settings/api"
 
-  printf 'GEMINI_KEY_SLOW_AI=%s\nPERPLEXITY_KEY_SLOW_AI=%s\n' \
+  printf "GEMINI_KEY_SLOW_AI='%s'\nPERPLEXITY_KEY_SLOW_AI='%s'\n" \
     "$GEMINI_KEY" "$PERPLEXITY_KEY" > .env
 
   ok ".env written"
