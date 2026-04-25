@@ -29,7 +29,7 @@ from slow_ai.models import (
 )
 from typing import Any
 
-os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
+os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 # ── Context planner ───────────────────────────────────────────────────────────
 
@@ -61,17 +61,15 @@ PHASE FIELDS:
 
 WORK ITEM FIELDS:
 - id, name, description, success_criteria
-- required_skills: abstract skill names (NOT tool names). Examples:
-  web_search, web_browse, pdf_extraction, code_execution, database_query,
-  statistical_analysis, document_parsing, api_integration, data_transformation,
-  image_analysis, geospatial_processing
+- required_skills: list of skill names from the catalog below (NOT tool names, NOT
+  invented names). Use the exact names listed — do not paraphrase or invent synonyms.
 
-Currently available skills:
+SKILL CATALOG (use these names exactly):
 {skill_registry_description}
 
-IMPORTANT: Plan for the ideal methodology. Declare skills that do not yet exist if
-the work genuinely requires them — gaps are surfaced and resolved before execution.
-Do not constrain the plan to currently available skills.
+IMPORTANT: Always prefer catalog skill names. Only declare a new skill name when no
+existing catalog skill covers the need at all — this should be rare. When in doubt,
+use the closest catalog skill rather than inventing a new one.
 
 Return a ContextGraph with phases.
 """

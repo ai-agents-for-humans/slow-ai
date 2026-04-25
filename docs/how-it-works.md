@@ -157,7 +157,7 @@ The tools agents can use:
 | `url_fetch` | Download and inspect datasets, PDFs |
 | `read_prior_evidence` | Pull specific findings from prior runs |
 
-Skills combine these tools. `healthcare_policy_analysis` uses `web_search` + `web_browse` + `pdf_extraction`. `economic_modeling` uses `code_execution` + `statistical_analysis` + `data_transformation`. When a skill the graph needs doesn't exist yet, the system tries to synthesize it from available tools. When that's not possible, it flags the gap rather than guessing.
+Skills combine these tools. A `pdf_extraction` skill uses `web_browse` + `url_fetch` to download and extract a research paper. A `code_execution` skill runs sandboxed Python for data transformation or statistical analysis. When the graph needs a skill that isn't in the catalog, the system synthesises one from available tools — or flags the gap rather than guessing.
 
 {: .highlight }
 > **The evidence envelope** is the unit of trust. Every specialist produces one: what it found, how confident it is (0–1), what it couldn't determine, what tools it used, what sources it cited. The envelope is the proof of work. You can inspect any of them.
@@ -258,7 +258,7 @@ Each run starts smarter than the last. The understanding compounds. The expert d
 git clone https://github.com/ai-agents-for-humans/slow-ai
 cd slow-ai
 bash install.sh
-uv run streamlit run main.py
+PYTHONPATH=. uv run uvicorn app.main:app --reload
 ```
 
 The install script handles `uv`, dependencies, and walks you through API key setup interactively.

@@ -18,7 +18,7 @@ from slow_ai.tools.perplexity import perplexity_search
 from slow_ai.tools.url_fetch import url_fetch as _url_fetch
 from slow_ai.tools.web_browse import web_browse
 
-os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
+os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 
 def _tool_descriptions(tools_available: list[str]) -> str:

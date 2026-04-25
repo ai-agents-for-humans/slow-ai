@@ -26,7 +26,7 @@ async def perplexity_search(query: str) -> PerplexityResult:
             response = await client.post(
                 "https://api.perplexity.ai/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {settings.perplexity_key}",
+                    "Authorization": f"Bearer {settings.perplexity_key_slow_ai}",
                     "Content-Type": "application/json",
                 },
                 json={

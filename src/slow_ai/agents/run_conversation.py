@@ -14,7 +14,7 @@ from slow_ai.config import settings
 from slow_ai.llm import ModelRegistry
 from slow_ai.tools.run_reader import make_run_reader_tools
 
-os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
+os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 
 def _build_system_prompt(run_id: str, run_path: Path) -> str:

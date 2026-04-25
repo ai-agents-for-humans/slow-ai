@@ -91,7 +91,7 @@ Two independent planes. No shared state between them.
 
 ```
   ┌─────────────────────────────────┐
-  │  UI  (Streamlit, for now)       │  ← reads files, renders state
+  │  UI  (FastAPI + htmx)           │  ← reads files, renders state
   └──────────────┬──────────────────┘
                  │  files on disk only — no direct coupling
   ┌──────────────▼──────────────────┐
@@ -102,7 +102,7 @@ Two independent planes. No shared state between them.
                git  (one branch per run · milestone commits)
 ```
 
-The execution plane does not know or care what UI is reading its files. Streamlit today. React tomorrow. A CLI. An API. Swap it without touching the engine.
+The execution plane does not know or care what UI is reading its files. The UI is a thin FastAPI layer — server-side templates, htmx for partial updates, Cytoscape.js for the DAG. A CLI or another client can read the same files.
 
 ---
 
@@ -133,7 +133,7 @@ Supported: Google · OpenAI · Anthropic · OpenRouter · Ollama · any OpenAI-c
 git clone https://github.com/ai-agents-for-humans/slow-ai
 cd slow-ai
 bash install.sh
-uv run streamlit run main.py
+PYTHONPATH=. uv run uvicorn app.main:app --reload
 ```
 
 The install script handles `uv`, dependencies, and walks you through API key setup. You need a Gemini key for the default model config. Perplexity is optional — if you have it, web search gets better. Everything else runs without it.
@@ -145,7 +145,7 @@ The install script handles `uv`, dependencies, and walks you through API key set
 
 ## What's honest about the current state
 
-The UI is Streamlit. It works. It is not pretty. There is a React migration in the roadmap because Streamlit hits real limits at the layout level — and this system deserves a proper console.
+The UI is a FastAPI app with htmx, Alpine.js, Bootstrap 5, and Cytoscape.js. It replaced the original Streamlit prototype and delivers real-time SSE updates, a live DAG, agent envelope inspection, and post-run results — all in one page per run.
 
 The RL layer is designed in full — trajectory corpus, GRPO formulation, sidecar policy model — but not implemented. The data it needs is being collected correctly right now, in every run, committed to git. The learning infrastructure comes next.
 
@@ -155,7 +155,7 @@ The HITL gate exists and triggers correctly. It does not yet block. It logs and 
 
 This is a working system with a point of view. Not a finished product. Not a platform with a pricing page.
 
-It currently works with Gemini API key and Perplexity API key. You cannot yet bring your own models.
+It currently works with Gemini API key and Perplexity API key. You can bring your own models by editing `src/slow_ai/llm/registry.json`.
 
 [Full known issues →](https://ai-agents-for-humans.github.io/slow-ai/known-issues)
 

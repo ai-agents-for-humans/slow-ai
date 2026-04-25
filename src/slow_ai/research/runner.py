@@ -40,7 +40,7 @@ from slow_ai.skills.resolver import resolve_skills, viability_assess
 from slow_ai.skills.synthesizer import synthesize_skills
 from slow_ai.tools.code_execution import setup_run_venv
 
-os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
+os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 logger = logging.getLogger(__name__)
 

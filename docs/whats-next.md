@@ -23,23 +23,6 @@ The roadmap — what is being built, and why each piece matters.
 
 ---
 
-## React frontend
-
-The Streamlit UI is a prototype rendering layer. It proved the concept. It is not the long-term answer.
-
-**Why Streamlit is the wrong tool for this:** Streamlit reruns the entire script on every interaction. The live run view works around this with a 5-second polling cycle — which causes layout instability, loses scroll position, and makes the DAG and context graph interfere with each other. These are not bugs that can be fixed. They are the consequence of how Streamlit works.
-
-**What the React migration delivers:**
-
-- **SSE-driven live updates** — the DAG updates in real time without polling. Each node updates independently, not as part of a full page rerender.
-- **URL-based routing** — a refresh rehydrates the view from the same run state files. No more lost sessions.
-- **ReactFlow for the DAG and context graph** — proper graph components with zoom, pan, click-to-expand, and independent update cycles.
-- **FastAPI backend** — a thin API layer between the execution plane and the UI. The execution plane already writes files; the API reads them and streams events. Any client can consume this — browser, CLI, another service.
-
-The execution plane is already React-ready. It writes to files; any UI can read them. The frontend rewrite is purely additive — the runner does not change.
-
----
-
 ## MAPE-K observer
 
 Monitor, Analyze, Plan, Execute with shared Knowledge.

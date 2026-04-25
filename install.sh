@@ -165,12 +165,43 @@ ask_key() {
   printf -v "$varname" '%s' "$val"
 }
 
+_detect_shell_profile() {
+  local shell_name
+  shell_name=$(basename "${SHELL:-bash}")
+  case "$shell_name" in
+    zsh)  echo "$HOME/.zshrc" ;;
+    bash) echo "$HOME/.bashrc" ;;
+    fish) echo "$HOME/.config/fish/config.fish" ;;
+    *)    echo "$HOME/.profile" ;;
+  esac
+}
+
+_append_exports_to_profile() {
+  local profile="$1" gemini="$2" perplexity="$3"
+  [[ -z "$gemini" && -z "$perplexity" ]] && return
+
+  # Remove any previous slow-ai key block
+  if [[ -f "$profile" ]]; then
+    local tmp
+    tmp=$(mktemp)
+    sed '/# slow-ai keys/,/# end slow-ai keys/d' "$profile" > "$tmp"
+    mv "$tmp" "$profile"
+  fi
+
+  {
+    printf '\n# slow-ai keys\n'
+    [[ -n "$gemini" ]]     && printf 'export GEMINI_KEY_SLOW_AI=%s\n' "$gemini"
+    [[ -n "$perplexity" ]] && printf 'export PERPLEXITY_KEY_SLOW_AI=%s\n' "$perplexity"
+    printf '# end slow-ai keys\n'
+  } >> "$profile"
+}
+
 configure_env() {
   if [[ -f ".env" ]]; then
     # Only skip if both keys are already present and non-empty
     local existing_gemini existing_perplexity
-    existing_gemini=$(grep -E '^GEMINI_API_KEY=.+' .env || true)
-    existing_perplexity=$(grep -E '^PERPLEXITY_KEY=.+' .env || true)
+    existing_gemini=$(grep -E '^GEMINI_KEY_SLOW_AI=.+' .env || true)
+    existing_perplexity=$(grep -E '^PERPLEXITY_KEY_SLOW_AI=.+' .env || true)
     if [[ -n "$existing_gemini" && -n "$existing_perplexity" ]]; then
       ok ".env already configured — skipping"
       dim "To reconfigure, delete .env and re-run this script."
@@ -199,10 +230,16 @@ configure_env() {
     PERPLEXITY_KEY \
     "Get yours → perplexity.ai/settings/api"
 
-  printf 'GEMINI_API_KEY=%s\nPERPLEXITY_KEY=%s\n' \
+  printf 'GEMINI_KEY_SLOW_AI=%s\nPERPLEXITY_KEY_SLOW_AI=%s\n' \
     "$GEMINI_KEY" "$PERPLEXITY_KEY" > .env
 
   ok ".env written"
+
+  # Append exports to shell profile so keys survive new shells
+  local profile
+  profile=$(_detect_shell_profile)
+  _append_exports_to_profile "$profile" "$GEMINI_KEY" "$PERPLEXITY_KEY"
+  ok "Exports added to $profile"
   dim "Keys are stored locally and never leave your machine."
 }
 
@@ -210,13 +247,18 @@ configure_env() {
 # done
 # ──────────────────────────────────────────────────────────────────────────────
 print_done() {
+  local profile
+  profile=$(_detect_shell_profile)
   printf "\n${PRP}${BLD}"
   printf "  ╔══════════════════════════════════════════════════════════╗\n"
   printf "  ║                     you're ready                        ║\n"
   printf "  ╚══════════════════════════════════════════════════════════╝${NC}\n"
   printf "\n"
+  printf "  ${BLD}Load keys in this terminal${NC}  ${DIM}(already saved to %s for future shells)${NC}\n" "$profile"
+  printf "  ${CYN}  source %s${NC}\n" "$profile"
+  printf "\n"
   printf "  ${BLD}Run the app${NC}\n"
-  printf "  ${CYN}  uv run streamlit run main.py${NC}\n"
+  printf "  ${CYN}  PYTHONPATH=. uv run uvicorn app.main:app --reload${NC}\n"
   printf "\n"
   printf "  ${BLD}Bring your own models${NC}   ${DIM}src/slow_ai/llm/registry.json${NC}\n"
   printf "  ${BLD}Add or edit skills${NC}      ${DIM}src/slow_ai/skills/catalog/${NC}\n"

@@ -53,9 +53,9 @@ The install script does four things in sequence:
 1. **Checks your environment** — confirms Python 3.11+ is available
 2. **Installs `uv`** — the fast Python package manager that powers sandboxed execution
 3. **Installs dependencies** — `uv sync` pulls everything from `pyproject.toml`
-4. **Configures your API keys** — prompts for Gemini and Perplexity keys, writes them to `.env`
+4. **Configures your API keys** — prompts for Gemini and Perplexity keys, writes them to `.env` and your shell profile
 
-Your keys are stored locally in `.env` and never leave your machine.
+Your keys are stored locally and never leave your machine.
 
 When it finishes you will see:
 
@@ -64,8 +64,11 @@ When it finishes you will see:
   ║                     you're ready                        ║
   ╚══════════════════════════════════════════════════════════╝
 
+  Load keys in this terminal
+    source ~/.zshrc   (or ~/.bashrc depending on your shell)
+
   Run the app
-    uv run streamlit run main.py
+    PYTHONPATH=. uv run uvicorn app.main:app --reload
 ```
 
 ---
@@ -73,12 +76,10 @@ When it finishes you will see:
 ## Start the app
 
 ```bash
-uv run streamlit run main.py
+PYTHONPATH=. uv run uvicorn app.main:app --reload
 ```
 
-This starts the Streamlit interface and opens it in your browser at `http://localhost:8501`.
-
-You will see the Slow AI interface with a sidebar showing any prior projects and runs. On first launch it will be empty.
+This starts the web interface at `http://localhost:8000`. Keep the terminal running while you work — the app uses server-sent events to stream live updates to your browser.
 
 ---
 
@@ -86,9 +87,9 @@ You will see the Slow AI interface with a sidebar showing any prior projects and
 
 ### Step 1 — Start the interview
 
-Click **New Investigation** in the sidebar. The interview begins immediately.
+Click **New** in the sidebar. The interview begins immediately.
 
-The interviewer agent will ask you questions to understand your research goal. Answer naturally — as if you were briefing a colleague who asked you to clarify what you actually need.
+The interviewer agent asks you questions one at a time to understand your research goal. Answer naturally — as if you were briefing a colleague who needs to understand exactly what you need and why.
 
 **What the interview is doing:**
 - Identifying the domain and goal
@@ -101,162 +102,120 @@ The interviewer agent will ask you questions to understand your research goal. A
 - Don't worry about framing it perfectly — the agent will push back if something is vague
 - Answer one question at a time; don't pre-answer questions that haven't been asked
 
-When the agent has enough, it will show you a structured **Problem Brief** for confirmation. Review it. If something is missing or wrong, tell the agent in plain language — it will revise and show you again.
-
-When you're happy: click **Confirm Brief**.
-
 ![The interview — one question at a time, pushing toward precision](assets/images/interview.png)
 
-The confirmed brief captures your goal, domain, success criteria, and constraints as a typed, committed artifact. This is the contract — everything the system does from here is measured against it.
+When the agent has enough, it presents a structured **Problem Brief** directly in the conversation — goal, domain, constraints, unknowns, and success criteria laid out clearly.
 
-![The confirmed Problem Brief — the contract before any agent runs](assets/images/problem-brief.png)
+![The Problem Brief appears inline — review it before confirming](assets/images/problem-brief.png)
+
+Read it carefully. If something is missing or wrong, type your correction and the agent will revise. When you're satisfied, click **Confirm Brief →**.
+
+![Confirm the brief or ask for a refinement](assets/images/confirm-brief.png)
 
 {: .highlight }
 > **The brief is the cornerstone.** Everything that follows — the context graph, the agent assignments, the synthesis — is built on top of it. A five-minute interview is the highest-leverage thing the system does.
 
 ---
 
-### Step 2 — Review the context graph
+### Step 2 — Review the workflow plan
 
-After confirming your brief, the planner agent generates a **context graph**: a structured breakdown of the research question into phases and parallel work items.
+After confirming your brief, the planner generates a **workflow plan**: a structured breakdown of the research question into phases and parallel work items, rendered as an interactive graph.
 
 You will see:
-- A visual graph rendered in the interface — phases as clusters, work items as nodes
-- A narrative summary explaining the logic of the breakdown (300–500 words)
+- A visual graph — phases as dark nodes, work items as white nodes connected by dependency edges
+- A narrative summary on the right explaining the logic of the breakdown
 - A chat panel for refinement
 
-**Read the narrative first.** It explains why the graph is structured the way it is — what the planner understood about your problem and how it chose to decompose it. If the narrative doesn't match your mental model of the work, that is the signal to refine.
+**Read the narrative first.** It explains why the graph is structured the way it is. If the narrative doesn't match your mental model of the work, that is the signal to refine.
 
-![The context graph — phases and work items, the shape of the problem made visible](assets/images/context_graph.png)
+![The workflow plan — phases and work items, the shape of the problem made visible](assets/images/context_graph.png)
 
-**Refining the graph through conversation:**
+**Refining the plan through conversation:**
 
-You don't edit the graph directly — you tell the system what you want changed in plain language. This is one of the most important things to understand: the context graph is a shared mental model between you and the system, and conversation is how you align it.
-
-You can change phases, add work items, adjust dependencies, or redirect the entire investigation — all through the chat panel alongside the graph.
+You don't edit the graph directly — you tell the system what you want changed in plain language. Type in the "Suggest a change…" panel and the graph regenerates with a new narrative.
 
 ```
   "The regulatory phase should come before the market sizing —
    reimbursement rules will constrain what's commercially viable."
 
-  "Add a phase on patient advocacy groups — they're a key signal
-   for how fast adoption moves in this market."
-
-  "The competitive dynamics section is too broad.
-   Split it into direct competitors and adjacent digital health players."
+  "Add a phase on competitive dynamics — I need to understand
+   who the incumbents are before we assess entry strategy."
 
   "Remove the pricing phase entirely — the client already has this data."
 ```
 
-Each message regenerates the graph and a new narrative summary explaining the updated structure. You can see exactly how your input changed the plan. Repeat until the shape of the work matches how an expert in your domain would approach it.
+Repeat until the shape of the work matches how an expert in your domain would approach it.
 
 {: .note }
 > **You are the expert.** The system proposes, you decide. The graph is not locked until you launch — take the time to get the direction right. A well-shaped graph produces dramatically better results than a vague one.
 
-When you're satisfied: click **Launch Agent Swarm**.
+When you're satisfied: click **Launch Agent Swarm →** at the bottom.
 
 {: .important }
-> **The direction matters more than the detail.** You are approving the shape of the investigation, not the implementation. Trust that the agents will figure out the specifics — your job is to confirm the phases make sense and nothing critical is missing.
+> **The direction matters more than the detail.** You are approving the shape of the investigation, not the implementation. Your job is to confirm the phases make sense and nothing critical is missing.
 
 ---
 
 ### Step 3 — Watch the swarm
 
-After launch, the approved context graph drives the agent swarm. The live run view shows the agent DAG growing in real time — each work item from the graph becomes an agent node, executing in the order the graph defined.
+After launch, the approved plan drives a swarm of specialist agents running in parallel. The **Run tab** shows the agent DAG filling in as agents complete their work.
 
 **What you're seeing:**
 
 | Node colour | Meaning |
 |---|---|
 | Grey | Waiting — dependency not yet satisfied |
-| Blue / pulsing | Running — agent is actively working |
+| Blue | Running — agent is actively working |
 | Green | Complete — evidence envelope produced |
 | Red | Failed or partial — agent flagged a gap |
 
-![The agent swarm in progress — nodes filling in as specialists complete their work](assets/images/agent_swarm.png)
+![The agent swarm in progress — nodes updating in real time, log streaming on the right](assets/images/live_run.png)
 
-Each node is clickable. Click any completed node to see the full evidence envelope: what the agent found, its confidence score, the sources it used, and what it couldn't determine.
+The **Log** panel on the right streams every agent action as it happens — phase launches, specialist completions, synthesis steps, confidence scores. The **Phases** tab shows a card for each completed phase with its synthesis and confidence. The **Plan** tab shows the original context graph for reference.
 
-**When a phase completes**, all its nodes turn green and the orchestrator pauses before opening the next wave. This is the phase boundary — synthesis happens here, confidence is assessed, and the next phase is briefed with what was just established.
+**Click any completed node** to open the evidence envelope — what the agent found, its confidence score, the sources it cited, and what it couldn't determine.
 
-![Phase 1 complete — all nodes green, Phase 2 agents preparing to start](assets/images/agent_swarm_phase_1_complete.png)
-
-**Phase summaries** appear at each boundary — a consolidated view of what that phase established, what it passed forward, and what the next phase will investigate.
-
-![Phase 1 summary — synthesis, confidence scores, time per agent, tokens used, next phase plan](assets/images/phase_1_summary.png)
-
-The phase summary gives you full observability into what just happened:
-- What each agent found and how confident it was
-- How long each agent took and how many tokens it used
-- What the synthesiser concluded from the phase as a whole
-- What the next phase is planned to investigate, informed by what this phase found
-
-![Run summary after Phase 1 — structured findings with citations, gaps identified, next phase queued](assets/images/run_summary_phase_1_complete.png)
-
-This is what it means for the system to be inspectable. Not just a final answer — a live record of every decision, every finding, and every transition as the investigation unfolds.
+![Clicking a node opens the evidence envelope at the bottom of the DAG](assets/images/agent_envelope.png)
 
 You do not need to watch it run. You can close the browser and come back later. The run continues in the background and the state is always written to disk.
 
 ---
 
-### Step 4 — Read the results and go deeper
+### Step 4 — Read the results
 
-When the run completes, everything is available across four tabs — and the conversation never has to stop.
+When the run completes, the **Results tab** opens automatically. Everything is in one place.
 
-**Brief & Interview tab**
+**The summary card** at the top gives you the headline finding — what the agents collectively established, at what confidence level.
 
-The first tab shows the problem brief that drove this run — your goal, domain, constraints, and success criteria — followed by the full interview conversation that produced it. Everything that shaped this investigation, in one place.
+**Below it:** datasets used, paths the investigation did not take, then the full phase tree.
 
-![The Brief & Interview tab — problem brief and interview conversation](assets/images/post_run_brief_interview.png)
+![The Results tab — summary at the top, datasets, and the full phase tree below](assets/images/post_run_results.png)
 
-**Conversation tab**
+**Expanding a phase** shows the synthesis for that phase, then each agent card. Expand an agent card to see its full findings and confidence score.
 
-The run opens with a structured briefing — a narrative of what was found, phase by phase, with inline citations linking every claim to the specific agent envelope that produced it. Then you can keep talking.
+![Phase 1 expanded — synthesis and individual agent findings](assets/images/post_run_phases_agent_view.png)
 
-```
-  "Why was the reimbursement section scored lower than the others?"
+**Tool Calls** — each agent card has a collapsible Tool Calls section. Expand it to see every search query, web browse, or code execution the agent made, with the source shown as a colour-coded badge. Click any row to expand the snippet it returned.
 
-  "Show me the evidence behind the claim about AMNOG timelines."
+![Tool calls expanded — each call shown as a row with source badge and query](assets/images/post_run_tool_calls_artefacts.png)
 
-  "What would we need to add to get a fuller picture of the
-   regulatory pathway?"
-```
+**Artefacts** — agents that ran code or produced documents show an Artefacts section. Click any chip to open the file in a full-screen viewer with syntax highlighting and a copy button.
 
-Every response is grounded in the evidence from the run — not general knowledge.
+![An artefact open in the viewer — generated Python code with syntax highlighting](assets/images/post_run_artefacts_viewer.png)
 
-![Starting the post-run conversation — the structured briefing](assets/images/post_run_conversation_1.png)
+**Ask about the run** — the chat bar at the bottom of the Results page is always available. Ask follow-up questions, drill into a specific finding, or ask the system to explain why confidence was low on a particular question. Every response is grounded in the evidence from the run.
 
-![Asking a follow-up question — grounded in the run's evidence](assets/images/post_run_conversation_2.png)
+![The bottom chat drawer — ask questions grounded in the run's evidence](assets/images/post_run_chat.png)
 
-![Drilling into a specific finding](assets/images/post_run_conversation_3.png)
-
-**Evidence tab**
-
-The full agent DAG with every envelope inspectable. Click any node to see what that agent found, its confidence score (0–1), the sources it cited, and what it couldn't determine. The coverage overlay shows which parts of the context graph were fully covered, which were partial, and which weren't reached.
-
-![The Evidence tab — agent DAG with coverage overlay](assets/images/post_run_evidence_1.png)
-
-![Clicking a node to inspect the agent's evidence envelope](assets/images/post_run_evidence_2.png)
-
-**Report tab**
-
-A structured report synthesised from the full run — findings organised by phase, confidence levels surfaced, gaps called out explicitly. Exportable for sharing.
-
-![The Report tab — structured findings with confidence levels and gaps](assets/images/post_run_report.png)
-
-**Log tab**
-
-The complete run log — every agent action, every tool call, timing per agent, tokens used, errors surfaced. Full observability from start to finish.
-
-![The Log tab — every agent action, timing, and git commits](assets/images/post_run_log.png)
+The **Run Summary** panel on the right shows confidence per phase, total tokens, and the Continue Investigation button.
 
 ---
 
 ### Step 5 — Continue the investigation
 
-The run doesn't have to end here. At the top of the post-run view, chaining options let you build directly on what was just found.
+The run doesn't have to end here. Click **Continue Investigation** in the stats panel on the right.
 
-Click **Continue Investigation** and the system generates a follow-on brief from the current run's identified gaps — questions that surfaced but weren't answered. You review the new context graph (it will not duplicate work already done), confirm the direction, and launch.
+The system generates a follow-on brief from the current run's identified gaps — questions that surfaced but weren't answered. You review the new context graph (it will not duplicate work already done), confirm the direction, and launch.
 
 The next run's specialists pull specific evidence from prior runs when their work item needs it. The understanding compounds.
 
@@ -359,9 +318,9 @@ Red nodes in the DAG indicate a failed or partial agent. Click the node to see t
 
 **I want to add a new tool or API integration.**
 
-Tools are added to `src/slow_ai/tools/`. A tool is a Python function decorated with the pydantic-ai tool pattern. Once added, create a corresponding entry in `src/slow_ai/skills/catalog/` as a `SKILL.md` file so the skill synthesiser can use it.
+Tools are added to `src/slow_ai/tools/`. A tool is a Python function decorated with the pydantic-ai tool pattern. Once added, create a corresponding entry in `src/slow_ai/skills/catalog/{skill_name}/SKILL.md` with YAML frontmatter (name, description, tools, tags) and a full playbook body (when to use, how to execute, output contract, quality bar). The skill catalog is what the context planner draws from when assigning skills to work items.
 
-**Can I run it without the Streamlit UI?**
+**Can I run it without the web UI?**
 
 Yes. The execution plane runs independently:
 
@@ -369,7 +328,7 @@ Yes. The execution plane runs independently:
 uv run python -m slow_ai.research --brief path/to/brief.json --graph path/to/graph.json
 ```
 
-The UI reads the files the runner writes. Any other reader — a script, a different UI, a React app — works the same way.
+The UI reads the files the runner writes. Any other reader — a script, a different UI, a CLI — works the same way.
 
 ---
 
@@ -378,9 +337,9 @@ The UI reads the files the runner writes. Any other reader — a script, a diffe
 If you're not sure where to start, here are briefs that work well as first runs:
 
 - A market or competitive question in your professional domain
-- A medical or health question you've been meaning to research properly
 - A technology evaluation — comparing frameworks, libraries, or approaches
 - A regulatory or policy question in a domain you know
+- A medical or scientific question you've been meaning to research properly
 
 The interview will help you get the brief right regardless of where you start. The more specific your problem, the sharper the context graph — and the more useful the output.
 

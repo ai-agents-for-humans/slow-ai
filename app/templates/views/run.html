@@ -36,82 +36,124 @@
     /* ── Results pane ── */
     #pane-results { overflow: hidden; }
 
-    /* Tree */
-    .phase-block { border-left: 3px solid #e5e7eb; padding-left: 1.25rem; margin-bottom: 1.5rem; }
+    /* Phase / agent tree */
+    .phase-block { border-left: 3px solid #e5e7eb; padding-left: 1.25rem; margin-bottom: 2rem; }
     .phase-block.done { border-color: #22c55e; }
-    .agent-block { border-left: 2px solid #e5e7eb; padding-left: 1rem; margin: 0.75rem 0; }
 
-    /* Tool pills */
-    .tool-pill {
-      display: inline-flex; align-items: center; gap: 0.3rem;
-      font-size: 0.71rem; font-family: monospace;
-      background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px;
-      padding: 2px 7px; color: #374151; margin: 2px 0; cursor: pointer;
+    /* Agent cards */
+    .agent-card {
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+      padding: 0.9rem 1.1rem; margin: 0.6rem 0;
     }
-    .src-badge { font-size: 0.63rem; font-weight: 700; padding: 1px 5px;
-                 border-radius: 3px; color: #fff; letter-spacing: 0.03em; }
-    .src-perplexity_search { background: #7c3aed; }
-    .src-web_browse        { background: #0ea5e9; }
-    .src-default           { background: #6b7280; }
-    .tool-snippet { display: none; font-size: 0.77rem; color: #6b7280; line-height: 1.5;
-                    margin-top: 3px; white-space: pre-wrap; word-break: break-word;
-                    padding: 6px 8px; background: #fafafa; border-radius: 4px; }
+    .agent-card:hover { border-color: #d1d5db; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
 
-    /* Proof */
+    /* Proof text */
     .proof-key { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.08em;
                  text-transform: uppercase; color: #9ca3af; margin: 0.75rem 0 0.2rem; }
-    .proof-val { font-size: 0.81rem; line-height: 1.65; color: #374151;
-                 word-break: break-word; white-space: pre-wrap; }
+    .proof-prose { font-size: 0.83rem; line-height: 1.75; color: #374151;
+                   white-space: pre-wrap; word-break: break-word; max-width: 72ch; }
 
-    /* Artefact files */
-    .artefact-pill {
-      display: inline-flex; align-items: center; gap: 0.3rem;
-      font-size: 0.71rem; font-family: monospace;
-      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px;
-      padding: 2px 8px; color: #166534; margin: 2px 2px 2px 0; cursor: pointer;
-      user-select: none;
+    /* Source badges */
+    .src-badge { font-size: 0.62rem; font-weight: 700; padding: 2px 6px;
+                 border-radius: 3px; color: #fff; letter-spacing: 0.03em; flex-shrink: 0; }
+    .src-perplexity_search { background: #7c3aed; }
+    .src-web_browse        { background: #0ea5e9; }
+    .src-url_fetch         { background: #f59e0b; }
+    .src-code_execution    { background: #22c55e; }
+    .src-default           { background: #6b7280; }
+
+    /* Tool call rows */
+    .tc-row {
+      display: flex; align-items: center; gap: 0.55rem;
+      padding: 6px 0; border-bottom: 1px solid #f3f4f6; cursor: pointer;
     }
-    .artefact-pill:hover { background: #dcfce7; }
-    .artefact-pill.loading { opacity: 0.6; }
-    .artefact-content {
-      margin-top: 6px; border-radius: 6px; overflow: hidden;
-      border: 1px solid #e5e7eb;
+    .tc-row:last-child { border-bottom: none; }
+    .tc-row:hover { background: #fafafa; margin: 0 -6px; padding: 6px; border-radius: 4px; }
+    .tc-query { flex: 1; font-size: 0.79rem; color: #374151; min-width: 0;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tc-chevron { font-size: 0.6rem; color: #9ca3af; flex-shrink: 0; transition: transform 0.15s; }
+    .tc-chevron.open { transform: rotate(180deg); }
+    .tc-detail {
+      display: none; font-size: 0.77rem; color: #6b7280; line-height: 1.6;
+      padding: 6px 8px 6px 10px; white-space: pre-wrap; word-break: break-word;
+      border-left: 2px solid #e5e7eb; margin: 2px 0 4px 6px;
+      max-height: 160px; overflow-y: auto;
     }
-    .artefact-content pre {
-      margin: 0; padding: 12px 14px; font-size: 0.74rem; line-height: 1.55;
-      background: #1e1e2e; color: #cdd6f4; overflow-x: auto;
-      white-space: pre; max-height: 320px; overflow-y: auto;
+
+    /* Artefact chips */
+    .artefact-chip {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-size: 0.74rem; font-family: monospace;
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px;
+      padding: 3px 9px; color: #166534; margin: 2px 3px 2px 0; cursor: pointer;
+      user-select: none; transition: background 0.1s;
     }
-    .artefact-content .md-render {
-      padding: 12px 16px; font-size: 0.82rem; line-height: 1.7;
-      background: #fafafa; max-height: 320px; overflow-y: auto;
+    .artefact-chip:hover { background: #dcfce7; border-color: #86efac; }
+
+    /* Sub-section toggles */
+    .sub-tog {
+      display: flex; align-items: center; gap: 0.35rem; width: 100%;
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+      color: #9ca3af; background: none; border: none; border-top: 1px solid #f3f4f6;
+      padding: 6px 0 4px; margin-top: 8px; cursor: pointer; text-align: left;
     }
-    .artefact-content .artefact-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 5px 10px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb;
-      font-size: 0.7rem; font-family: monospace; color: #6b7280;
-    }
+    .sub-tog:hover { color: #6b7280; }
+    .sub-tog .bi { transition: transform 0.15s; font-size: 0.6rem; }
+    .sub-tog.collapsed .bi { transform: rotate(-90deg); }
 
     /* Toggle chevron */
     .tog { background: none; border: none; padding: 0; cursor: pointer; }
     .tog .bi { transition: transform 0.18s; color: #9ca3af; font-size: 0.72rem; }
     .tog.collapsed .bi { transform: rotate(-90deg); }
 
-    /* Sub-section toggles inside an agent body */
-    .sub-tog {
-      display: flex; align-items: center; gap: 0.35rem; width: 100%;
-      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
-      color: #9ca3af; background: none; border: none; border-top: 1px solid #f3f4f6;
-      padding: 5px 0 3px; margin-top: 6px; cursor: pointer; text-align: left;
+    /* Artefact modal */
+    #artefact-modal .modal-body pre {
+      margin: 0; padding: 16px 18px; font-size: 0.78rem; line-height: 1.6;
+      background: #1e1e2e; color: #cdd6f4; white-space: pre; overflow-x: auto;
+      max-height: calc(80vh - 120px); overflow-y: auto;
     }
-    .sub-tog:hover { color: #6b7280; }
-    .sub-tog .bi { transition: transform 0.15s; font-size: 0.6rem; }
-    .sub-tog.collapsed .bi { transform: rotate(-90deg); }
+    #artefact-modal .modal-body .md-render {
+      padding: 20px 24px; font-size: 0.86rem; line-height: 1.75;
+      max-height: calc(80vh - 120px); overflow-y: auto;
+    }
+
+    /* Bottom chat drawer */
+    .chat-drawer { background: #fff; border-top: 1px solid #e5e7eb; }
+    .chat-hist {
+      max-height: 340px; overflow-y: auto;
+      border-bottom: 1px solid #f0f2f5; background: #fafafa;
+    }
+    .chat-hist-inner { padding: 1rem 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; }
+    .chat-input-row { display: flex; align-items: flex-end; gap: 0.75rem; padding: 0.75rem 1.5rem; }
+    .chat-bubble-user {
+      align-self: flex-end; background: #111; color: #fff; border-radius: 16px 16px 4px 16px;
+      padding: 8px 14px; font-size: 0.83rem; line-height: 1.5; max-width: 55%;
+    }
+    .chat-bubble-agent {
+      align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; color: #374151;
+      border-radius: 16px 16px 16px 4px; padding: 10px 16px;
+      font-size: 0.83rem; line-height: 1.65; max-width: 70%;
+    }
+    .chat-bubble-agent h1,.chat-bubble-agent h2,.chat-bubble-agent h3 { font-size:1em; font-weight:700; margin:0.5em 0 0.25em; }
+    .chat-bubble-agent p { margin:0 0 0.4em; }
+    .chat-bubble-agent ul,.chat-bubble-agent ol { margin:0.25em 0 0.4em; padding-left:1.2em; }
+    .chat-bubble-agent strong { font-weight:700; }
+    .chat-bubble-agent code { font-size:0.85em; background:#f3f4f6; padding:1px 4px; border-radius:3px; }
+
+    /* Confidence bars */
+    .confidence-bar { height: 4px; background: #f3f4f6; border-radius: 2px; }
+    .confidence-fill { height: 100%; background: #22c55e; border-radius: 2px; }
 
     /* Live run pane */
     #pane-run { overflow: hidden; }
     .nav-link { border-radius: 0; }
     .nav-link.active { border-bottom: 2px solid #111; color: #111 !important; font-weight: 600; }
+
+    /* Typing indicator */
+    .typing-dot { display:inline-block; width:6px; height:6px; background:#9ca3af; border-radius:50%; animation:blink 1.2s infinite; }
+    .typing-dot:nth-child(2){animation-delay:.2s;}
+    .typing-dot:nth-child(3){animation-delay:.4s;}
+    @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
   </style>
 </head>
 
@@ -184,7 +226,6 @@
 
   <!-- DAG 50% -->
   <div class="d-flex flex-column flex-shrink-0" style="width:50%;">
-    <!-- Column header -->
     <div class="border-bottom border-end px-4 py-2 bg-white d-flex align-items-center justify-content-between flex-shrink-0">
       <div class="d-flex align-items-center gap-2">
         <span class="fw-semibold" style="font-size:0.85rem;">Agent Swarm</span>
@@ -256,7 +297,7 @@
 <div id="pane-results" class="flex-grow-1 d-flex overflow-hidden"
      style="{% if start_tab != 'results' %}display:none !important;{% endif %}">
 
-  <!-- Mini sidebar 10% (mirrors Run tab) -->
+  <!-- Sidebar -->
   <div class="border-end bg-white d-flex flex-column flex-shrink-0" style="width:10%; overflow-y:auto;">
     <div class="px-3 py-3 border-bottom">
       <span class="fw-semibold" style="font-size:0.9rem; letter-spacing:-0.02em;">◈ Slow AI</span>
@@ -275,245 +316,265 @@
     </div>
   </div>
 
-  <!-- Centre: phase tree -->
-  <div class="flex-grow-1 overflow-auto px-5 py-4" style="min-width:0;" id="results-tree">
+  <!-- Main column: content + chat drawer stacked -->
+  <div class="d-flex flex-column flex-grow-1" style="min-width:0;">
 
-    {% if post_run %}
+    <!-- Content row: tree + stats -->
+    <div class="d-flex flex-grow-1 overflow-hidden">
 
-    <!-- Final summary -->
-    {% if post_run.report.get('summary') %}
-    <div class="card border-0 shadow-sm mb-4 rounded-3">
-      <div class="card-body p-4">
-        <div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div>
-        <div style="font-size:0.88rem; line-height:1.75; color:#374151;">{{ post_run.report.summary }}</div>
-      </div>
-    </div>
-    {% endif %}
+      <!-- Phase tree -->
+      <div class="flex-grow-1 overflow-auto px-5 py-4" style="min-width:0;" id="results-tree">
 
-    <!-- Datasets -->
-    {% if post_run.report.get('datasets') %}
-    <div class="mb-4">
-      <div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem; letter-spacing:0.08em;">
-        Datasets ({{ post_run.report.datasets|length }})
-      </div>
-      <div class="d-flex flex-wrap gap-2">
-        {% for ds in post_run.report.datasets %}
-        <a href="{{ ds.url }}" target="_blank" rel="noopener"
-           class="badge text-decoration-none"
-           style="background:#f3f4f6; color:#374151; border:1px solid #e5e7eb; font-size:0.74rem; font-weight:500; padding:5px 10px; border-radius:6px;">
-          {{ ds.name }}
-          <span class="text-muted ms-1">{{ (ds.quality_score * 100)|int }}%</span>
-        </a>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
+        {% if post_run %}
 
-    <!-- Paths not taken -->
-    {% if post_run.report.get('paths_not_taken') %}
-    <div class="mb-4">
-      <div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem; letter-spacing:0.08em;">Paths not taken</div>
-      {% for p in post_run.report.paths_not_taken %}
-      <div class="d-flex gap-2 mb-1" style="font-size:0.81rem; color:#6b7280;"><span>·</span><span>{{ p }}</span></div>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    <hr class="my-4">
-
-    <!-- Phase tree -->
-    {% for phase in post_run.phases %}
-    <div class="phase-block {% if phase.mean_confidence and phase.mean_confidence >= 0.7 %}done{% endif %} mb-4">
-
-      <div class="d-flex align-items-center gap-2 mb-2">
-        <button class="tog" onclick="togSection('ph-{{ phase.phase_id }}', this)">
-          <i class="bi bi-chevron-down"></i>
-        </button>
-        <span class="fw-semibold" style="font-size:0.9rem;">Phase {{ loop.index }}: {{ phase.phase_name }}</span>
-        {% if phase.mean_confidence is not none %}
-        <span class="badge {% if phase.mean_confidence >= 0.8 %}bg-success{% elif phase.mean_confidence >= 0.5 %}bg-warning text-dark{% else %}bg-danger{% endif %}"
-              style="font-size:0.67rem;">{{ (phase.mean_confidence * 100)|int }}%</span>
-        {% endif %}
-        <span class="text-muted" style="font-size:0.74rem;">
-          {{ phase.agents|length }} agents
-          {% if phase.dur_str %}· {{ phase.dur_str }}{% endif %}
-          {% if phase.total_tokens %}· {{ "{:,}".format(phase.total_tokens) }} tok{% endif %}
-        </span>
-      </div>
-
-      <div id="ph-{{ phase.phase_id }}">
-        {% if phase.synthesis %}
-        <div class="mb-3" style="font-size:0.84rem; line-height:1.7; color:#374151; border-left:3px solid #f3f4f6; padding-left:0.75rem;">
-          {{ phase.synthesis }}
+        <!-- Final summary -->
+        {% if post_run.report.get('summary') %}
+        <div class="card border-0 shadow-sm mb-4 rounded-3">
+          <div class="card-body p-4">
+            <div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div>
+            <div style="font-size:0.88rem; line-height:1.75; color:#374151;">{{ post_run.report.summary }}</div>
+          </div>
         </div>
         {% endif %}
 
-        {% for agent in phase.agents %}
-        <div class="agent-block">
-          <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-            <button class="tog collapsed" onclick="togSection('ag-{{ agent.agent_id | replace('-', '_') }}', this)">
+        <!-- Datasets -->
+        {% if post_run.report.get('datasets') %}
+        <div class="mb-4">
+          <div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem; letter-spacing:0.08em;">
+            Datasets ({{ post_run.report.datasets|length }})
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            {% for ds in post_run.report.datasets %}
+            <a href="{{ ds.url }}" target="_blank" rel="noopener"
+               class="badge text-decoration-none"
+               style="background:#f3f4f6; color:#374151; border:1px solid #e5e7eb; font-size:0.74rem; font-weight:500; padding:5px 10px; border-radius:6px;">
+              {{ ds.name }}
+              <span class="text-muted ms-1">{{ (ds.quality_score * 100)|int }}%</span>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Paths not taken -->
+        {% if post_run.report.get('paths_not_taken') %}
+        <div class="mb-4">
+          <div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem; letter-spacing:0.08em;">Paths not taken</div>
+          {% for p in post_run.report.paths_not_taken %}
+          <div class="d-flex gap-2 mb-1" style="font-size:0.81rem; color:#6b7280;"><span>·</span><span>{{ p }}</span></div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <hr class="my-4">
+
+        <!-- Phase tree -->
+        {% for phase in post_run.phases %}
+        <div class="phase-block {% if phase.mean_confidence and phase.mean_confidence >= 0.7 %}done{% endif %} mb-4">
+
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <button class="tog" onclick="togSection('ph-{{ phase.phase_id }}', this)">
               <i class="bi bi-chevron-down"></i>
             </button>
-            <span class="fw-semibold" style="font-size:0.83rem;">{{ agent.role }}</span>
-            {% if agent.work_item_name %}
-            <span class="text-muted" style="font-size:0.77rem;">— {{ agent.work_item_name }}</span>
+            <span class="fw-semibold" style="font-size:0.9rem;">Phase {{ loop.index }}: {{ phase.phase_name }}</span>
+            {% if phase.mean_confidence is not none %}
+            <span class="badge {% if phase.mean_confidence >= 0.8 %}bg-success{% elif phase.mean_confidence >= 0.5 %}bg-warning text-dark{% else %}bg-danger{% endif %}"
+                  style="font-size:0.67rem;">{{ (phase.mean_confidence * 100)|int }}%</span>
             {% endif %}
-            {% for sk in agent.work_item_skills %}
-            <span style="font-size:0.64rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; padding:1px 6px;">{{ sk }}</span>
-            {% endfor %}
-            <span class="ms-auto d-flex align-items-center gap-2" style="font-size:0.74rem; color:#6b7280;">
-              {% if agent.confidence is not none %}
-              <span class="badge {% if agent.confidence >= 0.8 %}bg-success{% elif agent.confidence >= 0.5 %}bg-warning text-dark{% else %}bg-danger{% endif %}" style="font-size:0.64rem;">
-                {{ (agent.confidence * 100)|int }}%
-              </span>
-              {% endif %}
-              {% if agent.dur_str %}{{ agent.dur_str }}{% endif %}
-              {% if agent.cost_tokens %}· {{ "{:,}".format(agent.cost_tokens) }} tok{% endif %}
+            <span class="text-muted" style="font-size:0.74rem;">
+              {{ phase.agents|length }} agents
+              {% if phase.dur_str %}· {{ phase.dur_str }}{% endif %}
+              {% if phase.total_tokens %}· {{ "{:,}".format(phase.total_tokens) }} tok{% endif %}
             </span>
           </div>
 
-          {% set aid_safe = agent.agent_id | replace('-', '_') %}
-          <div id="ag-{{ aid_safe }}" style="display:none; padding-left:1rem;">
+          <div id="ph-{{ phase.phase_id }}">
+            {% if phase.synthesis %}
+            <div class="mb-3" style="font-size:0.84rem; line-height:1.75; color:#374151; border-left:3px solid #f0f2f5; padding-left:0.85rem; max-width:72ch;">
+              {{ phase.synthesis }}
+            </div>
+            {% endif %}
 
-            <!-- Verdict + proof always visible when agent is open -->
-            {% if agent.proof %}
-            {% for key, val in agent.proof.items() %}
-            <div class="proof-key">{{ key.replace('_',' ') }}</div>
-            <div class="proof-val">{{ val if val is string else val | tojson(indent=2) }}</div>
+            {% for agent in phase.agents %}
+            {% set aid_safe = agent.agent_id | replace('-', '_') %}
+            <div class="agent-card">
+              <!-- Agent header row -->
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <button class="tog collapsed" onclick="togSection('ag-{{ aid_safe }}', this)">
+                  <i class="bi bi-chevron-down"></i>
+                </button>
+                <span class="fw-semibold" style="font-size:0.85rem;">{{ agent.role }}</span>
+                {% if agent.work_item_name %}
+                <span class="text-muted" style="font-size:0.78rem;">— {{ agent.work_item_name }}</span>
+                {% endif %}
+                {% for sk in agent.work_item_skills %}
+                <span style="font-size:0.64rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; padding:1px 6px;">{{ sk }}</span>
+                {% endfor %}
+                <span class="ms-auto d-flex align-items-center gap-2" style="font-size:0.74rem; color:#6b7280;">
+                  {% if agent.confidence is not none %}
+                  <span class="badge {% if agent.confidence >= 0.8 %}bg-success{% elif agent.confidence >= 0.5 %}bg-warning text-dark{% else %}bg-danger{% endif %}" style="font-size:0.65rem;">
+                    {{ (agent.confidence * 100)|int }}%
+                  </span>
+                  {% endif %}
+                  {% if agent.dur_str %}{{ agent.dur_str }}{% endif %}
+                  {% if agent.cost_tokens %}· {{ "{:,}".format(agent.cost_tokens) }} tok{% endif %}
+                </span>
+              </div>
+
+              <!-- Agent body (collapsed by default) -->
+              <div id="ag-{{ aid_safe }}" style="display:none; padding-top:0.75rem;">
+
+                <!-- Proof -->
+                {% if agent.proof %}
+                {% for key, val in agent.proof.items() %}
+                <div class="proof-key">{{ key.replace('_',' ') }}</div>
+                <div class="proof-prose">{{ val if val is string else val | tojson(indent=2) }}</div>
+                {% endfor %}
+                {% endif %}
+                <div class="d-flex gap-2 mt-2 mb-1" style="font-size:0.77rem; color:#6b7280;">
+                  <span>Verdict:</span><strong class="text-dark">{{ agent.verdict or '—' }}</strong>
+                </div>
+
+                <!-- Tool Calls sub-section -->
+                {% if agent.tool_calls %}
+                <button class="sub-tog collapsed" onclick="togSection('tc-{{ aid_safe }}', this)">
+                  <i class="bi bi-chevron-down"></i>
+                  Tool Calls ({{ agent.tool_calls|length }})
+                </button>
+                <div id="tc-{{ aid_safe }}" style="display:none; padding-top:4px;">
+                  {% for tc in agent.tool_calls %}
+                  {% set sid = 'sn_' ~ aid_safe ~ '_' ~ loop.index %}
+                  {% set src_cls = 'src-' ~ tc.source if tc.source in ['perplexity_search','web_browse','url_fetch','code_execution'] else 'src-default' %}
+                  <div class="tc-row" onclick="togTcDetail('{{ sid }}', this)">
+                    <span class="src-badge {{ src_cls }}">{{ tc.source.replace('_',' ') }}</span>
+                    <span class="tc-query">{{ tc.query[:120] }}{% if tc.query|length > 120 %}…{% endif %}</span>
+                    {% if tc.snippet %}<i class="bi bi-chevron-down tc-chevron"></i>{% endif %}
+                  </div>
+                  {% if tc.snippet %}
+                  <div class="tc-detail" id="{{ sid }}">{{ tc.snippet }}</div>
+                  {% endif %}
+                  {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Artefacts sub-section -->
+                {% if agent.artefact_files %}
+                <button class="sub-tog collapsed" onclick="togSection('arts-{{ aid_safe }}', this)">
+                  <i class="bi bi-chevron-down"></i>
+                  Artefacts ({{ agent.artefact_files|length }})
+                </button>
+                <div id="arts-{{ aid_safe }}" style="display:none; padding-top:6px;">
+                  {% for af in agent.artefact_files %}
+                  <span class="artefact-chip"
+                        onclick="openArtefactModal('{{ run_id }}','{{ agent.phase_id }}','{{ agent.agent_id }}','{{ af.filename }}','{{ af.ext }}')">
+                    <i class="bi {% if af.ext == 'md' %}bi-file-text{% elif af.ext == 'py' %}bi-filetype-py{% else %}bi-file-code{% endif %}"></i>
+                    {{ af.filename }}
+                  </span>
+                  {% endfor %}
+                </div>
+                {% endif %}
+
+              </div>
+            </div>
             {% endfor %}
-            {% endif %}
-            <div class="d-flex gap-2 mt-2 mb-1" style="font-size:0.77rem; color:#6b7280;">
-              <span>Verdict:</span><strong class="text-dark">{{ agent.verdict or '—' }}</strong>
-            </div>
-
-            <!-- Tool Calls sub-section -->
-            {% if agent.tool_calls %}
-            <button class="sub-tog collapsed"
-                    onclick="togSection('tc-{{ aid_safe }}', this)">
-              <i class="bi bi-chevron-down"></i>
-              Tool Calls ({{ agent.tool_calls|length }})
-            </button>
-            <div id="tc-{{ aid_safe }}" style="display:none; padding-top:4px;">
-              {% for tc in agent.tool_calls %}
-              {% set sid = 'sn_' ~ aid_safe ~ '_' ~ loop.index %}
-              <div>
-                <span class="tool-pill" onclick="togSnippet('{{ sid }}')">
-                  <span class="src-badge src-{{ tc.source }}{% if tc.source not in ['perplexity_search','web_browse'] %} src-default{% endif %}">{{ tc.source.replace('_',' ') }}</span>
-                  {{ tc.query[:80] }}{% if tc.query|length > 80 %}…{% endif %}
-                </span>
-                {% if tc.snippet %}<div class="tool-snippet" id="{{ sid }}">{{ tc.snippet }}</div>{% endif %}
-              </div>
-              {% endfor %}
-            </div>
-            {% endif %}
-
-            <!-- Artefacts sub-section -->
-            {% if agent.artefact_files %}
-            <button class="sub-tog collapsed"
-                    onclick="togSection('arts-{{ aid_safe }}', this)">
-              <i class="bi bi-chevron-down"></i>
-              Artefacts ({{ agent.artefact_files|length }})
-            </button>
-            <div id="arts-{{ aid_safe }}" style="display:none; padding-top:4px;">
-              {% for af in agent.artefact_files %}
-              {% set afid = 'af_' ~ aid_safe ~ '_' ~ loop.index %}
-              <div class="mb-2">
-                <span class="artefact-pill"
-                      onclick="loadArtefact('{{ run_id }}','{{ agent.phase_id }}','{{ agent.agent_id }}','{{ af.filename }}','{{ af.ext }}','{{ afid }}')">
-                  <i class="bi {% if af.ext == 'md' %}bi-file-text{% elif af.ext == 'py' %}bi-filetype-py{% else %}bi-file-code{% endif %}"></i>
-                  {{ af.filename }}
-                </span>
-                <div class="artefact-content" id="{{ afid }}" style="display:none;"></div>
-              </div>
-              {% endfor %}
-            </div>
-            {% endif %}
-
           </div>
         </div>
         {% endfor %}
-      </div>
-    </div>
-    {% endfor %}
 
-    {% else %}
-    <!-- Not complete yet, should not normally be visible -->
-    <div class="text-muted py-5 text-center">Results will appear when the run completes.</div>
-    {% endif %}
+        {% else %}
+        <div class="text-muted py-5 text-center">Results will appear when the run completes.</div>
+        {% endif %}
 
-  </div><!-- /results-tree -->
+      </div><!-- /results-tree -->
 
-  <!-- Right: summary + chat -->
-  <div class="border-start bg-white flex-shrink-0 d-flex flex-column" style="width:360px; overflow:hidden;">
-
-    <!-- Stats + confidence bars -->
-    <div class="px-4 py-3 border-bottom overflow-auto flex-shrink-0" style="max-height:40%;">
-      <div class="text-uppercase fw-semibold text-muted mb-3" style="font-size:0.67rem; letter-spacing:0.08em;">Run summary</div>
-      {% if post_run %}
-      {% for phase in post_run.phases %}
-      <div class="mb-3">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <span class="text-truncate" style="font-size:0.77rem; max-width:200px;">{{ phase.phase_name }}</span>
-          {% if phase.mean_confidence is not none %}
-          <span style="font-size:0.74rem; font-weight:600;">{{ (phase.mean_confidence * 100)|int }}%</span>
+      <!-- Stats panel (lean — no chat) -->
+      <div class="border-start bg-white flex-shrink-0 d-flex flex-column" style="width:240px; overflow:hidden;">
+        <div class="px-4 py-3 overflow-auto flex-grow-1" id="stats-panel">
+          <div class="text-uppercase fw-semibold text-muted mb-3" style="font-size:0.67rem; letter-spacing:0.08em;">Run summary</div>
+          {% if post_run %}
+          {% for phase in post_run.phases %}
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="text-truncate" style="font-size:0.77rem; max-width:160px;">{{ phase.phase_name }}</span>
+              {% if phase.mean_confidence is not none %}
+              <span style="font-size:0.74rem; font-weight:600;">{{ (phase.mean_confidence * 100)|int }}%</span>
+              {% endif %}
+            </div>
+            {% if phase.mean_confidence is not none %}
+            <div class="confidence-bar"><div class="confidence-fill" style="width:{{ (phase.mean_confidence * 100)|int }}%;"></div></div>
+            {% endif %}
+            <div class="text-muted mt-1" style="font-size:0.71rem;">{{ phase.agents|length }} agents{% if phase.dur_str %} · {{ phase.dur_str }}{% endif %}</div>
+          </div>
+          {% endfor %}
+          <hr class="my-2">
+          <div class="d-flex flex-column gap-1" style="font-size:0.79rem;">
+            <div class="d-flex justify-content-between"><span class="text-muted">Total tokens</span><strong>{{ "{:,}".format(post_run.stats.total_tokens) }}</strong></div>
+            <div class="d-flex justify-content-between"><span class="text-muted">Phases</span><strong>{{ post_run.stats.phase_count }}</strong></div>
+            <div class="d-flex justify-content-between"><span class="text-muted">Agents</span><strong>{{ post_run.stats.agent_count }}</strong></div>
+          </div>
           {% endif %}
         </div>
-        {% if phase.mean_confidence is not none %}
-        <div class="confidence-bar"><div class="confidence-fill" style="width:{{ (phase.mean_confidence * 100)|int }}%;"></div></div>
-        {% endif %}
-        <div class="text-muted mt-1" style="font-size:0.71rem;">{{ phase.agents|length }} agents{% if phase.dur_str %} · {{ phase.dur_str }}{% endif %}</div>
-      </div>
-      {% endfor %}
-      <hr class="my-2">
-      <div class="d-flex flex-column gap-1" style="font-size:0.79rem;">
-        <div class="d-flex justify-content-between"><span class="text-muted">Total tokens</span><strong>{{ "{:,}".format(post_run.stats.total_tokens) }}</strong></div>
-        <div class="d-flex justify-content-between"><span class="text-muted">Phases</span><strong>{{ post_run.stats.phase_count }}</strong></div>
-        <div class="d-flex justify-content-between"><span class="text-muted">Agents</span><strong>{{ post_run.stats.agent_count }}</strong></div>
-      </div>
-      {% endif %}
-    </div>
-
-    <!-- Chat -->
-    <div class="d-flex flex-column flex-grow-1 overflow-hidden">
-      <div class="px-3 py-2 border-bottom flex-shrink-0">
-        <div class="fw-semibold" style="font-size:0.82rem;">Ask about this run</div>
-        <div class="text-muted" style="font-size:0.74rem;">Questions, gaps, what to do next.</div>
+        <div class="border-top px-3 py-3 flex-shrink-0">
+          <button id="continue-btn" class="btn btn-outline-dark w-100 btn-sm" onclick="continueRun()" style="font-size:0.82rem;">
+            <i class="bi bi-arrow-repeat me-1"></i>Continue Investigation
+          </button>
+          <div id="continue-status" class="text-muted mt-2 text-center" style="font-size:0.75rem; display:none;"></div>
+        </div>
       </div>
 
-      <div class="flex-grow-1 overflow-auto px-3 py-3" id="chat-scroll">
-        <div id="chat-messages"></div>
-        <div id="chat-typing" class="d-flex mb-3 htmx-indicator">
-          <div class="chat-bubble-agent d-flex align-items-center gap-1" style="padding:12px 16px;">
+    </div><!-- /content row -->
+
+    <!-- Bottom chat drawer — full width, always visible -->
+    <div class="chat-drawer flex-shrink-0" id="chat-drawer">
+
+      <!-- Conversation history (hidden until first message) -->
+      <div id="chat-hist" class="chat-hist" style="display:none;">
+        <div class="chat-hist-inner" id="chat-messages"></div>
+        <div id="chat-typing" class="px-4 pb-3 htmx-indicator" style="display:none;">
+          <div class="chat-bubble-agent d-inline-flex align-items-center gap-1" style="padding:10px 14px;">
             <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
           </div>
         </div>
       </div>
 
-      <div class="border-top px-3 py-3 flex-shrink-0">
-        <form id="chat-form"
-              hx-post="/api/runs/{{ run_id }}/chat"
-              hx-target="#chat-messages"
-              hx-swap="beforeend"
-              hx-indicator="#chat-typing"
-              class="d-flex gap-2 align-items-end">
-          <textarea id="chat-input" name="message" class="form-control" rows="3" required
-                    placeholder="What did the agents find about…"
-                    style="border-radius:8px; resize:none; overflow-y:hidden; min-height:72px; max-height:160px; font-size:0.83rem;"></textarea>
-          <button type="submit" class="btn btn-dark px-3 flex-shrink-0" style="border-radius:8px; height:40px; align-self:flex-end;">→</button>
-        </form>
+      <!-- Input bar -->
+      <form id="chat-form"
+            hx-post="/api/runs/{{ run_id }}/chat"
+            hx-target="#chat-messages"
+            hx-swap="beforeend"
+            hx-indicator="#chat-typing">
+        <div class="chat-input-row">
+          <i class="bi bi-chat-text text-muted flex-shrink-0" style="font-size:1rem; margin-bottom:10px;"></i>
+          <textarea id="chat-input" name="message" class="form-control flex-grow-1" rows="1" required
+                    placeholder="Ask about the findings, gaps, or what to do next…"
+                    style="resize:none; overflow-y:hidden; min-height:44px; max-height:140px; font-size:0.84rem; border-radius:8px; line-height:1.5; padding:10px 14px;"></textarea>
+          <button type="submit" class="btn btn-dark flex-shrink-0" style="border-radius:8px; height:44px; width:44px; padding:0; font-size:1rem; margin-bottom:0;">→</button>
+        </div>
+      </form>
+
+    </div><!-- /chat-drawer -->
+
+  </div><!-- /main column -->
+
+</div><!-- /pane-results -->
+
+<!-- ── Artefact modal ──────────────────────────────────────────────────────── -->
+<div class="modal fade" id="artefact-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2 px-4">
+        <span class="fw-semibold" id="artefact-modal-title" style="font-family:monospace; font-size:0.9rem;"></span>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <button class="btn btn-sm btn-outline-secondary" id="artefact-copy-btn" style="font-size:0.75rem;">Copy</button>
+          <button type="button" class="btn-close ms-1" data-bs-dismiss="modal"></button>
+        </div>
+      </div>
+      <div class="modal-body p-0" id="artefact-modal-body">
+        <div class="p-4 text-muted" style="font-size:0.83rem;">Loading…</div>
       </div>
     </div>
-
-    <!-- Continue / chain -->
-    <div class="border-top px-3 py-3 flex-shrink-0">
-      <button id="continue-btn" class="btn btn-outline-dark w-100 btn-sm" onclick="continueRun()" style="font-size:0.82rem;">
-        <i class="bi bi-arrow-repeat me-1"></i>Continue Investigation
-      </button>
-      <div id="continue-status" class="text-muted mt-2 text-center" style="font-size:0.75rem; display:none;"></div>
-    </div>
-
-  </div><!-- /right panel -->
-</div><!-- /pane-results -->
+  </div>
+</div>
 
 <!-- ── Scripts ─────────────────────────────────────────────────────────────── -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -556,43 +617,106 @@ function togSection(id, btn) {
   btn.classList.toggle('collapsed', !hidden);
 }
 
-function togSnippet(id) {
+function togTcDetail(id, row) {
   const el = document.getElementById(id);
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  if (!el) return;
+  const hidden = el.style.display === 'none';
+  el.style.display = hidden ? 'block' : 'none';
+  const chev = row.querySelector('.tc-chevron');
+  if (chev) chev.classList.toggle('open', hidden);
 }
 
-// ── Chat ──────────────────────────────────────────────────────────────────
+// ── Bottom chat drawer ────────────────────────────────────────────────────
+
+const chatHist = document.getElementById('chat-hist');
+
+function showChatHist() {
+  if (chatHist.style.display === 'none') {
+    chatHist.style.display = '';
+    chatHist.scrollTop = 99999;
+  }
+}
 
 document.getElementById('chat-form').addEventListener('submit', function() {
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
   if (!msg) return;
+  showChatHist();
   const bubble = document.createElement('div');
-  bubble.className = 'd-flex mb-3 justify-content-end';
-  bubble.innerHTML = `<div class="chat-bubble-user" style="font-size:0.83rem;">${msg.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+  bubble.className = 'chat-bubble-user';
+  bubble.textContent = msg;
   document.getElementById('chat-messages').appendChild(bubble);
-  requestAnimationFrame(() => { input.value = ''; input.style.height = '72px'; });
-  document.getElementById('chat-scroll').scrollTop = 99999;
+  // Show typing indicator
+  document.getElementById('chat-typing').style.display = '';
+  requestAnimationFrame(() => {
+    input.value = '';
+    input.style.height = '44px';
+    chatHist.scrollTop = 99999;
+  });
 });
 
 document.addEventListener('htmx:afterSwap', function(e) {
   if (e.detail.target.id === 'chat-messages') {
+    document.getElementById('chat-typing').style.display = 'none';
     e.detail.target.querySelectorAll('.chat-bubble-agent[data-markdown]').forEach(el => {
       el.innerHTML = marked.parse(el.dataset.markdown);
       delete el.dataset.markdown;
     });
-    document.getElementById('chat-scroll').scrollTop = 99999;
+    chatHist.scrollTop = 99999;
   }
 });
 
 document.getElementById('chat-input').addEventListener('input', function() {
-  this.style.height = '72px';
-  this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+  this.style.height = '44px';
+  this.style.height = Math.min(this.scrollHeight, 140) + 'px';
 });
 
 document.getElementById('chat-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('chat-form').requestSubmit(); }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('chat-form').requestSubmit();
+  }
 });
+
+// ── Artefact modal ────────────────────────────────────────────────────────
+
+const _artefactCache = {};
+let _artefactModal = null;
+
+function openArtefactModal(runId, phaseId, agentId, filename, ext) {
+  if (!_artefactModal) _artefactModal = new bootstrap.Modal(document.getElementById('artefact-modal'));
+  const title = document.getElementById('artefact-modal-title');
+  const body  = document.getElementById('artefact-modal-body');
+  const copyBtn = document.getElementById('artefact-copy-btn');
+
+  title.textContent = filename;
+  body.innerHTML = '<div class="p-4 text-muted" style="font-size:0.83rem;">Loading…</div>';
+  copyBtn.onclick = null;
+  _artefactModal.show();
+
+  const cacheKey = `${runId}/${phaseId}/${agentId}/${filename}`;
+  const doLoad = async () => {
+    try {
+      let data = _artefactCache[cacheKey];
+      if (!data) {
+        const res = await fetch(`/api/runs/${runId}/artefacts/${phaseId}/${agentId}/${filename}`);
+        if (!res.ok) throw new Error(res.status);
+        data = await res.json();
+        _artefactCache[cacheKey] = data;
+      }
+      const content = data.content || '';
+      if (ext === 'md') {
+        body.innerHTML = `<div class="md-render">${marked.parse(content)}</div>`;
+      } else {
+        body.innerHTML = `<pre>${escHtml(content)}</pre>`;
+      }
+      copyBtn.onclick = () => navigator.clipboard.writeText(content);
+    } catch(e) {
+      body.innerHTML = `<div class="p-4 text-danger" style="font-size:0.83rem;">Failed to load ${escHtml(filename)}</div>`;
+    }
+  };
+  doLoad();
+}
 
 // ── Continue / run chaining ───────────────────────────────────────────────
 
@@ -829,7 +953,6 @@ function connectSSE() {
       _terminal=true; es.close();
       if (state.status==='completed') {
         setTicker('Complete — loading results…');
-        // Fetch post-run data and switch to Results tab
         fetch(`/api/runs/${RUN_ID}/post-run`)
           .then(r=>r.json())
           .then(data=>{ populateResultsTab(data); document.getElementById('tab-btn-results').disabled=false; showTab('results'); })
@@ -845,14 +968,14 @@ function connectSSE() {
   };
 }
 
+// ── Dynamic results population (when run completes during live view) ───────
+
 function populateResultsTab(data) {
-  // Dynamically populate the results tree when the run completes during live view
   const tree = document.getElementById('results-tree');
   if (!data.phases||!data.phases.length) { tree.innerHTML='<div class="text-muted py-5 text-center">No phase data available.</div>'; return; }
 
   let html = '';
 
-  // Summary
   if (data.report&&data.report.summary) {
     html += `<div class="card border-0 shadow-sm mb-4 rounded-3"><div class="card-body p-4"><div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div><div style="font-size:0.88rem;line-height:1.75;color:#374151;">${escHtml(data.report.summary)}</div></div></div>`;
   }
@@ -876,53 +999,57 @@ function populateResultsTab(data) {
         <span class="text-muted" style="font-size:0.74rem;">${phase.agents.length} agents${phase.dur_str?' · '+phase.dur_str:''}${phase.total_tokens?' · '+phase.total_tokens.toLocaleString()+' tok':''}</span>
       </div>
       <div id="dph-${pi}">
-        ${phase.synthesis?`<div class="mb-3" style="font-size:0.84rem;line-height:1.7;color:#374151;border-left:3px solid #f3f4f6;padding-left:0.75rem;">${escHtml(phase.synthesis)}</div>`:''}`;
+        ${phase.synthesis?`<div class="mb-3" style="font-size:0.84rem;line-height:1.75;color:#374151;border-left:3px solid #f0f2f5;padding-left:0.85rem;max-width:72ch;">${escHtml(phase.synthesis)}</div>`:''}`;
+
     phase.agents.forEach((ag, ai)=>{
       const ac = ag.confidence!=null?Math.round(ag.confidence*100):null;
-      html += `<div class="agent-block">
-        <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+      html += `<div class="agent-card">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
           <button class="tog collapsed" onclick="togSection('dag-${pi}-${ai}',this)"><i class="bi bi-chevron-down"></i></button>
-          <span class="fw-semibold" style="font-size:0.83rem;">${escHtml(ag.role)}</span>
-          ${ag.work_item_name?`<span class="text-muted" style="font-size:0.77rem;">— ${escHtml(ag.work_item_name)}</span>`:''}
+          <span class="fw-semibold" style="font-size:0.85rem;">${escHtml(ag.role)}</span>
+          ${ag.work_item_name?`<span class="text-muted" style="font-size:0.78rem;">— ${escHtml(ag.work_item_name)}</span>`:''}
           <span class="ms-auto d-flex align-items-center gap-2" style="font-size:0.74rem;color:#6b7280;">
-            ${ac!=null?`<span class="badge ${ac>=80?'bg-success':ac>=50?'bg-warning text-dark':'bg-danger'}" style="font-size:0.64rem;">${ac}%</span>`:''}
+            ${ac!=null?`<span class="badge ${ac>=80?'bg-success':ac>=50?'bg-warning text-dark':'bg-danger'}" style="font-size:0.65rem;">${ac}%</span>`:''}
             ${ag.dur_str||''}${ag.cost_tokens?' · '+ag.cost_tokens.toLocaleString()+' tok':''}
           </span>
         </div>
-        <div id="dag-${pi}-${ai}" style="display:none;padding-left:1rem;">`;
+        <div id="dag-${pi}-${ai}" style="display:none;padding-top:0.75rem;">`;
 
-      // Proof + verdict always visible when agent opens
       if (ag.proof && Object.keys(ag.proof).length) {
         Object.entries(ag.proof).forEach(([k,v])=>{
-          html += `<div class="proof-key">${escHtml(k.replace(/_/g,' '))}</div><div class="proof-val">${escHtml(typeof v==='string'?v:JSON.stringify(v,null,2))}</div>`;
+          html += `<div class="proof-key">${escHtml(k.replace(/_/g,' '))}</div><div class="proof-prose">${escHtml(typeof v==='string'?v:JSON.stringify(v,null,2))}</div>`;
         });
       }
       html += `<div class="d-flex gap-2 mt-2 mb-1" style="font-size:0.77rem;color:#6b7280;"><span>Verdict:</span><strong class="text-dark">${ag.verdict||'—'}</strong></div>`;
 
-      // Tool Calls sub-section
+      // Tool calls — row layout
       if (ag.tool_calls && ag.tool_calls.length) {
         const tcId = `dtc_${pi}_${ai}`;
         html += `<button class="sub-tog collapsed" onclick="togSection('${tcId}',this)"><i class="bi bi-chevron-down"></i> Tool Calls (${ag.tool_calls.length})</button>`;
         html += `<div id="${tcId}" style="display:none;padding-top:4px;">`;
         ag.tool_calls.forEach((tc, ti)=>{
-          const sid=`dsnip-${pi}-${ai}-${ti}`;
-          const srcCls=tc.source==='perplexity_search'?'src-perplexity_search':tc.source==='web_browse'?'src-web_browse':'src-default';
-          html += `<div><span class="tool-pill" onclick="togSnippet('${sid}')"><span class="src-badge ${srcCls}">${tc.source.replace(/_/g,' ')}</span>${escHtml(tc.query.substring(0,80))}${tc.query.length>80?'…':''}</span>`;
-          if (tc.snippet) html += `<div class="tool-snippet" id="${sid}">${escHtml(tc.snippet)}</div>`;
-          html += `</div>`;
+          const sid = `dsnip-${pi}-${ai}-${ti}`;
+          const srcMap = {perplexity_search:'src-perplexity_search',web_browse:'src-web_browse',url_fetch:'src-url_fetch',code_execution:'src-code_execution'};
+          const srcCls = srcMap[tc.source] || 'src-default';
+          const hasSnip = tc.snippet ? 'true' : '';
+          html += `<div class="tc-row" onclick="togTcDetail('${sid}',this)">
+            <span class="src-badge ${srcCls}">${tc.source.replace(/_/g,' ')}</span>
+            <span class="tc-query">${escHtml(tc.query.substring(0,120))}${tc.query.length>120?'…':''}</span>
+            ${hasSnip?'<i class="bi bi-chevron-down tc-chevron"></i>':''}
+          </div>`;
+          if (tc.snippet) html += `<div class="tc-detail" id="${sid}">${escHtml(tc.snippet)}</div>`;
         });
         html += `</div>`;
       }
 
-      // Artefacts sub-section
+      // Artefacts — chips opening modal
       if (ag.artefact_files && ag.artefact_files.length) {
         const artsId = `darts_${pi}_${ai}`;
         const extIcon = ext => ext==='md'?'bi-file-text':ext==='py'?'bi-filetype-py':'bi-file-code';
         html += `<button class="sub-tog collapsed" onclick="togSection('${artsId}',this)"><i class="bi bi-chevron-down"></i> Artefacts (${ag.artefact_files.length})</button>`;
-        html += `<div id="${artsId}" style="display:none;padding-top:4px;">`;
-        ag.artefact_files.forEach((af, fi)=>{
-          const afid = `daf_${pi}_${ai}_${fi}`;
-          html += `<div class="mb-2"><span class="artefact-pill" onclick="loadArtefact('${RUN_ID}','${escHtml(ag.phase_id)}','${escHtml(ag.agent_id)}','${escHtml(af.filename)}','${af.ext}','${afid}')"><i class="bi ${extIcon(af.ext)}"></i> ${escHtml(af.filename)}</span><div class="artefact-content" id="${afid}" style="display:none;"></div></div>`;
+        html += `<div id="${artsId}" style="display:none;padding-top:6px;">`;
+        ag.artefact_files.forEach((af)=>{
+          html += `<span class="artefact-chip" onclick="openArtefactModal('${RUN_ID}','${escHtml(ag.phase_id)}','${escHtml(ag.agent_id)}','${escHtml(af.filename)}','${af.ext}')"><i class="bi ${extIcon(af.ext)}"></i> ${escHtml(af.filename)}</span>`;
         });
         html += `</div>`;
       }
@@ -933,17 +1060,16 @@ function populateResultsTab(data) {
   });
   tree.innerHTML = html;
 
-  // Populate right panel stats
-  // Re-render confidence bars dynamically
-  const rightTop = document.querySelector('#pane-results .border-bottom.overflow-auto');
-  if (rightTop && data.phases) {
+  // Update stats panel
+  const statsPanel = document.getElementById('stats-panel');
+  if (statsPanel && data.phases) {
     let statsHtml = `<div class="text-uppercase fw-semibold text-muted mb-3" style="font-size:0.67rem;letter-spacing:0.08em;">Run summary</div>`;
     data.phases.forEach(p=>{
       const c=p.mean_confidence!=null?Math.round(p.mean_confidence*100):null;
-      statsHtml+=`<div class="mb-3"><div class="d-flex justify-content-between align-items-center mb-1"><span class="text-truncate" style="font-size:0.77rem;max-width:200px;">${escHtml(p.phase_name)}</span>${c!=null?`<span style="font-size:0.74rem;font-weight:600;">${c}%</span>`:''}</div>${c!=null?`<div class="confidence-bar"><div class="confidence-fill" style="width:${c}%;"></div></div>`:''}<div class="text-muted mt-1" style="font-size:0.71rem;">${p.agents.length} agents${p.dur_str?' · '+p.dur_str:''}</div></div>`;
+      statsHtml+=`<div class="mb-3"><div class="d-flex justify-content-between align-items-center mb-1"><span class="text-truncate" style="font-size:0.77rem;max-width:160px;">${escHtml(p.phase_name)}</span>${c!=null?`<span style="font-size:0.74rem;font-weight:600;">${c}%</span>`:''}</div>${c!=null?`<div class="confidence-bar"><div class="confidence-fill" style="width:${c}%;"></div></div>`:''}<div class="text-muted mt-1" style="font-size:0.71rem;">${p.agents.length} agents${p.dur_str?' · '+p.dur_str:''}</div></div>`;
     });
     statsHtml+=`<hr class="my-2"><div class="d-flex flex-column gap-1" style="font-size:0.79rem;"><div class="d-flex justify-content-between"><span class="text-muted">Total tokens</span><strong>${data.stats.total_tokens.toLocaleString()}</strong></div><div class="d-flex justify-content-between"><span class="text-muted">Phases</span><strong>${data.stats.phase_count}</strong></div><div class="d-flex justify-content-between"><span class="text-muted">Agents</span><strong>${data.stats.agent_count}</strong></div></div>`;
-    rightTop.innerHTML = statsHtml;
+    statsPanel.innerHTML = statsHtml;
   }
 }
 
@@ -951,51 +1077,11 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Artefact file viewer ───────────────────────────────────────────────────
-
-const _artefactCache = {};
-
-async function loadArtefact(runId, phaseId, agentId, filename, ext, containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-
-  // Toggle if already loaded
-  if (container.dataset.loaded) {
-    container.style.display = container.style.display === 'none' ? '' : 'none';
-    return;
-  }
-
-  container.style.display = '';
-  container.innerHTML = `<div class="artefact-header">${escHtml(filename)} <span>Loading…</span></div>`;
-
-  const cacheKey = `${runId}/${phaseId}/${agentId}/${filename}`;
-  try {
-    let data = _artefactCache[cacheKey];
-    if (!data) {
-      const res = await fetch(`/api/runs/${runId}/artefacts/${phaseId}/${agentId}/${filename}`);
-      if (!res.ok) throw new Error(res.status);
-      data = await res.json();
-      _artefactCache[cacheKey] = data;
-    }
-    const content = data.content || '';
-    const copyBtn = `<button onclick="navigator.clipboard.writeText(document.getElementById('${containerId}-code').textContent)" style="font-size:0.68rem;padding:2px 8px;border:1px solid #6b7280;border-radius:3px;background:none;color:#9ca3af;cursor:pointer;">Copy</button>`;
-    if (ext === 'md') {
-      container.innerHTML = `<div class="artefact-header">${escHtml(filename)} ${copyBtn}</div><div class="md-render" id="${containerId}-code">${marked.parse(content)}</div>`;
-    } else {
-      container.innerHTML = `<div class="artefact-header">${escHtml(filename)} ${copyBtn}</div><pre id="${containerId}-code">${escHtml(content)}</pre>`;
-    }
-    container.dataset.loaded = '1';
-  } catch(e) {
-    container.innerHTML = `<div class="artefact-header" style="color:#ef4444;">Failed to load ${escHtml(filename)}</div>`;
-  }
-}
-
 // ── Boot ──────────────────────────────────────────────────────────────────
 
 loadPlanGraph();
 
 if (_terminal) {
-  // Run already complete — load one-shot state snapshot to populate DAG + phases + log
   fetch(`/api/runs/${RUN_ID}/state`)
     .then(r => r.json())
     .then(state => {

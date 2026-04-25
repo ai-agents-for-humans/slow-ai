@@ -7,8 +7,8 @@ _env_path = Path(__file__).parents[2] / ".env"
 
 
 class Settings(BaseSettings):
-    gemini_api_key: str
-    perplexity_key: str
+    gemini_key_slow_ai: str
+    perplexity_key_slow_ai: str
     model_config = SettingsConfigDict(
         env_file=str(_env_path),
         env_file_encoding="utf-8",
@@ -23,7 +23,8 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         **kwargs,
     ) -> Tuple[PydanticBaseSettingsSource, ...]:
-        return (dotenv_settings,)
+        # env vars take priority over .env so that shell exports work
+        return (env_settings, dotenv_settings)
 
 
 settings = Settings()
