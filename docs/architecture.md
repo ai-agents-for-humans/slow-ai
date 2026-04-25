@@ -25,7 +25,8 @@ Before anything else — the complete picture in one diagram.
 ```
 ┌───────────────────────────────────────────────────────────────────┐
 │                        APPLICATION LAYER                          │
-│                        Streamlit → React                          │
+│          FastAPI · Jinja2 · htmx · Alpine.js · Bootstrap 5       │
+│                     Cytoscape.js · SSE                            │
 └───────────────────────────────────────────────────────────────────┘
 
 ┌───────────────────────────────────────────────────────────────────┐
@@ -92,6 +93,102 @@ The workflow — the context graph — is not configured by a human. It emerges 
 Everything that runs is committed to git. Every envelope, artefact, phase summary, approved graph. Git is not a backup. It is the system of record. The RL layer sits as a sidecar, reading from that record to fine-tune models and update the skill registry over time.
 
 > *An agent designs the workflow. The workflow becomes the contract. A swarm executes against it. Everything is committed to git. The RL layer learns from what happened.*
+
+---
+
+## The application layer
+
+The application layer is a thin rendering surface over the filesystem. It does not contain business logic. It reads the files the execution plane writes and renders them — live during a run, from disk for completed ones.
+
+### Stack
+
+| Component | Role |
+|---|---|
+| **FastAPI** | API server + HTML template serving |
+| **Jinja2** | Server-side HTML rendering — pages are assembled on the server, not in the browser |
+| **htmx** | Partial page updates — individual components refresh without full page rerenders |
+| **Alpine.js** | Lightweight local state — tab switching, toggling sections, no build step |
+| **Bootstrap 5** | Layout grid, spacing, typography |
+| **Cytoscape.js + dagre** | DAG and context graph rendering — zoomable, pannable, click-to-inspect |
+| **SSE (server-sent events)** | One-way stream from server to browser — live DAG updates, log lines, phase summaries during a run |
+
+No build step. No bundler. No node_modules. Every dependency loads from CDN. The app starts with a single `uvicorn` command.
+
+### URL structure
+
+```
+GET  /                         → redirect to /interview
+GET  /interview                → interview view (full-width chat)
+GET  /brief/{project_id}       → brief confirmation card
+GET  /graph/{project_id}       → context graph review (Cytoscape + chat)
+GET  /run/{run_id}             → unified run page (Run tab + Results tab)
+```
+
+```
+POST /api/interview/start      → first agent message
+POST /api/interview/message    → subsequent turns, returns {response, brief?}
+POST /api/brief/confirm        → save brief → {project_id}
+GET  /api/graph/{project_id}   → {nodes, edges, narrative}
+POST /api/graph/{project_id}   → refine graph via chat
+POST /api/runs/launch          → start subprocess → {run_id}
+GET  /api/runs/{run_id}/stream → SSE: dag, log, phase_summaries, status
+GET  /api/runs/{run_id}/state  → one-shot snapshot for completed runs
+POST /api/runs/{run_id}/chat   → post-run conversation turn
+POST /api/runs/{run_id}/continue → generate follow-on brief + launch
+```
+
+### The run page
+
+The run page (`/run/{run_id}`) is the most complex view. It handles two modes in the same URL:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  ← Back   [goal text]                        [status]  [ticker]  │
+├──────────────────────────────────────────────────────────────────┤
+│  [ Run ]  [ Results ]                                            │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  RUN TAB                                                         │
+│  [sidebar 10%] [Cytoscape DAG 50%] [log/phases/plan panel 40%]  │
+│                                                                  │
+│  RESULTS TAB                                                     │
+│  [sidebar 10%] [phase tree — flex] [stats panel 240px]          │
+│                [chat drawer — full width, pinned to bottom]      │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**Live run:** SSE connects on page load. Each event carries `dag`, `new_log`, `phase_summaries`, and `status`. When status transitions to `completed`, the browser fetches `/api/runs/{run_id}/post-run`, populates the Results tab, and switches to it automatically.
+
+**Completed run:** SSE is skipped. The page fetches `/api/runs/{run_id}/state` once to populate the DAG and log for the Run tab. The Results tab is pre-rendered server-side from the run files.
+
+**The results tree:** Phases → agent cards → collapsible sections. Tool calls render as rows (source badge + query text, click to expand snippet). Artefacts render as chips that open a full-screen Bootstrap modal with syntax-highlighted code or rendered markdown.
+
+**The chat drawer:** Pinned to the bottom of the Results tab. Collapses to just the input bar when no conversation has started. Expands upward as the conversation grows — full viewport width, so responses have room to breathe.
+
+### How the two planes communicate
+
+```
+  EXECUTION PLANE                       UI PLANE
+  ───────────────                       ────────
+  runner.py (subprocess)                FastAPI app
+  orchestrator                          Jinja2 templates
+  specialist agents                     htmx + Alpine.js
+        │                                     │
+        │ writes every N seconds              │ reads on SSE tick
+        ▼                                     │
+  runs/{run_id}/live/dag.json           ◀─────┘
+  runs/{run_id}/live/log.jsonl
+  runs/{run_id}/live/phase_summaries.json
+  runs/{run_id}/live/status.json
+        │
+        │ writes on completion
+        ▼
+  runs/{run_id}/envelopes/
+  runs/{run_id}/artefacts/
+  runs/{run_id}/runner.log
+```
+
+The execution plane never imports anything from the UI. The UI never calls any agent. The filesystem is the contract between them — which means any future rendering layer (a CLI, a different web framework, a mobile app) plugs in without touching the runner.
 
 ---
 
@@ -251,15 +348,49 @@ The mental model is identical to what Slow AI built independently. Skills in the
 ```
 src/slow_ai/skills/catalog/
   web_search/
-    SKILL.md      ← name, description, tools, source, tags
-  medical_literature_research/
     SKILL.md
-  remote_sensing_analysis/
+  web_browse/
     SKILL.md
-  ...             ← 37 skills and growing
+  pdf_extraction/
+    SKILL.md
+  code_execution/
+    SKILL.md
+  dataset_inspection/
+    SKILL.md
 ```
 
-Each `SKILL.md` is importable from any Agent Skills-compatible system. Skills built elsewhere can be dropped into the catalog and loaded automatically.
+Each `SKILL.md` carries both a machine-readable frontmatter block and a human-readable playbook body:
+
+```yaml
+---
+name: web_search
+description: Search the web for information using natural language queries.
+tools: [perplexity_search]
+tags: [search, realtime, general]
+source: built-in
+---
+
+## When to use
+Apply when the work item requires discovering current facts, statistics,
+regulations, or market data from live web sources.
+
+## How to execute
+1. Decompose the work item into 2–4 specific, narrow queries.
+2. Run each query and read the citations carefully.
+3. Follow authoritative URLs with web_browse for full content.
+
+## Output contract
+Structured findings with citations, confidence per claim, and any
+contradictions between sources.
+
+## Quality bar
+- Every factual claim must have at least one citation.
+- Flag information older than 2 years as potentially stale.
+```
+
+The playbook body is compiled into the specialist's system prompt at runtime — giving each agent concrete instructions on *how* to use the skill, not just *that* it should use it. New skills synthesised during a run are written to the catalog in the same format, so they are available to every future run.
+
+Each `SKILL.md` is compatible with the Anthropic Agent Skills standard format. Skills built for other systems can be dropped into the catalog and loaded automatically.
 
 ---
 
@@ -470,8 +601,8 @@ For any run, at any milestone commit, you can fork: change the model, adjust the
 ```
   EXECUTION PLANE                     UI PLANE
   ───────────────                     ────────
-  runner.py                           Streamlit / React
-  orchestrator                        reads live/ via polling or SSE
+  runner.py                           FastAPI + htmx
+  orchestrator                        reads live/ via SSE
   specialist agents                   reads envelopes/ on demand
         │                             reads conversation.jsonl
         │ writes

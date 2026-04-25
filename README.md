@@ -143,6 +143,48 @@ The install script handles `uv`, dependencies, and walks you through API key set
 
 ---
 
+## Your first run
+
+**1 — Interview**
+
+Click **New** in the sidebar. The interviewer asks one question at a time until it has enough to write a precise brief. Answer as if you were briefing a colleague.
+
+![Interview — one question at a time](docs/assets/images/interview.png)
+
+The agent surfaces a structured **Problem Brief** inline. Review it, correct anything wrong, then click **Confirm Brief →**.
+
+![Problem Brief — review before confirming](docs/assets/images/problem-brief.png)
+
+**2 — Review the workflow plan**
+
+The planner breaks your brief into phases and parallel work items, rendered as an interactive graph. Read the narrative on the right first — it explains the logic. Refine in plain language until the shape of the work matches how an expert would approach it.
+
+![Context graph — phases and work items](docs/assets/images/context_graph.png)
+
+When you're satisfied, click **Launch Agent Swarm →**.
+
+**3 — Watch the swarm**
+
+Specialists run in parallel, phase by phase. The DAG fills in as agents complete. Grey = waiting, blue = running, green = done, red = failed. Click any node to open the evidence envelope — what the agent found, its confidence, its sources, and what it couldn't determine.
+
+![Live run — DAG updating in real time](docs/assets/images/live_run.png)
+
+You don't need to watch. Close the tab and come back — the run continues and all state is on disk.
+
+**4 — Read the results**
+
+When the run completes, the Results tab opens automatically. The summary card gives you the headline finding and confidence level. Expand any phase to see the synthesis, then each agent. Inside each agent: Tool Calls (every search query and web browse, expandable) and Artefacts (generated code and documents, full-screen viewer).
+
+![Results — summary, phases, tool calls, artefacts](docs/assets/images/post_run_results.png)
+
+The chat bar at the bottom is always available. Ask follow-up questions grounded in the run's evidence.
+
+**5 — Continue the investigation**
+
+Click **Continue Investigation** in the stats panel. The system generates a follow-on brief from the current run's open questions, builds a new graph, and the next run starts smarter than the last.
+
+---
+
 ## What's honest about the current state
 
 The UI is a FastAPI app with htmx, Alpine.js, Bootstrap 5, and Cytoscape.js. It replaced the original Streamlit prototype and delivers real-time SSE updates, a live DAG, agent envelope inspection, and post-run results — all in one page per run.
