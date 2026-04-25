@@ -66,6 +66,12 @@ class SynthesizedSkill(BaseModel):
     tools: list[str]                # existing tool names that implement this skill
     source: str = "synthesized"
     tags: list[str] = []
+    # Rich body fields — written into SKILL.md and injected into agent prompts
+    when_to_use: str = ""           # one-paragraph trigger condition
+    how_to_execute: list[str] = []  # ordered step-by-step instructions
+    output_contract: str = ""       # what artefacts / format the agent must produce
+    quality_bar: list[str] = []     # pass/fail criteria for a good execution
+    pairs_with: list[str] = []      # complementary skill names
 
 
 class SkillSynthesisResult(BaseModel):
@@ -153,6 +159,7 @@ class AgentContext(BaseModel):
     memory: AgentMemory
     constraints: dict[str, Any]
     tools_available: list[str] = ["perplexity_search", "web_browse"]
+    skill_instructions: str = ""    # compiled playbooks for active skills
     evidence_required: dict[str, str]
     work_item_id: str | None = None
     artefacts_dir: str | None = None

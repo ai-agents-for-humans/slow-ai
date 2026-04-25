@@ -207,12 +207,14 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
                     agent_id=ctx.agent_id,
                     work_item_id=ctx.work_item_id,
                 )
-                # Resolve tools from the work item's required_skills
+                # Resolve tools and playbook instructions from the work item's required_skills
                 work_item = _find_work_item(phase, ctx.work_item_id)
                 if work_item and work_item.required_skills:
                     ctx.tools_available = skill_registry.tools_for_skills(work_item.required_skills)
+                    ctx.skill_instructions = skill_registry.instructions_for_skills(work_item.required_skills)
                 else:
                     ctx.tools_available = ["perplexity_search", "web_browse"]
+                    ctx.skill_instructions = ""
                 ctx.artefacts_dir = str(
                     Path("runs") / run_id / "artefacts" / phase.id / ctx.agent_id
                 )

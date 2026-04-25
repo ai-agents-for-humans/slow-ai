@@ -53,6 +53,16 @@ def _tool_descriptions(tools_available: list[str]) -> str:
 
 
 def build_system_prompt(ctx: AgentContext) -> str:
+    skill_section = ""
+    if ctx.skill_instructions:
+        skill_section = f"""
+Skill playbooks active for this task:
+{ctx.skill_instructions}
+
+Follow these playbooks. They define how to execute, what to produce, and what
+quality bar you must clear. Do not skip steps or omit required artefacts.
+"""
+
     return f"""
 You are a {ctx.role}.
 
@@ -66,7 +76,7 @@ Research constraints:
 
 Context budget: {ctx.memory.context_budget} tokens. Currently used: {ctx.memory.total_tokens}.
 Budget remaining: {ctx.memory.budget_remaining()} tokens.
-
+{skill_section}
 Available tools:
 {_tool_descriptions(ctx.tools_available)}
 
