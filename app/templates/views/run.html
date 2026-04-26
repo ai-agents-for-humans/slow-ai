@@ -159,6 +159,26 @@
     .typing-dot:nth-child(2){animation-delay:.2s;}
     .typing-dot:nth-child(3){animation-delay:.4s;}
     @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+
+    /* ── Responsive pane columns ── */
+    .col-run-sidebar { width:200px; min-width:160px; flex-shrink:0; overflow-y:auto; }
+    .col-run-dag     { flex:1 1 0; min-width:0; }
+    .col-run-info    { width:38%; min-width:280px; max-width:500px; flex-shrink:0; }
+    .col-run-stats   { width:220px; min-width:160px; flex-shrink:0; overflow:hidden; }
+    @media (max-width:1399px) {
+      .col-run-info  { width:36%; }
+      .col-run-stats { width:200px; }
+    }
+    @media (max-width:1199px) {
+      .col-run-sidebar { width:160px; min-width:140px; }
+      .col-run-info    { width:340px; }
+      .col-run-stats   { width:180px; }
+    }
+    @media (max-width:991px) {
+      .col-run-sidebar { display:none !important; }
+      .col-run-info    { width:300px; }
+      .col-run-stats   { width:160px; }
+    }
   </style>
 </head>
 
@@ -210,8 +230,8 @@
 <div id="pane-run" class="d-flex flex-grow-1"
      style="{% if start_tab != 'run' %}display:none !important;{% endif %}">
 
-  <!-- Mini sidebar 10% -->
-  <div class="border-end bg-white d-flex flex-column flex-shrink-0" style="width:10%; overflow-y:auto;">
+  <!-- Mini sidebar -->
+  <div class="border-end bg-white d-flex flex-column col-run-sidebar">
     <div class="px-3 py-3 border-bottom">
       <span class="fw-semibold" style="font-size:0.9rem; letter-spacing:-0.02em;">◈ Slow AI</span>
     </div>
@@ -229,8 +249,8 @@
     </div>
   </div>
 
-  <!-- DAG 50% -->
-  <div class="d-flex flex-column flex-shrink-0" style="width:50%;">
+  <!-- DAG -->
+  <div class="d-flex flex-column col-run-dag">
     <div class="border-bottom border-end px-4 py-2 bg-white d-flex align-items-center justify-content-between flex-shrink-0">
       <div class="d-flex align-items-center gap-2">
         <span class="fw-semibold" style="font-size:0.85rem;">Agent Swarm</span>
@@ -274,8 +294,8 @@
     </div>
   </div>
 
-  <!-- Info panel 40% -->
-  <div class="d-flex flex-column border-start bg-white flex-shrink-0" style="width:40%;">
+  <!-- Info panel -->
+  <div class="d-flex flex-column border-start bg-white col-run-info">
     <div class="border-bottom px-3 pt-2 flex-shrink-0">
       <ul class="nav nav-tabs border-0" style="font-size:0.81rem;">
         <li class="nav-item"><button class="nav-link active px-3 py-2" data-tab="log" onclick="switchInfoTab('log',this)">Log</button></li>
@@ -303,7 +323,7 @@
      style="{% if start_tab != 'results' %}display:none !important;{% endif %}">
 
   <!-- Sidebar -->
-  <div class="border-end bg-white d-flex flex-column flex-shrink-0" style="width:10%; overflow-y:auto;">
+  <div class="border-end bg-white d-flex flex-column col-run-sidebar">
     <div class="px-3 py-3 border-bottom">
       <span class="fw-semibold" style="font-size:0.9rem; letter-spacing:-0.02em;">◈ Slow AI</span>
     </div>
@@ -513,8 +533,8 @@
 
       </div><!-- /results-tree -->
 
-      <!-- Stats panel (lean — no chat) -->
-      <div class="border-start bg-white flex-shrink-0 d-flex flex-column" style="width:240px; overflow:hidden;">
+      <!-- Stats panel -->
+      <div class="border-start bg-white d-flex flex-column col-run-stats">
         <div class="px-4 py-3 overflow-auto flex-grow-1" id="stats-panel">
           <div class="text-uppercase fw-semibold text-muted mb-3" style="font-size:0.67rem; letter-spacing:0.08em;">Run summary</div>
           {% if post_run %}
