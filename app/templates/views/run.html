@@ -268,7 +268,7 @@
             <span id="env-skills-wrap" style="display:none;">Skills: <strong id="env-skills" class="text-dark"></strong></span>
           </div>
           <div class="mb-1 text-uppercase fw-semibold" style="font-size:0.67rem; letter-spacing:0.07em; color:#9ca3af;">Proof</div>
-          <div id="env-proof" style="font-size:0.79rem; line-height:1.65; word-break:break-word; white-space:pre-wrap; color:#374151;"></div>
+          <div id="env-proof" style="font-size:0.79rem; line-height:1.65; word-break:break-word; color:#374151;"></div>
         </div>
       </div>
     </div>
@@ -912,9 +912,17 @@ function updateDag(dag) {
 const drawer = document.getElementById('envelope-drawer');
 function closeEnvelope() { drawer.style.display='none'; }
 
-function _proofText(proof) {
-  if (!proof) return '—';
-  return Object.entries(proof).map(([k,v])=>`[${k}]\n${typeof v==='object'?JSON.stringify(v,null,2):String(v)}`).join('\n\n');
+function _renderProofEntry(k, v) {
+  const label = `<div class="proof-key">${escHtml(k.replace(/_/g,' '))}</div>`;
+  if (typeof v === 'string') {
+    return label + `<div class="proof-prose">${marked.parse(v)}</div>`;
+  }
+  return label + `<pre class="proof-json"><code>${escHtml(JSON.stringify(v, null, 2))}</code></pre>`;
+}
+
+function _renderProof(proof) {
+  if (!proof || !Object.keys(proof).length) return '<span class="text-muted" style="font-size:0.8rem;">No findings recorded.</span>';
+  return Object.entries(proof).map(([k,v]) => _renderProofEntry(k, v)).join('');
 }
 
 cy.on('tap','node', async function(e){
@@ -927,19 +935,19 @@ cy.on('tap','node', async function(e){
   document.getElementById('env-verdict').textContent='…';
   document.getElementById('env-tokens').textContent=n.data('tokens')?Number(n.data('tokens')).toLocaleString():'…';
   document.getElementById('env-skills-wrap').style.display='none';
-  document.getElementById('env-proof').textContent='Loading…';
+  document.getElementById('env-proof').innerHTML='<span class="text-muted" style="font-size:0.8rem;">Loading…</span>';
   drawer.style.display='block';
   const wi=cyPlan.getElementById(n.data('work_item_id'));
   if (wi.length&&wi.data('skills')){ document.getElementById('env-skills').textContent=wi.data('skills'); document.getElementById('env-skills-wrap').style.display=''; }
   try {
     const res=await fetch(`/api/runs/${RUN_ID}/agent/${aid}`);
-    if (!res.ok){ document.getElementById('env-proof').textContent=(status==='registered'||status==='running')?'Agent has not completed yet.':'No envelope available.'; return; }
+    if (!res.ok){ document.getElementById('env-proof').innerHTML=`<span class="text-muted" style="font-size:0.8rem;">${(status==='registered'||status==='running')?'Agent has not completed yet.':'No envelope available.'}</span>`; return; }
     const env=await res.json();
     if (env.confidence!=null) document.getElementById('env-confidence').textContent=`· ${Math.round(env.confidence*100)}% confidence`;
     document.getElementById('env-verdict').textContent=env.verdict||'—';
     document.getElementById('env-tokens').textContent=env.cost_tokens!=null?env.cost_tokens.toLocaleString():'—';
-    document.getElementById('env-proof').textContent=_proofText(env.proof);
-  } catch(_){ document.getElementById('env-proof').textContent='Could not load.'; }
+    document.getElementById('env-proof').innerHTML=_renderProof(env.proof);
+  } catch(_){ document.getElementById('env-proof').innerHTML='<span class="text-muted" style="font-size:0.8rem;">Could not load.</span>'; }
 });
 cy.on('tap',e=>{ if(e.target===cy) closeEnvelope(); });
 
@@ -1059,9 +1067,7 @@ function populateResultsTab(data) {
         <div id="dag-${pi}-${ai}" style="display:none;padding-top:0.75rem;">`;
 
       if (ag.proof && Object.keys(ag.proof).length) {
-        Object.entries(ag.proof).forEach(([k,v])=>{
-          html += `<div class="proof-key">${escHtml(k.replace(/_/g,' '))}</div><div class="proof-prose">${escHtml(typeof v==='string'?v:JSON.stringify(v,null,2))}</div>`;
-        });
+        Object.entries(ag.proof).forEach(([k,v])=>{ html += _renderProofEntry(k,v); });
       }
       html += `<div class="d-flex gap-2 mt-2 mb-1" style="font-size:0.77rem;color:#6b7280;"><span>Verdict:</span><strong class="text-dark">${ag.verdict||'—'}</strong></div>`;
 
