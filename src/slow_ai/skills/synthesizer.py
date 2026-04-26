@@ -1,13 +1,9 @@
 import json
-import os
 
 from pydantic_ai import Agent
 
-from slow_ai.config import settings
 from slow_ai.models import SkillGap, SkillSynthesisResult, SynthesizedSkill
 from slow_ai.skills import SkillRegistry
-
-os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 _SYNTHESIZER_PROMPT = """
 You are a skill synthesizer for a multi-agent research system.

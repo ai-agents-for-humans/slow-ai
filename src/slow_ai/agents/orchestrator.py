@@ -1,12 +1,9 @@
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 
 from pydantic_ai import Agent
-
-from slow_ai.config import settings
 
 logger = logging.getLogger(__name__)
 from slow_ai.execution.registry import AgentRegistry
@@ -28,8 +25,6 @@ from slow_ai.models import (
     WorkItem,
 )
 from typing import Any
-
-os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 # ── Context planner ───────────────────────────────────────────────────────────
 

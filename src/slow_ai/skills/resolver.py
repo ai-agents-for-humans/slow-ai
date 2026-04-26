@@ -1,13 +1,9 @@
 import json
-import os
 
 from pydantic_ai import Agent
 
-from slow_ai.config import settings
 from slow_ai.models import ContextGraph, ProblemBrief, SkillGap, ViabilityDecision, WorkItem
 from slow_ai.skills import SkillRegistry
-
-os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 
 def _all_work_items(graph: ContextGraph) -> list[WorkItem]:

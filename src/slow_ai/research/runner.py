@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,15 +8,14 @@ from pathlib import Path
 from pydantic_ai import Agent
 
 from slow_ai.agents.orchestrator import (
-    generate_run_summary,
     handle_spawn_request,
     orchestrator_assess,
     run_context_planner,
     run_orchestrator,
     synthesise_phase,
 )
+from slow_ai.agents.report_agent import generate_final_report
 from slow_ai.agents.specialist import run_specialist
-from slow_ai.config import settings
 from slow_ai.execution.git_store import GitStore
 from slow_ai.execution.registry import AgentRegistry
 from slow_ai.models import (
@@ -39,8 +37,6 @@ from slow_ai.skills import SkillRegistry
 from slow_ai.skills.resolver import resolve_skills, viability_assess
 from slow_ai.skills.synthesizer import synthesize_skills
 from slow_ai.tools.code_execution import setup_run_venv
-
-os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 logger = logging.getLogger(__name__)
 
@@ -353,15 +349,17 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
         registry.update_status(synth_reg.agent_id, "completed")
         _emit(store, registry, artefacts)
 
-        # ── Post-run conversation opener ───────────────────────────────────────
-        _log(store, "Generating run summary…")
+        # ── Final report (mandatory last step) ────────────────────────────────
+        _log(store, "Generating final research report…")
         try:
-            run_summary = await generate_run_summary(brief, phase_summaries, all_envelopes)
-            store.append_conversation("assistant", run_summary)
-            logger.info("Run summary generated and saved for run %s.", run_id)
-        except Exception as summary_exc:
-            logger.error("Failed to generate run summary: %s", summary_exc, exc_info=True)
-            # Non-fatal — conversation will just start empty
+            document = await generate_final_report(brief, phase_summaries, all_envelopes)
+            store.write_live("final_report.md", document)
+            store.commit_document(document)
+            store.append_conversation("assistant", document)
+            logger.info("Final report generated and committed for run %s.", run_id)
+        except Exception as report_exc:
+            logger.error("Failed to generate final report: %s", report_exc, exc_info=True)
+            # Non-fatal — run data is still accessible without the document
 
         _log(store, f"Done. Report committed to runs/{run_id}/")
         logger.info("Run %s completed successfully.", run_id)

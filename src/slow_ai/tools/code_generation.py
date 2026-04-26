@@ -1,12 +1,7 @@
-import os
 from pathlib import Path
 
 from pydantic import BaseModel
 from pydantic_ai import Agent
-
-from slow_ai.config import settings
-
-os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 
 class GeneratedCode(BaseModel):

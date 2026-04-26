@@ -51,7 +51,12 @@
     .proof-key { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.08em;
                  text-transform: uppercase; color: #9ca3af; margin: 0.75rem 0 0.2rem; }
     .proof-prose { font-size: 0.83rem; line-height: 1.75; color: #374151;
-                   white-space: pre-wrap; word-break: break-word; max-width: 72ch; }
+                   word-break: break-word; max-width: 72ch; }
+    .proof-prose p { margin-bottom: 0.5rem; }
+    .proof-prose ul, .proof-prose ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
+    .proof-json { background: #f3f4f6; border-radius: 5px; padding: 0.6rem 0.75rem;
+                  font-size: 0.76rem; font-family: monospace; overflow-x: auto;
+                  white-space: pre-wrap; word-break: break-word; margin-bottom: 0.25rem; }
 
     /* Source badges */
     .src-badge { font-size: 0.62rem; font-weight: 700; padding: 2px 6px;
@@ -327,7 +332,24 @@
 
         {% if post_run %}
 
-        <!-- Final summary -->
+        <!-- Final report document -->
+        {% if post_run.document %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="text-uppercase fw-semibold text-muted" style="font-size:0.68rem; letter-spacing:0.08em;">Research Report</span>
+          <a href="/api/runs/{{ run_id }}/export" download
+             class="btn btn-outline-secondary btn-sm px-3" style="font-size:0.75rem; border-radius:6px;">
+            ↓ Export HTML
+          </a>
+        </div>
+        <div class="card border-0 shadow-sm mb-4 rounded-3">
+          <div class="card-body p-4">
+            <div class="md-content" style="font-size:0.88rem; line-height:1.8; color:#374151;">{{ post_run.document }}</div>
+          </div>
+        </div>
+        <hr class="my-4">
+        {% endif %}
+
+        <!-- Phase summary (legacy short summary) -->
         {% if post_run.report.get('summary') %}
         <div class="card border-0 shadow-sm mb-4 rounded-3">
           <div class="card-body p-4">
@@ -428,7 +450,11 @@
                 {% if agent.proof %}
                 {% for key, val in agent.proof.items() %}
                 <div class="proof-key">{{ key.replace('_',' ') }}</div>
-                <div class="proof-prose">{{ val if val is string else val | tojson(indent=2) }}</div>
+                {% if val is string %}
+                <div class="proof-prose md-content">{{ val }}</div>
+                {% else %}
+                <pre class="proof-json"><code>{{ val | tojson(indent=2) }}</code></pre>
+                {% endif %}
                 {% endfor %}
                 {% endif %}
                 <div class="d-flex gap-2 mt-2 mb-1" style="font-size:0.77rem; color:#6b7280;">
@@ -982,6 +1008,16 @@ function populateResultsTab(data) {
   if (!data.phases||!data.phases.length) { tree.innerHTML='<div class="text-muted py-5 text-center">No phase data available.</div>'; return; }
 
   let html = '';
+
+  if (data.document) {
+    html += `<div class="d-flex justify-content-between align-items-center mb-3">
+      <span class="text-uppercase fw-semibold text-muted" style="font-size:0.68rem;letter-spacing:0.08em;">Research Report</span>
+      <a href="/api/runs/${RUN_ID}/export" download class="btn btn-outline-secondary btn-sm px-3" style="font-size:0.75rem;border-radius:6px;">↓ Export HTML</a>
+    </div>
+    <div class="card border-0 shadow-sm mb-4 rounded-3"><div class="card-body p-4">
+      <div style="font-size:0.88rem;line-height:1.8;color:#374151;">${marked.parse(data.document)}</div>
+    </div></div><hr class="my-4">`;
+  }
 
   if (data.report&&data.report.summary) {
     html += `<div class="card border-0 shadow-sm mb-4 rounded-3"><div class="card-body p-4"><div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div><div style="font-size:0.88rem;line-height:1.75;color:#374151;">${marked.parse(data.report.summary)}</div></div></div>`;

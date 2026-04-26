@@ -133,6 +133,12 @@ class GitStore:
                     pass
         return messages
 
+    def commit_document(self, document: str) -> str:
+        """Write and commit the final research report as final_report.md."""
+        full_path = self.run_path / "final_report.md"
+        full_path.write_text(document, encoding="utf-8")
+        return self._commit("[M-final-document] research report", ["final_report.md"])
+
     def read_live_log(self) -> list[str]:
         """Return all live log messages in order."""
         path = self.run_path / _LIVE_DIR / "log.jsonl"

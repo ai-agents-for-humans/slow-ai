@@ -146,12 +146,16 @@ def _build_post_run(run_id: str) -> dict | None:
     total_tokens = sum(p.get("total_tokens") or 0 for p in phases)
     all_agents   = [a for p in phases for a in p["agents"]]
 
+    doc_path = run_dir / "live" / "final_report.md"
+    document = doc_path.read_text(encoding="utf-8") if doc_path.exists() else ""
+
     return {
-        "run_id":  run_id,
-        "status":  status_data.get("status", "unknown"),
-        "brief":   brief,
-        "report":  report,
-        "phases":  phases,
+        "run_id":   run_id,
+        "status":   status_data.get("status", "unknown"),
+        "brief":    brief,
+        "report":   report,
+        "document": document,
+        "phases":   phases,
         "stats": {
             "phase_count":  len(phases),
             "agent_count":  len(all_agents),
@@ -422,6 +426,66 @@ async def run_context_graph(run_id: str):
     if data is None:
         return JSONResponse({"nodes": [], "edges": []})
     return data
+
+
+@router.get("/api/runs/{run_id}/export")
+async def export_run(run_id: str, request: Request):
+    """Export the final research report as a standalone HTML file."""
+    import html as _html
+    import mistune
+
+    run_dir = Path("runs") / run_id
+    if not run_dir.exists():
+        return JSONResponse({"error": "Run not found"}, status_code=404)
+
+    doc_path = run_dir / "live" / "final_report.md"
+    if not doc_path.exists():
+        return JSONResponse({"error": "Final report not yet generated"}, status_code=404)
+
+    document = doc_path.read_text(encoding="utf-8")
+
+    brief_path = run_dir / "problem_brief.json"
+    brief = {}
+    if brief_path.exists():
+        try:
+            brief = json.loads(brief_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    status_data = {}
+    status_path = run_dir / "live" / "status.json"
+    if status_path.exists():
+        try:
+            status_data = json.loads(status_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    rendered_body = mistune.html(document)
+    goal = _html.escape(brief.get("goal", run_id))
+    domain = _html.escape(brief.get("domain", ""))
+    run_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
+    html_content = _templates.TemplateResponse(
+        "export/run_export.html",
+        {
+            "request":       request,
+            "goal":          goal,
+            "domain":        domain,
+            "run_id":        run_id,
+            "run_date":      run_date,
+            "rendered_body": rendered_body,
+        },
+    ).body.decode()
+
+    safe_goal = "".join(c if c.isalnum() or c in "-_ " else "" for c in brief.get("goal", run_id))
+    filename = f"research-{safe_goal[:50].strip().replace(' ', '-')}.html"
+
+    from fastapi.responses import Response
+    return Response(
+        content=html_content,
+        media_type="text/html",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/api/runs/{run_id}/stream")

@@ -101,11 +101,13 @@ This is the last piece that makes run chaining feel like a single compounding in
 
 ## Multi-provider support at install time
 
-The current install script asks for a Gemini API key and optionally a Perplexity key. That is the right model for getting started quickly, but the wrong model for a system that is supposed to be provider-agnostic.
+The registry and key injection plumbing is done. `ModelRegistry` now builds provider instances directly with keys from `Settings` — no environment variable mutation, no key collision risk if the user already has a `GEMINI_API_KEY` set for another project. Each model entry in `registry.json` declares which settings key it needs; `ModelRegistry` validates at startup and raises a clear error if anything is missing.
 
-**Why this matters at install time, not just in config:** Most users will not go digging in `registry.json` before running their first investigation. The choice of provider is a first-class decision — it affects cost, privacy, capability, and whether any data leaves the user's infrastructure at all. It belongs in the setup flow, not buried in a JSON file.
+**What remains:** `Settings` still only knows about `GEMINI_KEY_SLOW_AI` and `PERPLEXITY_KEY_SLOW_AI`. To use a different provider, a user must currently add a field to `config.py` manually — which breaks the "one JSON file, no code changes" promise. The fix is to make `Settings` read any `*_slow_ai` key dynamically from the environment, so adding a new provider is purely a `registry.json` edit plus an env var.
 
-**What this looks like:**
+**The install script** still only asks for Gemini and Perplexity. That is the right model for getting started quickly, but the wrong model for a system that is supposed to be provider-agnostic. Most users will not go digging in `registry.json` before running their first investigation — the choice of provider belongs in the setup flow.
+
+**What the completed experience looks like:**
 
 The install script presents a menu — Google Gemini, Anthropic, OpenAI, OpenRouter, or Ollama (local, no key required). The user picks one, provides a key if needed, and `registry.json` is written accordingly. Every model slot defaults to the chosen provider. Advanced users can mix providers after the fact.
 

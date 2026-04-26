@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from pydantic_ai import Agent
@@ -7,8 +6,6 @@ from slow_ai.config import settings
 from slow_ai.llm import ModelRegistry
 from slow_ai.models import ProblemBrief
 from slow_ai.tools.perplexity import perplexity_search
-
-os.environ["GEMINI_API_KEY"] = settings.gemini_key_slow_ai
 
 _SKILL_PATH = (
     Path(__file__).parents[1] / "skills" / "catalog" / "interview_facilitation" / "SKILL.md"
