@@ -332,7 +332,7 @@
         <div class="card border-0 shadow-sm mb-4 rounded-3">
           <div class="card-body p-4">
             <div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div>
-            <div style="font-size:0.88rem; line-height:1.75; color:#374151;">{{ post_run.report.summary }}</div>
+            <div class="md-content" style="font-size:0.88rem; line-height:1.75; color:#374151;">{{ post_run.report.summary }}</div>
           </div>
         </div>
         {% endif %}
@@ -390,7 +390,7 @@
 
           <div id="ph-{{ phase.phase_id }}">
             {% if phase.synthesis %}
-            <div class="mb-3" style="font-size:0.84rem; line-height:1.75; color:#374151; border-left:3px solid #f0f2f5; padding-left:0.85rem; max-width:72ch;">
+            <div class="md-content mb-3" style="font-size:0.84rem; line-height:1.75; color:#374151; border-left:3px solid #f0f2f5; padding-left:0.85rem; max-width:72ch;">
               {{ phase.synthesis }}
             </div>
             {% endif %}
@@ -589,6 +589,13 @@ cytoscape.use(cytoscapeDagre);
 const RUN_ID  = "{{ run_id }}";
 const STATUS  = "{{ status }}";
 marked.setOptions({ breaks: true, gfm: true });
+
+function renderMdContent() {
+  document.querySelectorAll('.md-content').forEach(el => {
+    el.innerHTML = marked.parse(el.textContent);
+  });
+}
+document.addEventListener('DOMContentLoaded', renderMdContent);
 
 // ── Tab switching ─────────────────────────────────────────────────────────
 
@@ -808,7 +815,7 @@ function renderPhaseSummaries(summaries) {
         <div class="fw-semibold" style="font-size:0.84rem;">${s.phase_name}</div>
         <span class="badge bg-success ms-2" style="font-size:0.68rem;">${conf}%</span>
       </div>
-      <div class="text-muted" style="font-size:0.79rem;line-height:1.55;word-break:break-word;">${s.synthesis||''}</div>
+      <div style="font-size:0.79rem;line-height:1.55;word-break:break-word;">${marked.parse(s.synthesis||'')}</div>
       <div class="mt-2 text-muted" style="font-size:0.72rem;">${(s.envelopes||[]).length} agents · ${(s.total_tokens||0).toLocaleString()} tokens</div>
     </div>`;
     phaseCardsEl.appendChild(div);
@@ -977,7 +984,7 @@ function populateResultsTab(data) {
   let html = '';
 
   if (data.report&&data.report.summary) {
-    html += `<div class="card border-0 shadow-sm mb-4 rounded-3"><div class="card-body p-4"><div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div><div style="font-size:0.88rem;line-height:1.75;color:#374151;">${escHtml(data.report.summary)}</div></div></div>`;
+    html += `<div class="card border-0 shadow-sm mb-4 rounded-3"><div class="card-body p-4"><div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div><div style="font-size:0.88rem;line-height:1.75;color:#374151;">${marked.parse(data.report.summary)}</div></div></div>`;
   }
   if (data.report&&data.report.datasets&&data.report.datasets.length) {
     html += `<div class="mb-4"><div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem;letter-spacing:0.08em;">Datasets (${data.report.datasets.length})</div><div class="d-flex flex-wrap gap-2">`;
@@ -999,7 +1006,7 @@ function populateResultsTab(data) {
         <span class="text-muted" style="font-size:0.74rem;">${phase.agents.length} agents${phase.dur_str?' · '+phase.dur_str:''}${phase.total_tokens?' · '+phase.total_tokens.toLocaleString()+' tok':''}</span>
       </div>
       <div id="dph-${pi}">
-        ${phase.synthesis?`<div class="mb-3" style="font-size:0.84rem;line-height:1.75;color:#374151;border-left:3px solid #f0f2f5;padding-left:0.85rem;max-width:72ch;">${escHtml(phase.synthesis)}</div>`:''}`;
+        ${phase.synthesis?`<div class="mb-3" style="font-size:0.84rem;line-height:1.75;color:#374151;border-left:3px solid #f0f2f5;padding-left:0.85rem;max-width:72ch;">${marked.parse(phase.synthesis)}</div>`:''}`;
 
     phase.agents.forEach((ag, ai)=>{
       const ac = ag.confidence!=null?Math.round(ag.confidence*100):null;
