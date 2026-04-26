@@ -173,11 +173,15 @@ You don't need to watch. Close the tab and come back — the run continues and a
 
 **4 — Read the results**
 
-When the run completes, the Results tab opens automatically. The summary card gives you the headline finding and confidence level. Expand any phase to see the synthesis, then each agent. Inside each agent: Tool Calls (every search query and web browse, expandable) and Artefacts (generated code and documents, full-screen viewer).
+When the run completes, the Results tab opens automatically. At the top: a **Final Research Report** — a long-form synthesis across all phases, written like a Gemini Deep Research output. Executive summary, thematic findings, open questions, limitations, and recommendations. Every claim is cited back to the agent that produced it.
+
+Click **↓ Export HTML** to download the report as a self-contained standalone file — no dependencies, print-ready, shareable without the app running.
 
 ![Results — summary, phases, tool calls, artefacts](docs/assets/images/post_run_results.png)
 
-The chat bar at the bottom is always available. Ask follow-up questions grounded in the run's evidence.
+Below the report: phase cards with per-phase synthesis and agent evidence. Inside each agent: Tool Calls (every search query and web browse, expandable) and Artefacts (generated code and documents, full-screen viewer).
+
+The chat bar at the bottom is always available. Ask follow-up questions, drill into a finding, or ask the agent to **rewrite a section of the report** — it will update the document in place.
 
 **5 — Continue the investigation**
 

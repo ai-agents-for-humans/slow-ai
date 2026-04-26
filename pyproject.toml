@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.scripts]
-slow-ai = "main:main"
+slow-ai = "slow_ai.cli:main"
 
 [tool.uv]
 package = true

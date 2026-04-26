@@ -185,13 +185,13 @@ You do not need to watch it run. You can close the browser and come back later. 
 
 When the run completes, the **Results tab** opens automatically. Everything is in one place.
 
-**The summary card** at the top gives you the headline finding — what the agents collectively established, at what confidence level.
+**The Final Research Report** — at the very top of the Results tab, the system synthesises all agent findings into a single long-form document. This is not a summary card. It is a full research report: executive summary, thematic findings (organised by insight, not by phase), open questions, limitations, recommendations, and an inline source list. Every claim is cited back to the agent that produced it.
 
-**Below it:** datasets used, paths the investigation did not take, then the full phase tree.
+![The Results tab — final report at the top, phase tree below](assets/images/post_run_results.png)
 
-![The Results tab — summary at the top, datasets, and the full phase tree below](assets/images/post_run_results.png)
+**Export the report** — click **↓ Export HTML** next to the report to download a self-contained, standalone HTML file. It has no external dependencies, renders correctly without the app running, and is print-ready. Share it, archive it, or open it offline.
 
-**Expanding a phase** shows the synthesis for that phase, then each agent card. Expand an agent card to see its full findings and confidence score.
+**Below the report:** the full phase tree. Expanding a phase shows the synthesis for that phase, then each agent card. Expand an agent card to see its full findings and confidence score.
 
 ![Phase 1 expanded — synthesis and individual agent findings](assets/images/post_run_phases_agent_view.png)
 
@@ -203,9 +203,9 @@ When the run completes, the **Results tab** opens automatically. Everything is i
 
 ![An artefact open in the viewer — generated Python code with syntax highlighting](assets/images/post_run_artefacts_viewer.png)
 
-**Ask about the run** — the chat bar at the bottom of the Results page is always available. Ask follow-up questions, drill into a specific finding, or ask the system to explain why confidence was low on a particular question. Every response is grounded in the evidence from the run.
+**Ask about the run — and update the report** — the chat bar at the bottom of the Results page is always available. You can ask follow-up questions grounded in the run's evidence, drill into specific findings, or instruct the agent to rewrite or expand a section of the report. When you ask for a report change, the agent edits the document in place — the updated version is reflected immediately and the updated export is available on next download.
 
-![The bottom chat drawer — ask questions grounded in the run's evidence](assets/images/post_run_chat.png)
+![The bottom chat drawer — ask questions or update the report](assets/images/post_run_chat.png)
 
 The **Run Summary** panel on the right shows confidence per phase, total tokens, and the Continue Investigation button.
 
