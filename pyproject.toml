@@ -27,6 +27,7 @@ dependencies = [
     "jinja2>=3.1",
     "python-multipart>=0.0.9",
     "sse-starlette>=2.1",
+    "python-docx>=1.0",
 ]
 
 [project.scripts]

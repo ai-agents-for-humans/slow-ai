@@ -44,18 +44,37 @@
             hx-target="#chat-messages"
             hx-swap="beforeend"
             hx-indicator="#typing"
-            class="d-flex gap-2 align-items-end">
-        <textarea id="chat-input"
-                  name="message"
-                  class="form-control"
-                  placeholder="Your answer..."
-                  autocomplete="off"
-                  required
-                  rows="3"
-                  style="border-radius:8px; resize:none; overflow-y:hidden; min-height:72px; max-height:160px; line-height:1.5;"></textarea>
-        <button type="submit" class="btn btn-dark px-4 flex-shrink-0" style="border-radius:8px; height:44px; align-self:flex-end;">
-          Send →
-        </button>
+            hx-encoding="multipart/form-data"
+            class="d-flex flex-column gap-2">
+
+        <input type="file" id="file-input" name="files" multiple
+               accept=".pdf,.csv,.docx,.png,.jpg,.jpeg,.gif,.webp"
+               style="display:none">
+
+        <!-- File chips -->
+        <div id="file-chips" class="d-flex flex-wrap gap-1" style="display:none;"></div>
+
+        <!-- Message row -->
+        <div class="d-flex gap-2 align-items-end">
+          <textarea id="chat-input"
+                    name="message"
+                    class="form-control"
+                    placeholder="Your answer... (or attach a file)"
+                    autocomplete="off"
+                    rows="3"
+                    style="border-radius:8px; resize:none; overflow-y:hidden; min-height:72px; max-height:160px; line-height:1.5;"></textarea>
+          <button type="button" id="attach-btn"
+                  class="btn btn-outline-secondary px-3 flex-shrink-0"
+                  style="border-radius:8px; height:44px; align-self:flex-end;"
+                  title="Attach file">
+            📎
+          </button>
+          <button type="submit" class="btn btn-dark px-4 flex-shrink-0"
+                  style="border-radius:8px; height:44px; align-self:flex-end;">
+            Send →
+          </button>
+        </div>
+
       </form>
     </div>
   </div>
@@ -66,7 +85,6 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
-  // Configure marked for inline-safe rendering
   marked.setOptions({ breaks: true, gfm: true });
 
   function scrollToBottom() {
@@ -74,7 +92,6 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  // Render markdown in any .chat-bubble-agent elements inside a container
   function renderMarkdown(container) {
     container.querySelectorAll('.chat-bubble-agent[data-markdown]').forEach(el => {
       el.innerHTML = marked.parse(el.dataset.markdown);
@@ -82,21 +99,57 @@
     });
   }
 
+  // Attach button → trigger hidden file input
+  document.getElementById('attach-btn').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+
+  // File selection → show chips
+  document.getElementById('file-input').addEventListener('change', function () {
+    const chips = document.getElementById('file-chips');
+    chips.innerHTML = '';
+    if (this.files.length > 0) {
+      chips.style.display = 'flex';
+      Array.from(this.files).forEach(f => {
+        const chip = document.createElement('span');
+        chip.className = 'badge bg-light text-dark border d-flex align-items-center gap-1';
+        chip.style.cssText = 'font-size:0.78rem; padding:4px 8px; font-weight:normal;';
+        chip.textContent = '📎 ' + f.name;
+        chips.appendChild(chip);
+      });
+    } else {
+      chips.style.display = 'none';
+    }
+  });
+
   // Show user bubble immediately on submit, before the request goes out
   document.getElementById('chat-form').addEventListener('submit', function(e) {
     const input = document.getElementById('chat-input');
+    const fileInput = document.getElementById('file-input');
     const msg = input.value.trim();
-    if (!msg) return;
+    const files = Array.from(fileInput.files);
+
+    if (!msg && files.length === 0) { e.preventDefault(); return; }
+
+    let content = msg ? msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+    if (files.length > 0) {
+      const fileList = files.map(f => '📎 ' + f.name).join(' &middot; ');
+      content += (content ? '<br><br>' : '') +
+        '<span class="text-muted" style="font-size:0.78rem;">' + fileList + '</span>';
+    }
 
     const bubble = document.createElement('div');
     bubble.className = 'd-flex mb-3 justify-content-end';
-    bubble.innerHTML = `<div class="chat-bubble-user">${msg.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+    bubble.innerHTML = `<div class="chat-bubble-user">${content}</div>`;
     document.getElementById('chat-messages').appendChild(bubble);
 
-    // Reset textarea height and value after htmx captures it
     requestAnimationFrame(() => {
       input.value = '';
       input.style.height = '72px';
+      fileInput.value = '';
+      const chips = document.getElementById('file-chips');
+      chips.innerHTML = '';
+      chips.style.display = 'none';
     });
 
     scrollToBottom();
@@ -110,7 +163,6 @@
     }
   });
 
-  // Also render on initial load swap (hx-trigger="load" on #chat-messages)
   document.addEventListener('htmx:afterSettle', function(e) {
     renderMarkdown(document.getElementById('chat-messages'));
   });

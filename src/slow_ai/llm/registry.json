@@ -2,8 +2,9 @@
   "models": [
     {
       "name": "reasoning",
-      "model_id": "google-gla:gemini-3.1-pro-preview",
+      "model_id": "gemini-3.1-pro-preview",
       "provider": "google",
+      "api_key_setting": "gemini_key_slow_ai",
       "strengths": [
         "complex multi-step reasoning",
         "planning and decomposition",
@@ -20,8 +21,9 @@
     },
     {
       "name": "fast",
-      "model_id": "google-gla:gemini-3-flash-preview",
+      "model_id": "gemini-3-flash-preview",
       "provider": "google",
+      "api_key_setting": "gemini_key_slow_ai",
       "strengths": [
         "fast inference",
         "structured output",
@@ -37,8 +39,9 @@
     },
     {
       "name": "code",
-      "model_id": "google-gla:gemini-3.1-pro-preview",
+      "model_id": "gemini-3.1-pro-preview",
       "provider": "google",
+      "api_key_setting": "gemini_key_slow_ai",
       "strengths": [
         "Python code generation",
         "algorithm design",
@@ -52,8 +55,9 @@
     },
     {
       "name": "specialist",
-      "model_id": "google-gla:gemini-3.1-pro-preview",
+      "model_id": "gemini-3.1-pro-preview",
       "provider": "google",
+      "api_key_setting": "gemini_key_slow_ai",
       "strengths": [
         "research and investigation",
         "evidence synthesis",
