@@ -10,23 +10,23 @@ Handles:
   - HTML     → falls back to readable text extraction (like web_browse)
   - Plain text → returned as-is
 """
+
 import io
 import json
-import re
 
 import httpx
 from pydantic import BaseModel
 
-_MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024   # 10 MB hard cap
+_MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024  # 10 MB hard cap
 _MAX_CHARS = 6000
 _MAX_ROWS = 50
 
 
 class FetchResult(BaseModel):
     url: str
-    content_type: str        # "pdf" | "csv" | "json" | "excel" | "parquet" | "html" | "text" | "unknown"
-    summary: str             # human-readable description of what was found
-    data: dict               # structured payload (schema, sample, etc.)
+    content_type: str  # "pdf" | "csv" | "json" | "excel" | "parquet" | "html" | "text" | "unknown"
+    summary: str  # human-readable description of what was found
+    data: dict  # structured payload (schema, sample, etc.)
     success: bool = True
     error: str | None = None
 
@@ -58,7 +58,14 @@ async def url_fetch(url: str) -> FetchResult:
                 raw = b"".join(chunks)
 
     except Exception as e:
-        return FetchResult(url=url, content_type="unknown", summary="", data={}, success=False, error=str(e))
+        return FetchResult(
+            url=url,
+            content_type="unknown",
+            summary="",
+            data={},
+            success=False,
+            error=str(e),
+        )
 
     # Detect type from Content-Type header first, then URL extension
     detected = _detect_type(raw_content_type, url)
@@ -82,15 +89,24 @@ async def url_fetch(url: str) -> FetchResult:
             # Try to decode as text
             text = raw.decode("utf-8", errors="replace")[:_MAX_CHARS]
             return FetchResult(
-                url=url, content_type="text",
+                url=url,
+                content_type="text",
                 summary=f"Plain text — {len(raw):,} bytes.",
                 data={"text": text},
             )
     except Exception as e:
-        return FetchResult(url=url, content_type=detected, summary="", data={}, success=False, error=f"Extraction failed: {e}")
+        return FetchResult(
+            url=url,
+            content_type=detected,
+            summary="",
+            data={},
+            success=False,
+            error=f"Extraction failed: {e}",
+        )
 
 
 # ── Type detection ────────────────────────────────────────────────────────────
+
 
 def _detect_type(content_type: str, url: str) -> str:
     ct = content_type.split(";")[0].strip()
@@ -112,12 +128,20 @@ def _detect_type(content_type: str, url: str) -> str:
     # Fall back to URL extension
     path = url.split("?")[0].lower()
     ext_map = {
-        ".pdf": "pdf", ".csv": "csv", ".tsv": "csv",
-        ".json": "json", ".jsonl": "jsonl", ".ndjson": "jsonl",
-        ".xlsx": "excel", ".xls": "excel",
-        ".parquet": "parquet", ".pq": "parquet",
-        ".html": "html", ".htm": "html",
-        ".txt": "text", ".md": "text",
+        ".pdf": "pdf",
+        ".csv": "csv",
+        ".tsv": "csv",
+        ".json": "json",
+        ".jsonl": "jsonl",
+        ".ndjson": "jsonl",
+        ".xlsx": "excel",
+        ".xls": "excel",
+        ".parquet": "parquet",
+        ".pq": "parquet",
+        ".html": "html",
+        ".htm": "html",
+        ".txt": "text",
+        ".md": "text",
     }
     for ext, kind in ext_map.items():
         if path.endswith(ext):
@@ -129,13 +153,14 @@ def _detect_type(content_type: str, url: str) -> str:
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
+
 def _handle_pdf(url: str, raw: bytes) -> FetchResult:
     import pdfplumber
 
     text_parts = []
     with pdfplumber.open(io.BytesIO(raw)) as pdf:
         n_pages = len(pdf.pages)
-        for page in pdf.pages[:30]:    # cap at 30 pages
+        for page in pdf.pages[:30]:  # cap at 30 pages
             t = page.extract_text()
             if t:
                 text_parts.append(t)
@@ -181,10 +206,7 @@ def _handle_tabular(url: str, raw: bytes, fmt: str) -> FetchResult:
         describe = desc.to_dict()
 
     col_list = ", ".join(df.columns[:20]) + ("…" if len(df.columns) > 20 else "")
-    summary = (
-        f"{fmt.upper()} — {rows:,} rows × {cols} columns. "
-        f"Columns: {col_list}."
-    )
+    summary = f"{fmt.upper()} — {rows:,} rows × {cols} columns. Columns: {col_list}."
 
     return FetchResult(
         url=url,
@@ -208,18 +230,36 @@ def _handle_json(url: str, raw: bytes) -> FetchResult:
     if isinstance(parsed, list):
         n = len(parsed)
         sample = parsed[:10]
-        keys = sorted(set().union(*[d.keys() for d in sample if isinstance(d, dict)])) if sample else []
+        keys = (
+            sorted(set().union(*[d.keys() for d in sample if isinstance(d, dict)]))
+            if sample
+            else []
+        )
         summary = f"JSON array — {n:,} records. Keys: {', '.join(str(k) for k in keys[:20])}."
-        return FetchResult(url=url, content_type="json", summary=summary,
-                           data={"type": "array", "length": n, "keys": keys, "sample": sample})
+        return FetchResult(
+            url=url,
+            content_type="json",
+            summary=summary,
+            data={"type": "array", "length": n, "keys": keys, "sample": sample},
+        )
     elif isinstance(parsed, dict):
         keys = list(parsed.keys())
-        summary = f"JSON object — {len(keys)} top-level keys: {', '.join(str(k) for k in keys[:20])}."
-        return FetchResult(url=url, content_type="json", summary=summary,
-                           data={"type": "object", "keys": keys, "preview": str(parsed)[:_MAX_CHARS]})
+        summary = (
+            f"JSON object — {len(keys)} top-level keys: {', '.join(str(k) for k in keys[:20])}."
+        )
+        return FetchResult(
+            url=url,
+            content_type="json",
+            summary=summary,
+            data={"type": "object", "keys": keys, "preview": str(parsed)[:_MAX_CHARS]},
+        )
     else:
-        return FetchResult(url=url, content_type="json", summary="JSON scalar value.",
-                           data={"value": parsed})
+        return FetchResult(
+            url=url,
+            content_type="json",
+            summary="JSON scalar value.",
+            data={"value": parsed},
+        )
 
 
 def _handle_jsonl(url: str, raw: bytes) -> FetchResult:
@@ -232,14 +272,21 @@ def _handle_jsonl(url: str, raw: bytes) -> FetchResult:
                 records.append(json.loads(line))
             except json.JSONDecodeError:
                 pass
-    keys = sorted(set().union(*[d.keys() for d in records if isinstance(d, dict)])) if records else []
+    keys = (
+        sorted(set().union(*[d.keys() for d in records if isinstance(d, dict)])) if records else []
+    )
     summary = f"JSONL — {len(lines):,} lines. Keys: {', '.join(str(k) for k in keys[:20])}."
-    return FetchResult(url=url, content_type="jsonl", summary=summary,
-                       data={"line_count": len(lines), "keys": keys, "sample": records})
+    return FetchResult(
+        url=url,
+        content_type="jsonl",
+        summary=summary,
+        data={"line_count": len(lines), "keys": keys, "sample": records},
+    )
 
 
 def _handle_html(url: str, raw: bytes) -> FetchResult:
     from bs4 import BeautifulSoup
+
     soup = BeautifulSoup(raw, "lxml")
     for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
         tag.decompose()
@@ -248,7 +295,8 @@ def _handle_html(url: str, raw: bytes) -> FetchResult:
     text = " ".join(main.get_text(separator=" ").split()) if main else ""
     text = text[:_MAX_CHARS]
     return FetchResult(
-        url=url, content_type="html",
+        url=url,
+        content_type="html",
         summary=f"HTML page — title: {title!r}. {len(text):,} chars of readable text.",
         data={"title": title, "text": text},
     )

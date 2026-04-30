@@ -1,8 +1,6 @@
-import json
-
 from pydantic_ai import Agent
 
-from slow_ai.models import SkillGap, SkillSynthesisResult, SynthesizedSkill
+from slow_ai.models import SkillGap, SkillSynthesisResult
 from slow_ai.skills import SkillRegistry
 
 _SYNTHESIZER_PROMPT = """
@@ -101,6 +99,7 @@ Always include reasoning explaining your synthesis decisions.
 
 def _make_synthesizer_agent() -> Agent:
     from slow_ai.llm import ModelRegistry
+
     return Agent(
         model=ModelRegistry().for_task("skill_synthesis"),
         output_type=SkillSynthesisResult,
@@ -117,8 +116,7 @@ async def synthesize_skills(
     Persists synthesized skills to the registry immediately.
     """
     available_tools = "\n".join(
-        f"- {name}: {registry._skills[name]['description']}"
-        for name in registry.available_names()
+        f"- {name}: {registry._skills[name]['description']}" for name in registry.available_names()
     )
     gap_descriptions = "\n".join(
         f"- '{g.skill}': required by work items {g.required_by}, "

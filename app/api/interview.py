@@ -26,23 +26,26 @@ def _get_or_create_session(session_id: str | None) -> tuple[str, dict]:
 
 
 def _bubble(role: str, content: str) -> str:
+    """Render a single chat bubble as HTML."""
+
     if role == "agent":
         escaped = _html.escape(content, quote=True)
         return (
             f'<div class="d-flex mb-3">'
             f'<div class="chat-bubble-agent" data-markdown="{escaped}"></div>'
-            f'</div>'
+            f"</div>"
         )
     escaped = _html.escape(content)
     return (
         f'<div class="d-flex mb-3 justify-content-end">'
         f'<div class="chat-bubble-user">{escaped}</div>'
-        f'</div>'
+        f"</div>"
     )
 
 
 def _read_pdf(data: bytes, name: str) -> str:
     import pdfplumber
+
     with pdfplumber.open(io.BytesIO(data)) as pdf:
         pages = [p.extract_text() or "" for p in pdf.pages]
     return f"[PDF: {name}]\n" + "\n\n".join(pages).strip()
@@ -50,6 +53,7 @@ def _read_pdf(data: bytes, name: str) -> str:
 
 def _read_csv(data: bytes, name: str) -> str:
     import pandas as pd
+
     df = pd.read_csv(io.BytesIO(data))
     summary = (
         f"Rows: {len(df)}, Columns: {list(df.columns)}\n"
@@ -60,6 +64,7 @@ def _read_csv(data: bytes, name: str) -> str:
 
 def _read_docx(data: bytes, name: str) -> str:
     from docx import Document
+
     doc = Document(io.BytesIO(data))
     text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
     return f"[DOCX: {name}]\n{text}"
@@ -84,7 +89,9 @@ async def _build_prompt(message: str, files: list[UploadFile]):
             text_parts.append(_read_docx(data, name))
         else:
             try:
-                text_parts.append(f"[File: {name}]\n{data.decode('utf-8', errors='replace')[:4000]}")
+                text_parts.append(
+                    f"[File: {name}]\n{data.decode('utf-8', errors='replace')[:4000]}"
+                )
             except Exception:
                 pass
 

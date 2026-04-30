@@ -33,9 +33,7 @@ def _run_status(run_id: str) -> str:
     if not status_path.exists():
         return "unknown"
     try:
-        return _STATUS_LABEL.get(
-            json.loads(status_path.read_text())["status"], "unknown"
-        )
+        return _STATUS_LABEL.get(json.loads(status_path.read_text())["status"], "unknown")
     except Exception:
         return "unknown"
 
@@ -62,12 +60,14 @@ def _project_runs(project_id: str) -> list[dict]:
         try:
             entry = json.loads(line)
             status = _run_status(entry["run_id"])
-            runs.append({
-                "run_id": entry["run_id"],
-                "started_at": entry.get("started_at", "")[:16].replace("T", " "),
-                "status": status,
-                "badge": _STATUS_BADGE.get(status, "secondary"),
-            })
+            runs.append(
+                {
+                    "run_id": entry["run_id"],
+                    "started_at": entry.get("started_at", "")[:16].replace("T", " "),
+                    "status": status,
+                    "badge": _STATUS_BADGE.get(status, "secondary"),
+                }
+            )
         except Exception:
             continue
     return list(reversed(runs))
@@ -80,11 +80,13 @@ def _all_projects() -> list[dict]:
     projects = []
     for brief_path in sorted(output_dir.glob("*/problem_brief.json"), reverse=True):
         project_id = brief_path.parent.name
-        projects.append({
-            "project_id": project_id,
-            "goal": _project_goal(project_id),
-            "runs": _project_runs(project_id),
-        })
+        projects.append(
+            {
+                "project_id": project_id,
+                "goal": _project_goal(project_id),
+                "runs": _project_runs(project_id),
+            }
+        )
     return projects
 
 

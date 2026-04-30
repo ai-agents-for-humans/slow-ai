@@ -1,19 +1,20 @@
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic_ai import Agent
 
-logger = logging.getLogger(__name__)
 from slow_ai.llm import ModelRegistry
-from slow_ai.models import AgentContext, EvidenceEnvelope, MemoryEntry, SpawnRequest
+from slow_ai.models import AgentContext, EvidenceEnvelope, MemoryEntry
 from slow_ai.tools.code_execution import code_execution as _code_execution
 from slow_ai.tools.code_generation import generate_python_code
 from slow_ai.tools.perplexity import perplexity_search
 from slow_ai.tools.url_fetch import url_fetch as _url_fetch
 from slow_ai.tools.web_browse import web_browse
+
+logger = logging.getLogger(__name__)
 
 
 def _tool_descriptions(tools_available: list[str]) -> str:
@@ -22,9 +23,7 @@ def _tool_descriptions(tools_available: list[str]) -> str:
             "search(query): search the web for information — returns a synthesised "
             "answer plus source citations"
         ),
-        "web_browse": (
-            "browse(url): navigate to a URL and extract its full text content"
-        ),
+        "web_browse": ("browse(url): navigate to a URL and extract its full text content"),
         "code_execution": (
             "generate_code(task_description): generate Python code for a task using "
             "a code-specialist LLM — returns the code and saves a .py file. "
@@ -44,7 +43,7 @@ def _tool_descriptions(tools_available: list[str]) -> str:
         ),
     }
     lines = [descriptions[t] for t in tools_available if t in descriptions]
-    return "\n".join(f"- {l}" for l in lines) if lines else "No tools available."
+    return "\n".join(f"- {line}" for line in lines) if lines else "No tools available."
 
 
 def build_system_prompt(ctx: AgentContext) -> str:
@@ -61,7 +60,7 @@ quality bar you must clear. Do not skip steps or omit required artefacts.
     return f"""
 You are a {ctx.role}.
 
-Your expertise: {', '.join(ctx.expertise) if ctx.expertise else 'research and analysis'}
+Your expertise: {", ".join(ctx.expertise) if ctx.expertise else "research and analysis"}
 
 Your task:
 {ctx.task.goal}
@@ -82,8 +81,11 @@ Research process:
    work in your evidence envelope — the runner will spawn workers for it
 
 Evidence required:
-{json.dumps(ctx.evidence_required, indent=2) if ctx.evidence_required else
-"sources_checked, findings, confidence_rationale"}
+{
+        json.dumps(ctx.evidence_required, indent=2)
+        if ctx.evidence_required
+        else "sources_checked, findings, confidence_rationale"
+    }
 
 Return an EvidenceEnvelope with:
 - status: completed / partial / failed
@@ -114,21 +116,27 @@ async def run_specialist(
 
     # Register only the tools this agent has been granted
     if "perplexity_search" in ctx.tools_available:
+
         @agent.tool_plain
         async def search(query: str) -> str:
             result = await perplexity_search(query)
             entry = MemoryEntry(
                 key=f"search_{uuid.uuid4().hex[:4]}",
-                value={"query": query, "answer": result.answer, "citations": result.citations},
+                value={
+                    "query": query,
+                    "answer": result.answer,
+                    "citations": result.citations,
+                },
                 source="perplexity_search",
                 confidence=0.8,
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
                 tokens_consumed=len(result.answer.split()) * 2,
             )
             ctx.memory.add(entry)
             return json.dumps({"answer": result.answer, "citations": result.citations})
 
     if "web_browse" in ctx.tools_available:
+
         @agent.tool_plain
         async def browse(url: str) -> str:
             result = await web_browse(url)
@@ -137,7 +145,7 @@ async def run_specialist(
                 value={"url": url, "title": result.title, "text": result.text[:500]},
                 source="web_browse",
                 confidence=0.9 if result.success else 0.1,
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
                 tokens_consumed=len(result.text.split()) * 2 if result.text else 10,
             )
             ctx.memory.add(entry)
@@ -146,6 +154,7 @@ async def run_specialist(
             return json.dumps({"title": result.title, "text": result.text})
 
     if "url_fetch" in ctx.tools_available:
+
         @agent.tool_plain
         async def fetch_url(url: str) -> str:
             result = await _url_fetch(url)
@@ -160,19 +169,22 @@ async def run_specialist(
                 },
                 source="url_fetch",
                 confidence=0.95 if result.success else 0.1,
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
                 tokens_consumed=len(str(result.data)) // 4,
             )
             ctx.memory.add(entry)
             if not result.success:
                 return json.dumps({"error": result.error})
-            return json.dumps({
-                "content_type": result.content_type,
-                "summary": result.summary,
-                "data": result.data,
-            })
+            return json.dumps(
+                {
+                    "content_type": result.content_type,
+                    "summary": result.summary,
+                    "data": result.data,
+                }
+            )
 
     if "code_execution" in ctx.tools_available:
+
         @agent.tool_plain
         async def generate_code(task_description: str) -> str:
             """Generate Python code for the given task using a code-specialist LLM."""
@@ -189,15 +201,17 @@ async def run_specialist(
                 },
                 source="code_generation",
                 confidence=0.9,
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
                 tokens_consumed=len(generated.code.split()) * 2,
             )
             ctx.memory.add(entry)
-            return json.dumps({
-                "code": generated.code,
-                "filename": generated.filename,
-                "description": generated.description,
-            })
+            return json.dumps(
+                {
+                    "code": generated.code,
+                    "filename": generated.filename,
+                    "description": generated.description,
+                }
+            )
 
         @agent.tool_plain
         async def execute(code: str) -> str:
@@ -213,17 +227,19 @@ async def run_specialist(
                 },
                 source="code_execution",
                 confidence=0.95 if result["success"] else 0.1,
-                created_at=datetime.now(timezone.utc).isoformat(),
+                created_at=datetime.now(UTC).isoformat(),
                 tokens_consumed=len(result["stdout"].split()) * 2 + 20,
             )
             ctx.memory.add(entry)
             return json.dumps(result)
 
     if ctx.prior_run_ids:
+
         @agent.tool_plain
         async def read_prior_evidence(topic: str) -> str:
             """Search prior run evidence for a topic. Call this first to avoid repeating work."""
             from slow_ai.tools.run_reader import search_across_runs
+
             run_paths = [Path("runs") / rid for rid in ctx.prior_run_ids]
             return search_across_runs(run_paths, topic)
 
@@ -236,7 +252,13 @@ async def run_specialist(
             "Begin research for your assigned task using the tools available to you."
         )
     except Exception as exc:
-        logger.error("Specialist %s (%s) raised an exception: %s", ctx.agent_id, ctx.role, exc, exc_info=True)
+        logger.error(
+            "Specialist %s (%s) raised an exception: %s",
+            ctx.agent_id,
+            ctx.role,
+            exc,
+            exc_info=True,
+        )
         raise
 
     envelope: EvidenceEnvelope = result.output
@@ -245,7 +267,11 @@ async def run_specialist(
 
     logger.info(
         "Specialist %s (%s) finished — status=%s confidence=%.2f verdict=%s",
-        ctx.agent_id, ctx.role, envelope.status, envelope.confidence, envelope.verdict,
+        ctx.agent_id,
+        ctx.role,
+        envelope.status,
+        envelope.confidence,
+        envelope.verdict,
     )
 
     if registry:

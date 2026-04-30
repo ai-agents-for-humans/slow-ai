@@ -13,8 +13,13 @@ router = APIRouter()
 @router.post("/api/brief/confirm", response_class=HTMLResponse)
 async def brief_confirm(session_id: str | None = Cookie(default=None)):
     import logging
+
     log = logging.getLogger(__name__)
-    log.warning("brief/confirm: session_id=%s known_sessions=%s", session_id, list(_sessions.keys()))
+    log.warning(
+        "brief/confirm: session_id=%s known_sessions=%s",
+        session_id,
+        list(_sessions.keys()),
+    )
 
     if not session_id or session_id not in _sessions:
         return HTMLResponse(
@@ -26,7 +31,10 @@ async def brief_confirm(session_id: str | None = Cookie(default=None)):
     brief = session.get("brief")
     log.warning("brief/confirm: brief=%s", brief)
     if brief is None:
-        return HTMLResponse("<p class='text-danger'>No brief in session yet — keep chatting.</p>", status_code=400)
+        return HTMLResponse(
+            "<p class='text-danger'>No brief in session yet — keep chatting.</p>",
+            status_code=400,
+        )
 
     project_id = str(uuid.uuid4())
     project_dir = Path("output") / project_id

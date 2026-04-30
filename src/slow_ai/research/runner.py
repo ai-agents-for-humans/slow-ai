@@ -1,8 +1,7 @@
 import asyncio
 import json
 import logging
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic_ai import Agent
@@ -18,21 +17,18 @@ from slow_ai.agents.report_agent import generate_final_report
 from slow_ai.agents.specialist import run_specialist
 from slow_ai.execution.git_store import GitStore
 from slow_ai.execution.registry import AgentRegistry
+from slow_ai.llm import ModelRegistry
 from slow_ai.models import (
     AgentContext,
-    AgentMemory,
-    AgentTask,
     ContextGraph,
     EvidenceEnvelope,
     Phase,
     PhaseSummary,
     ProblemBrief,
     ResearchReport,
-    SpecialistAssignment,
     SpawnRequest,
     WorkItem,
 )
-from slow_ai.llm import ModelRegistry
 from slow_ai.skills import SkillRegistry
 from slow_ai.skills.resolver import resolve_skills, viability_assess
 from slow_ai.skills.synthesizer import synthesize_skills
@@ -40,7 +36,7 @@ from slow_ai.tools.code_execution import setup_run_venv
 
 logger = logging.getLogger(__name__)
 
-_MAX_PHASES = 8   # circuit breaker: never run more than this many phases
+_MAX_PHASES = 8  # circuit breaker: never run more than this many phases
 
 
 async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | None:
@@ -92,12 +88,12 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
         total_items = sum(len(p.work_items) for p in context_graph.phases)
         logger.info(
             "Context graph ready — %d phases, %d work items.",
-            len(context_graph.phases), total_items,
+            len(context_graph.phases),
+            total_items,
         )
         _log(
             store,
-            f"Context graph ready — {len(context_graph.phases)} phases, "
-            f"{total_items} work items.",
+            f"Context graph ready — {len(context_graph.phases)} phases, {total_items} work items.",
         )
 
         # ── Viability gate ────────────────────────────────────────────────────
@@ -111,12 +107,20 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
             synthesis_result = await synthesize_skills(skill_gaps, skill_registry)
             if synthesis_result.synthesized:
                 names = [s.name for s in synthesis_result.synthesized]
-                _log(store, f"Synthesized {len(synthesis_result.synthesized)} skill(s): {names}.")
+                _log(
+                    store,
+                    f"Synthesized {len(synthesis_result.synthesized)} skill(s): {names}.",
+                )
             if synthesis_result.needs_new_tool:
-                _log(store, f"{len(synthesis_result.needs_new_tool)} skill(s) need new tools.")
+                _log(
+                    store,
+                    f"{len(synthesis_result.needs_new_tool)} skill(s) need new tools.",
+                )
             executable_ids, blocked_ids, skill_gaps = resolve_skills(context_graph, skill_registry)
 
-        viability = await viability_assess(brief, context_graph, executable_ids, blocked_ids, skill_gaps)
+        viability = await viability_assess(
+            brief, context_graph, executable_ids, blocked_ids, skill_gaps
+        )
 
         milestone_artefacts: dict = {"viability.json": viability.model_dump()}
         if synthesis_result:
@@ -133,18 +137,27 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
         )
 
         if viability.action == "no_go":
-            logger.warning("Run %s blocked on capabilities — %d gap(s).", run_id, len(viability.skill_gaps))
-            store.write_live("capability_checkpoint.json", {
-                "gaps": [g.model_dump() for g in viability.skill_gaps],
-                "blocked_work_items": viability.blocked_work_items,
-                "reasoning": viability.reasoning,
-            })
+            logger.warning(
+                "Run %s blocked on capabilities — %d gap(s).",
+                run_id,
+                len(viability.skill_gaps),
+            )
+            store.write_live(
+                "capability_checkpoint.json",
+                {
+                    "gaps": [g.model_dump() for g in viability.skill_gaps],
+                    "blocked_work_items": viability.blocked_work_items,
+                    "reasoning": viability.reasoning,
+                },
+            )
             store.write_live("status.json", {"status": "blocked_on_capabilities"})
             _log(store, "Run blocked — resolve skill gaps before retrying.")
             return None
 
         # Build working graph: filter blocked items from phases
-        working_graph = _build_working_graph(context_graph, viability.executable_work_items, viability.action)
+        working_graph = _build_working_graph(
+            context_graph, viability.executable_work_items, viability.action
+        )
         if viability.action == "degraded":
             for item_id in viability.blocked_work_items:
                 missing = [g.skill for g in viability.skill_gaps if item_id in g.required_by]
@@ -207,7 +220,9 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
                 work_item = _find_work_item(phase, ctx.work_item_id)
                 if work_item and work_item.required_skills:
                     ctx.tools_available = skill_registry.tools_for_skills(work_item.required_skills)
-                    ctx.skill_instructions = skill_registry.instructions_for_skills(work_item.required_skills)
+                    ctx.skill_instructions = skill_registry.instructions_for_skills(
+                        work_item.required_skills
+                    )
                 else:
                     ctx.tools_available = ["perplexity_search", "web_browse"]
                     ctx.skill_instructions = ""
@@ -225,9 +240,13 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
             _emit(store, registry, artefacts)
             logger.info(
                 "Phase '%s': running %d specialists in parallel…",
-                phase.name, len(plan.specialists),
+                phase.name,
+                len(plan.specialists),
             )
-            _log(store, f"Phase '{phase.name}': running {len(plan.specialists)} specialists in parallel...")
+            _log(
+                store,
+                f"Phase '{phase.name}': running {len(plan.specialists)} specialists in parallel...",
+            )
 
             # Run all specialists in the phase in parallel
             phase_envelopes = await _run_wave(plan.specialists, store, registry, artefacts)
@@ -247,7 +266,9 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
                         try:
                             content = json.loads(existing.read_text(encoding="utf-8"))
                         except (json.JSONDecodeError, UnicodeDecodeError):
-                            content = {"raw": existing.read_text(encoding="utf-8", errors="replace")}
+                            content = {
+                                "raw": existing.read_text(encoding="utf-8", errors="replace")
+                            }
                     else:
                         content = env.proof
                     phase_artefacts[rel_path] = content
@@ -255,7 +276,9 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
                     for code_file in agent_dir.glob("*.py"):
                         rel_path = f"artefacts/{phase.id}/{env.agent_id}/{code_file.name}"
                         if rel_path not in phase_artefacts:
-                            phase_artefacts[rel_path] = {"raw": code_file.read_text(encoding="utf-8", errors="replace")}
+                            phase_artefacts[rel_path] = {
+                                "raw": code_file.read_text(encoding="utf-8", errors="replace")
+                            }
 
             store.commit_milestone(
                 f"M-{phase.id}-evidence",
@@ -264,13 +287,15 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
             )
             _log(
                 store,
-                f"Phase '{phase.name}' evidence committed — "
-                f"{len(phase_envelopes)} envelopes.",
+                f"Phase '{phase.name}' evidence committed — {len(phase_envelopes)} envelopes.",
             )
 
             # Phase synthesis (always)
             _log(store, f"Phase '{phase.name}': synthesising...")
-            store.write_live("status.json", {"status": "running", "phase_status": f"synthesising_{phase.id}"})
+            store.write_live(
+                "status.json",
+                {"status": "running", "phase_status": f"synthesising_{phase.id}"},
+            )
             summary = await synthesise_phase(phase, phase_envelopes, brief)
             phase_summaries.append(summary)
 
@@ -311,24 +336,39 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
             completed_phase_ids.add(phase.id)
 
             if decision.action == "circuit_break":
-                logger.warning("Circuit breaker fired for phase '%s': %s", phase.name, decision.circuit_break_reason)
+                logger.warning(
+                    "Circuit breaker fired for phase '%s': %s",
+                    phase.name,
+                    decision.circuit_break_reason,
+                )
                 _log(store, f"Circuit breaker: {decision.circuit_break_reason}")
                 break
 
             if decision.action == "synthesize":
-                logger.info("Assessment: all key questions answered — proceeding to final synthesis.")
-                _log(store, "Assessment: all key questions answered — proceeding to final synthesis.")
+                logger.info(
+                    "Assessment: all key questions answered — proceeding to final synthesis."
+                )
+                _log(
+                    store,
+                    "Assessment: all key questions answered — proceeding to final synthesis.",
+                )
                 break
 
             if decision.action == "escalate_to_human":
-                store.write_live("human_checkpoint.json", {
-                    "phase_id": phase.id,
-                    "phase_name": phase.name,
-                    "escalation_notes": decision.escalation_notes,
-                    "reasoning": decision.reasoning,
-                })
+                store.write_live(
+                    "human_checkpoint.json",
+                    {
+                        "phase_id": phase.id,
+                        "phase_name": phase.name,
+                        "escalation_notes": decision.escalation_notes,
+                        "reasoning": decision.reasoning,
+                    },
+                )
                 store.write_live("status.json", {"status": "waiting_for_human"})
-                _log(store, "Escalated to human — synthesising with evidence collected so far.")
+                _log(
+                    store,
+                    "Escalated to human — synthesising with evidence collected so far.",
+                )
                 break
 
             # decision.action == "proceed" — continue to next phase
@@ -373,6 +413,7 @@ async def run_research(brief: ProblemBrief, run_id: str) -> ResearchReport | Non
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _load_prior_context(prior_run_ids: list[str]) -> str:
     """
@@ -444,14 +485,17 @@ def _build_working_graph(
         executable_items = [wi for wi in phase.work_items if wi.id in executable_set]
         if executable_items:
             from slow_ai.models import Phase as PhaseModel
-            working_phases.append(PhaseModel(
-                id=phase.id,
-                name=phase.name,
-                purpose=phase.purpose,
-                work_items=executable_items,
-                depends_on_phases=phase.depends_on_phases,
-                synthesis_instruction=phase.synthesis_instruction,
-            ))
+
+            working_phases.append(
+                PhaseModel(
+                    id=phase.id,
+                    name=phase.name,
+                    purpose=phase.purpose,
+                    work_items=executable_items,
+                    depends_on_phases=phase.depends_on_phases,
+                    synthesis_instruction=phase.synthesis_instruction,
+                )
+            )
     return ContextGraph(goal=graph.goal, phases=working_phases)
 
 
@@ -470,29 +514,39 @@ def _graph_for_ui(graph: ContextGraph) -> dict:
     edges = []
     for phase in graph.phases:
         # Add a phase header node
-        nodes.append({
-            "id": phase.id,
-            "name": phase.name,
-            "description": phase.purpose,
-            "node_type": "phase",
-            "required_skills": [],
-            "success_criteria": [],
-        })
+        nodes.append(
+            {
+                "id": phase.id,
+                "name": phase.name,
+                "description": phase.purpose,
+                "node_type": "phase",
+                "required_skills": [],
+                "success_criteria": [],
+            }
+        )
         # Add work item nodes
         for wi in phase.work_items:
-            nodes.append({
-                "id": wi.id,
-                "name": wi.name,
-                "description": wi.description,
-                "node_type": "work_item",
-                "required_skills": wi.required_skills,
-                "success_criteria": wi.success_criteria,
-                "phase_id": phase.id,
-            })
+            nodes.append(
+                {
+                    "id": wi.id,
+                    "name": wi.name,
+                    "description": wi.description,
+                    "node_type": "work_item",
+                    "required_skills": wi.required_skills,
+                    "success_criteria": wi.success_criteria,
+                    "phase_id": phase.id,
+                }
+            )
             edges.append({"source": wi.id, "target": phase.id, "edge_type": "belongs_to"})
         # Phase dependencies as edges
         for dep_phase_id in phase.depends_on_phases:
-            edges.append({"source": phase.id, "target": dep_phase_id, "edge_type": "phase_depends"})
+            edges.append(
+                {
+                    "source": phase.id,
+                    "target": dep_phase_id,
+                    "edge_type": "phase_depends",
+                }
+            )
 
     return {
         "goal": graph.goal,
@@ -537,7 +591,9 @@ async def _run_wave(
         if isinstance(result, Exception):
             logger.error(
                 "Specialist %s (%s) failed: %s",
-                specialists[i].agent_id, specialists[i].role, result,
+                specialists[i].agent_id,
+                specialists[i].role,
+                result,
                 exc_info=result,
             )
             _log(store, f"Specialist {specialists[i].agent_id} failed: {result}")
@@ -570,7 +626,6 @@ async def _synthesise(
     store: GitStore,
     registry: AgentRegistry,
 ) -> ResearchReport:
-
     synthesis_agent = Agent(
         model=ModelRegistry().for_task("report_synthesis"),
         output_type=ResearchReport,
@@ -602,7 +657,7 @@ Return a ResearchReport.
     report: ResearchReport = result.output
     report.run_id = run_id
     report.brief_goal = brief.goal
-    report.generated_at = datetime.now(timezone.utc).isoformat()
+    report.generated_at = datetime.now(UTC).isoformat()
 
     store.commit_milestone(
         "M-final-report",

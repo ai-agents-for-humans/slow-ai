@@ -2,14 +2,13 @@ from pathlib import Path
 
 import yaml
 
-
 # Sections written into and parsed from a SKILL.md body
 _BODY_SECTIONS = {
-    "## When to use":       "when_to_use",       # str
-    "## How to execute":    "how_to_execute",     # list[str]
-    "## Output contract":   "output_contract",    # str
-    "## Quality bar":       "quality_bar",        # list[str]
-    "## Pairs well with":   "pairs_with",         # list[str]
+    "## When to use": "when_to_use",  # str
+    "## How to execute": "how_to_execute",  # list[str]
+    "## Output contract": "output_contract",  # str
+    "## Quality bar": "quality_bar",  # list[str]
+    "## Pairs well with": "pairs_with",  # list[str]
 }
 _LIST_FIELDS = {"how_to_execute", "quality_bar", "pairs_with"}
 
@@ -101,21 +100,21 @@ class SkillRegistry:
         skill_dir.mkdir(parents=True, exist_ok=True)
 
         frontmatter = {
-            "name":        skill["name"],
+            "name": skill["name"],
             "description": skill.get("description", ""),
-            "tools":       skill.get("tools", []),
-            "source":      skill.get("source", "synthesized"),
-            "tags":        skill.get("tags", []),
+            "tools": skill.get("tools", []),
+            "source": skill.get("source", "synthesized"),
+            "tags": skill.get("tags", []),
         }
-        content = f"---\n{yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)}---\n"
+        content = (
+            f"---\n{yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)}---\n"
+        )
 
         if skill.get("when_to_use"):
             content += f"\n## When to use\n{skill['when_to_use']}\n"
 
         if skill.get("how_to_execute"):
-            steps = "\n".join(
-                f"{i + 1}. {s}" for i, s in enumerate(skill["how_to_execute"])
-            )
+            steps = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(skill["how_to_execute"]))
             content += f"\n## How to execute\n{steps}\n"
 
         if skill.get("output_contract"):
@@ -151,8 +150,7 @@ class SkillRegistry:
     def descriptions_for_prompt(self) -> str:
         """One-liner per skill — used by the context planner."""
         return "\n".join(
-            f"- {name}: {skill['description']}"
-            for name, skill in self._skills.items()
+            f"- {name}: {skill['description']}" for name, skill in self._skills.items()
         )
 
     def instructions_for_skills(self, skill_names: list[str]) -> str:
@@ -169,8 +167,13 @@ class SkillRegistry:
             # Skip skills with no body content — just a description
             has_body = any(
                 skill.get(k)
-                for k in ("when_to_use", "how_to_execute", "output_contract",
-                          "quality_bar", "pairs_with")
+                for k in (
+                    "when_to_use",
+                    "how_to_execute",
+                    "output_contract",
+                    "quality_bar",
+                    "pairs_with",
+                )
             )
             if not has_body:
                 continue
@@ -181,10 +184,7 @@ class SkillRegistry:
                 lines += ["", "**When to use**", skill["when_to_use"]]
 
             if skill.get("how_to_execute"):
-                steps = "\n".join(
-                    f"{i + 1}. {s}"
-                    for i, s in enumerate(skill["how_to_execute"])
-                )
+                steps = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(skill["how_to_execute"]))
                 lines += ["", "**How to execute**", steps]
 
             if skill.get("output_contract"):

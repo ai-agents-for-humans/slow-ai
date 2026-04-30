@@ -8,6 +8,7 @@
 
 > *It's called Slow AI. In 2026. When everyone else is shipping "turbo", "instant", and "flash".*
 
+[![CI](https://github.com/ai-agents-for-humans/slow-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/ai-agents-for-humans/slow-ai/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)
 ![pydantic-ai](https://img.shields.io/badge/built%20with-pydantic--ai-7c3aed?style=flat-square)
@@ -133,13 +134,33 @@ Supported: Google · OpenAI · Anthropic · OpenRouter · Ollama · any OpenAI-c
 git clone https://github.com/ai-agents-for-humans/slow-ai
 cd slow-ai
 bash install.sh
+source ~/.zshrc          # or ~/.bashrc — loads the API keys into your shell
 PYTHONPATH=. uv run uvicorn app.main:app --reload
 ```
 
-The install script handles `uv`, dependencies, and walks you through API key setup. You need a Gemini key for the default model config. Perplexity is optional — if you have it, web search gets better. Everything else runs without it.
+Open `http://localhost:8000`.
 
-**What you need:** Python 3.11+. Git. Two API keys maximum.
+The install script handles `uv`, dependencies, and walks you through API key setup (`GEMINI_KEY_SLOW_AI` and optionally `PERPLEXITY_KEY_SLOW_AI`). Keys are written to `.env` and exported to your shell profile — you only set them once.
+
+**What you need:** Python 3.11+. Git. A Gemini API key.
 **What you do not need:** Docker. A database. An account with any platform.
+
+---
+
+## Contributing
+
+```bash
+git clone https://github.com/ai-agents-for-humans/slow-ai
+cd slow-ai
+uv sync --dev
+uv run pre-commit install
+```
+
+Pre-commit runs ruff (lint + format) and mypy on every commit. The CI pipeline runs the same checks plus the test suite on every push and PR.
+
+To add a new skill — a reusable capability that specialist agents can be assigned — use the `/new-skill` command in Claude Code, or follow the structure in any existing skill under `src/slow_ai/skills/catalog/`.
+
+To swap models, edit `src/slow_ai/llm/registry.json`. No code changes required.
 
 ---
 
@@ -211,11 +232,11 @@ It currently works with Gemini API key and Perplexity API key. You can bring you
 
 Everything is at **[ai-agents-for-humans.github.io/slow-ai](https://ai-agents-for-humans.github.io/slow-ai)**
 
+- [Getting started](https://ai-agents-for-humans.github.io/slow-ai/getting-started) — from zero to first run
 - [How it works](https://ai-agents-for-humans.github.io/slow-ai/how-it-works) — five acts, one thread of understanding
 - [Architecture](https://ai-agents-for-humans.github.io/slow-ai/architecture) — the full technical deep dive
-- [Getting started](https://ai-agents-for-humans.github.io/slow-ai/getting-started) — from zero to first run
-- [Known Issues](https://ai-agents-for-humans.github.io/slow-ai/known-issues) - Known issues
 - [What's next](https://ai-agents-for-humans.github.io/slow-ai/whats-next) — the roadmap and why
+- [Known issues](https://ai-agents-for-humans.github.io/slow-ai/known-issues) — what's missing and what's next
 
 ---
 

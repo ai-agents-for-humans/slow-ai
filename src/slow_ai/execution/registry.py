@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Literal
 
-from slow_ai.models import AgentRegistration, SpawnRequest
+from slow_ai.models import AgentRegistration
 
 
 class AgentRegistry:
@@ -28,7 +29,7 @@ class AgentRegistry:
             agent_type=agent_type,
             parent_agent_id=parent_agent_id,
             task_id=task_id,
-            spawned_at=datetime.now(timezone.utc).isoformat(),
+            spawned_at=datetime.now(UTC).isoformat(),
             work_item_id=work_item_id,
         )
         self.agents[agent_id] = reg
@@ -38,14 +39,17 @@ class AgentRegistry:
 
         return reg
 
-    def update_status(self, agent_id: str, status: str, tokens_used: int = 0) -> None:
+    def update_status(
+        self,
+        agent_id: str,
+        status: Literal["registered", "running", "completed", "failed"],
+        tokens_used: int = 0,
+    ) -> None:
         if agent_id in self.agents:
             self.agents[agent_id].status = status
             self.agents[agent_id].tokens_used = tokens_used
             if status in ("completed", "failed"):
-                self.agents[agent_id].completed_at = (
-                    datetime.now(timezone.utc).isoformat()
-                )
+                self.agents[agent_id].completed_at = datetime.now(UTC).isoformat()
 
     def set_memory_path(self, agent_id: str, path: str) -> None:
         if agent_id in self.agents:
@@ -54,14 +58,9 @@ class AgentRegistry:
     def snapshot(self) -> dict:
         """Return full registry as dict for git commit."""
         return {
-            "agents": {
-                aid: reg.model_dump()
-                for aid, reg in self.agents.items()
-            },
+            "agents": {aid: reg.model_dump() for aid, reg in self.agents.items()},
             "total_agents": len(self.agents),
-            "running": sum(
-                1 for r in self.agents.values() if r.status == "running"
-            ),
+            "running": sum(1 for r in self.agents.values() if r.status == "running"),
         }
 
     def get_dag(self) -> dict:

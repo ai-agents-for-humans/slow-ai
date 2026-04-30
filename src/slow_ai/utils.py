@@ -1,6 +1,7 @@
 """
 Shared utility helpers.
 """
+
 import asyncio
 import logging
 from collections.abc import Callable, Coroutine
@@ -40,7 +41,11 @@ async def retry_async(
             delay = base_delay * (2 ** (attempt - 1))
             logger.warning(
                 "Attempt %d/%d failed (%s: %s). Retrying in %.1fs…",
-                attempt, max_attempts, type(exc).__name__, exc, delay,
+                attempt,
+                max_attempts,
+                type(exc).__name__,
+                exc,
+                delay,
             )
             await asyncio.sleep(delay)
     raise last_exc  # type: ignore[misc]

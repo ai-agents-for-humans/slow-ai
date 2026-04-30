@@ -5,9 +5,9 @@ from pydantic_ai import Agent
 
 
 class GeneratedCode(BaseModel):
-    code: str           # the complete Python code
-    filename: str       # suggested .py filename (e.g. "analyse_shapefile.py")
-    description: str    # one-sentence description of what the code does
+    code: str  # the complete Python code
+    filename: str  # suggested .py filename (e.g. "analyse_shapefile.py")
+    description: str  # one-sentence description of what the code does
 
 
 _CODE_GEN_PROMPT = """
@@ -29,6 +29,7 @@ Rules:
 
 def _make_agent() -> Agent:
     from slow_ai.llm import ModelRegistry
+
     model = ModelRegistry().for_task("code_generation")
     return Agent(
         model=model,

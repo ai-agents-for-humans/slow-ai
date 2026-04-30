@@ -23,6 +23,7 @@ async def web_browse(url: str, max_chars: int = 4000) -> BrowseResult:
     Retries up to 3 times with exponential backoff on network errors and
     server-side failures (5xx). Always returns a BrowseResult — never raises.
     """
+
     async def _fetch() -> BrowseResult:
         async with httpx.AsyncClient(
             timeout=15.0,

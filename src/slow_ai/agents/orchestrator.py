@@ -1,11 +1,10 @@
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from typing import Any
 
 from pydantic_ai import Agent
 
-logger = logging.getLogger(__name__)
 from slow_ai.execution.registry import AgentRegistry
 from slow_ai.llm import ModelRegistry
 from slow_ai.models import (
@@ -19,14 +18,13 @@ from slow_ai.models import (
     PhaseSummary,
     ProblemBrief,
     ResearchPlan,
-    SkillGap,
-    ViabilityDecision,
     SpawnRequest,
-    WorkItem,
 )
-from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ── Context planner ───────────────────────────────────────────────────────────
+
 
 def _context_planner_prompt(skill_registry_description: str) -> str:
     return f"""
@@ -78,6 +76,7 @@ async def run_graph_editor(
 ) -> ContextGraph:
     """Refine an existing context graph based on user feedback."""
     from slow_ai.skills import SkillRegistry
+
     skill_registry = SkillRegistry()
     editor = Agent(
         model=ModelRegistry().for_task("context_planning"),
@@ -104,6 +103,7 @@ async def run_context_planner(
     prior_context: str = "",
 ) -> ContextGraph:
     from slow_ai.skills import SkillRegistry
+
     skill_registry = SkillRegistry()
     planner = Agent(
         model=ModelRegistry().for_task("context_planning"),
@@ -113,7 +113,8 @@ async def run_context_planner(
     prior_section = (
         f"\n\nPRIOR RUN CONTEXT (do not repeat work already covered — "
         f"focus new phases on what is missing or incomplete):\n{prior_context}"
-        if prior_context else ""
+        if prior_context
+        else ""
     )
     result = await planner.run(
         f"Run ID: {run_id}\n\nProblem brief:\n{json.dumps(brief.model_dump(), indent=2)}"
@@ -193,9 +194,7 @@ FORMATTING RULES:
 
     phases_data = json.dumps([s.model_dump() for s in phase_summaries], indent=2)
     result = await agent.run(
-        f"Research goal: {brief.goal}\n\n"
-        f"Phase summaries:\n{phases_data}\n\n"
-        "Write the run summary."
+        f"Research goal: {brief.goal}\n\nPhase summaries:\n{phases_data}\n\nWrite the run summary."
     )
     return result.output
 
@@ -290,6 +289,7 @@ Focus the new brief on what is genuinely unfinished.
 
 # ── Phase orchestrator ────────────────────────────────────────────────────────
 
+
 def _phase_orchestrator_prompt(brief: ProblemBrief, phase: Phase, graph: ContextGraph) -> str:
     other_phases = [p.name for p in graph.phases if p.id != phase.id]
     return f"""
@@ -302,7 +302,7 @@ CURRENT PHASE: {phase.name}
 PHASE PURPOSE: {phase.purpose}
 
 OTHER PHASES (context only — do not assign work to these):
-{', '.join(other_phases) if other_phases else 'None — this is the only phase.'}
+{", ".join(other_phases) if other_phases else "None — this is the only phase."}
 
 YOUR JOB:
 Assign one specialist agent per work item in this phase. All specialists will run
@@ -369,6 +369,7 @@ async def run_orchestrator(
 
 # ── Phase synthesis ───────────────────────────────────────────────────────────
 
+
 async def synthesise_phase(
     phase: Phase,
     envelopes: list[EvidenceEnvelope],
@@ -387,7 +388,7 @@ You are synthesising the results of a completed phase of work.
 
 PHASE: {phase.name}
 PHASE PURPOSE: {phase.purpose}
-SYNTHESIS INSTRUCTION: {phase.synthesis_instruction or 'Summarise key findings, note gaps and contradictions.'}
+SYNTHESIS INSTRUCTION: {phase.synthesis_instruction or "Summarise key findings, note gaps and contradictions."}
 
 You receive evidence envelopes from all agents that ran in this phase.
 Produce a concise synthesis (3-8 paragraphs) that:
@@ -403,17 +404,14 @@ If evidence is thin, say so clearly.
 
     envelope_data = json.dumps([e.model_dump() for e in envelopes], indent=2)
     result = await synthesis_agent.run(
-        f"Phase: {phase.name}\nGoal context: {brief.goal}\n\n"
-        f"Evidence envelopes:\n{envelope_data}"
+        f"Phase: {phase.name}\nGoal context: {brief.goal}\n\nEvidence envelopes:\n{envelope_data}"
     )
     synthesis_text: str = result.output
 
     # Classify work items by confidence
-    envelope_by_item: dict[str, EvidenceEnvelope] = {}
-    for env in envelopes:
-        # match envelope to work item via agent registry's work_item_id
-        # envelopes carry work_item_id indirectly through agent registration;
-        # here we match by position (one specialist per work item)
+    # envelopes carry work_item_id indirectly through agent registration;
+    # matched by position (one specialist per work item)
+    for _env in envelopes:
         pass
 
     # Compute per-item confidence from envelopes
@@ -429,7 +427,7 @@ If evidence is thin, say so clearly.
 
     # Handle case where envelope count doesn't match work item count
     # (failures, skips) — remaining items are uncovered
-    for wi in phase.work_items[len(envelopes):]:
+    for wi in phase.work_items[len(envelopes) :]:
         uncovered.append(wi.id)
 
     mean_conf = sum(e.confidence for e in envelopes) / len(envelopes) if envelopes else 0.0
@@ -516,6 +514,7 @@ async def orchestrator_assess(
 
 
 # ── Spawn handler ─────────────────────────────────────────────────────────────
+
 
 async def handle_spawn_request(
     request: SpawnRequest,

@@ -9,6 +9,7 @@ Before executing anything, bandit scans the code for security issues:
 The run venv is created with uv the first time code is executed in a run,
 then reused for all subsequent executions in the same run.
 """
+
 import asyncio
 import json
 import subprocess
@@ -19,11 +20,21 @@ from pathlib import Path
 # Packages seeded into every new run venv.
 # Agents can install more via pip install inside execute(), but these are guaranteed present.
 _SEED_PACKAGES = [
-    "pandas", "numpy", "scipy",
-    "matplotlib", "seaborn", "plotly",
-    "requests", "httpx", "beautifulsoup4", "lxml",
-    "pdfplumber", "openpyxl", "pyarrow",
-    "networkx", "scikit-learn",
+    "pandas",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "seaborn",
+    "plotly",
+    "requests",
+    "httpx",
+    "beautifulsoup4",
+    "lxml",
+    "pdfplumber",
+    "openpyxl",
+    "pyarrow",
+    "networkx",
+    "scikit-learn",
     "bandit",
 ]
 
@@ -48,12 +59,13 @@ def setup_run_venv(run_id: str, base_path: Path = Path("runs")) -> Path:
 
     subprocess.run(
         ["uv", "venv", str(venv_path)],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
-        ["uv", "pip", "install", "--python", str(_venv_python(venv_path))]
-        + _SEED_PACKAGES,
-        check=True, capture_output=True,
+        ["uv", "pip", "install", "--python", str(_venv_python(venv_path))] + _SEED_PACKAGES,
+        check=True,
+        capture_output=True,
     )
     return venv_path
 
@@ -70,16 +82,15 @@ def security_scan(code: str) -> dict:
         "blocked": bool,    # True when any HIGH issues found
       }
     """
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
         f.write(code)
         tmp_path = Path(f.name)
 
     try:
         result = subprocess.run(
             ["bandit", "-f", "json", "-q", str(tmp_path)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         try:
             data = json.loads(result.stdout or "{}")
@@ -143,8 +154,7 @@ async def code_execution(
         medium_warning = (
             "Security warnings (MEDIUM severity — execution allowed):\n"
             + "\n".join(
-                f"  [{f['test_id']}] line {f['line']}: {f['description']}"
-                for f in scan["medium"]
+                f"  [{f['test_id']}] line {f['line']}: {f['description']}" for f in scan["medium"]
             )
             + "\n\n"
         )
@@ -159,9 +169,7 @@ async def code_execution(
         python = sys.executable
 
     # ── Execute ───────────────────────────────────────────────────────────────
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
         f.write(code)
         tmp_path = f.name
 
@@ -171,16 +179,15 @@ async def code_execution(
             Path(cwd).mkdir(parents=True, exist_ok=True)
 
         proc = await asyncio.create_subprocess_exec(
-            python, tmp_path,
+            python,
+            tmp_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
-        except asyncio.TimeoutError:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except TimeoutError:
             proc.kill()
             await proc.communicate()
             return {

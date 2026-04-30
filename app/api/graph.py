@@ -1,4 +1,3 @@
-import json
 import uuid
 from pathlib import Path
 
@@ -20,44 +19,52 @@ def _graph_for_cytoscape(graph: ContextGraph) -> list[dict]:
     """Convert ContextGraph to Cytoscape elements array."""
     elements = []
     for phase in graph.phases:
-        elements.append({
-            "data": {
-                "id": phase.id,
-                "label": phase.name,
-                "node_type": "phase",
-                "description": phase.purpose,
-            },
-            "classes": "phase-node",
-        })
+        elements.append(
+            {
+                "data": {
+                    "id": phase.id,
+                    "label": phase.name,
+                    "node_type": "phase",
+                    "description": phase.purpose,
+                },
+                "classes": "phase-node",
+            }
+        )
         for wi in phase.work_items:
-            elements.append({
-                "data": {
-                    "id": wi.id,
-                    "label": wi.name,
-                    "node_type": "work_item",
-                    "description": wi.description,
-                    "parent_phase": phase.id,
-                    "skills": ", ".join(wi.required_skills),
-                },
-                "classes": "work-item-node",
-            })
-            elements.append({
-                "data": {
-                    "source": wi.id,
-                    "target": phase.id,
-                    "edge_type": "belongs_to",
-                },
-                "classes": "belongs-edge",
-            })
+            elements.append(
+                {
+                    "data": {
+                        "id": wi.id,
+                        "label": wi.name,
+                        "node_type": "work_item",
+                        "description": wi.description,
+                        "parent_phase": phase.id,
+                        "skills": ", ".join(wi.required_skills),
+                    },
+                    "classes": "work-item-node",
+                }
+            )
+            elements.append(
+                {
+                    "data": {
+                        "source": wi.id,
+                        "target": phase.id,
+                        "edge_type": "belongs_to",
+                    },
+                    "classes": "belongs-edge",
+                }
+            )
         for dep in phase.depends_on_phases:
-            elements.append({
-                "data": {
-                    "source": dep,
-                    "target": phase.id,
-                    "edge_type": "phase_depends",
-                },
-                "classes": "depends-edge",
-            })
+            elements.append(
+                {
+                    "data": {
+                        "source": dep,
+                        "target": phase.id,
+                        "edge_type": "phase_depends",
+                    },
+                    "classes": "depends-edge",
+                }
+            )
     return elements
 
 
@@ -130,7 +137,10 @@ async def refine_graph(request: Request, project_id: str, message: str = Form(..
 
     current_graph = _graph_sessions.get(project_id) or _load_graph(project_id)
     if current_graph is None:
-        return HTMLResponse("<p class='text-danger'>No graph yet — refresh the page.</p>", status_code=400)
+        return HTMLResponse(
+            "<p class='text-danger'>No graph yet — refresh the page.</p>",
+            status_code=400,
+        )
 
     run_id = str(uuid.uuid4())
     updated = await run_graph_editor(brief, current_graph, message, run_id)

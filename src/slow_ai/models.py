@@ -1,6 +1,4 @@
-from datetime import datetime, timezone
 from typing import Any, Literal
-import uuid
 
 from pydantic import BaseModel
 
@@ -13,25 +11,26 @@ class ProblemBrief(BaseModel):
     success_criteria: list[str]
     milestone_flags: list[str]
     excluded_paths: list[str]
-    prior_run_ids: list[str] = []   # ordered chain of prior run IDs, oldest first
+    prior_run_ids: list[str] = []  # ordered chain of prior run IDs, oldest first
 
 
 # --- Context graph ---
 
+
 class WorkItem(BaseModel):
-    id: str                         # e.g. "wi-1-1" (phase-1, item-1)
-    name: str                       # short label
-    description: str                # what needs to happen
+    id: str  # e.g. "wi-1-1" (phase-1, item-1)
+    name: str  # short label
+    description: str  # what needs to happen
     success_criteria: list[str] = []
-    required_skills: list[str] = [] # e.g. ["web_search", "pdf_extraction"]
+    required_skills: list[str] = []  # e.g. ["web_search", "pdf_extraction"]
 
 
 class Phase(BaseModel):
-    id: str                          # e.g. "phase-1"
-    name: str                        # e.g. "Explore", "Investigate", "Critique"
-    purpose: str                     # what this phase is trying to achieve
-    work_items: list[WorkItem]       # all run in parallel within this phase
-    depends_on_phases: list[str] = [] # phase ids that must complete before this
+    id: str  # e.g. "phase-1"
+    name: str  # e.g. "Explore", "Investigate", "Critique"
+    purpose: str  # what this phase is trying to achieve
+    work_items: list[WorkItem]  # all run in parallel within this phase
+    depends_on_phases: list[str] = []  # phase ids that must complete before this
     synthesis_instruction: str = ""  # guidance for phase-level synthesis agent
 
 
@@ -42,17 +41,18 @@ class ContextGraph(BaseModel):
 
 # --- Skill gap / viability ---
 
+
 class SkillGap(BaseModel):
-    skill: str                      # e.g. "pdf_extraction"
-    required_by: list[str]          # work item ids that directly need this skill
-    downstream_blocked: int         # total items blocked (including transitive deps)
-    is_critical_path: bool          # blocks > 50% of the graph
+    skill: str  # e.g. "pdf_extraction"
+    required_by: list[str]  # work item ids that directly need this skill
+    downstream_blocked: int  # total items blocked (including transitive deps)
+    is_critical_path: bool  # blocks > 50% of the graph
 
 
 class ViabilityDecision(BaseModel):
     action: Literal["go", "degraded", "no_go"]
     skill_gaps: list[SkillGap] = []
-    blocked_work_items: list[str] = []    # gap items + transitive dependents
+    blocked_work_items: list[str] = []  # gap items + transitive dependents
     executable_work_items: list[str] = []
     coverage_ratio: float = 1.0
     reasoning: str
@@ -60,41 +60,43 @@ class ViabilityDecision(BaseModel):
 
 # --- Skill synthesis ---
 
+
 class SynthesizedSkill(BaseModel):
     name: str
     description: str
-    tools: list[str]                # existing tool names that implement this skill
+    tools: list[str]  # existing tool names that implement this skill
     source: str = "synthesized"
     tags: list[str] = []
     # Rich body fields — written into SKILL.md and injected into agent prompts
-    when_to_use: str = ""           # one-paragraph trigger condition
+    when_to_use: str = ""  # one-paragraph trigger condition
     how_to_execute: list[str] = []  # ordered step-by-step instructions
-    output_contract: str = ""       # what artefacts / format the agent must produce
-    quality_bar: list[str] = []     # pass/fail criteria for a good execution
-    pairs_with: list[str] = []      # complementary skill names
+    output_contract: str = ""  # what artefacts / format the agent must produce
+    quality_bar: list[str] = []  # pass/fail criteria for a good execution
+    pairs_with: list[str] = []  # complementary skill names
 
 
 class SkillSynthesisResult(BaseModel):
     synthesized: list[SynthesizedSkill] = []
-    needs_new_tool: list[str] = []          # skill names that couldn't be synthesized
-    github_search_queries: list[str] = []   # suggested queries for unresolvable gaps
+    needs_new_tool: list[str] = []  # skill names that couldn't be synthesized
+    github_search_queries: list[str] = []  # suggested queries for unresolvable gaps
     reasoning: str
 
 
 # --- Memory ---
 
+
 class MemoryEntry(BaseModel):
-    key: str                    # "kenya_sentinel2_scenes", "urls_checked"
+    key: str  # "kenya_sentinel2_scenes", "urls_checked"
     value: Any
-    source: str                 # "perplexity_search", "web_browse", "inference"
-    confidence: float           # 0.0 to 1.0
-    created_at: str             # ISO timestamp
-    tokens_consumed: int        # how much context this entry cost to produce
+    source: str  # "perplexity_search", "web_browse", "inference"
+    confidence: float  # 0.0 to 1.0
+    created_at: str  # ISO timestamp
+    tokens_consumed: int  # how much context this entry cost to produce
 
 
 class AgentMemory(BaseModel):
     agent_id: str
-    agent_type: str             # reusable template name
+    agent_type: str  # reusable template name
     entries: list[MemoryEntry] = []
     total_tokens: int = 0
     context_budget: int = 8000  # max tokens before decomposition is triggered
@@ -112,6 +114,7 @@ class AgentMemory(BaseModel):
 
 # --- Tasks ---
 
+
 class AgentTask(BaseModel):
     task_id: str = ""
     parent_task_id: str | None = None
@@ -124,6 +127,7 @@ class AgentTask(BaseModel):
 
 # --- Spawn request ---
 
+
 class SpawnRequest(BaseModel):
     requested_by: str
     agent_type: str
@@ -134,6 +138,7 @@ class SpawnRequest(BaseModel):
 
 
 # --- Registry ---
+
 
 class AgentRegistration(BaseModel):
     agent_id: str
@@ -151,6 +156,7 @@ class AgentRegistration(BaseModel):
 
 # --- Agent context ---
 
+
 class AgentContext(BaseModel):
     agent_id: str
     role: str
@@ -159,25 +165,27 @@ class AgentContext(BaseModel):
     memory: AgentMemory
     constraints: dict[str, Any]
     tools_available: list[str] = ["perplexity_search", "web_browse"]
-    skill_instructions: str = ""    # compiled playbooks for active skills
+    skill_instructions: str = ""  # compiled playbooks for active skills
     evidence_required: dict[str, str]
     work_item_id: str | None = None
     artefacts_dir: str | None = None
-    venv_path: str | None = None        # sandboxed run environment
-    prior_run_ids: list[str] = []       # enables read_prior_evidence tool
+    venv_path: str | None = None  # sandboxed run environment
+    prior_run_ids: list[str] = []  # enables read_prior_evidence tool
 
 
 # --- Research plan ---
 
+
 class ResearchPlan(BaseModel):
     run_id: str
-    phase_id: str                        # which phase this plan covers
+    phase_id: str  # which phase this plan covers
     context_graph: ContextGraph | None = None
     specialists: list[AgentContext]
     milestone_flags: list[str]
 
 
 # --- Orchestrator decision (phase assessment) ---
+
 
 class SpecialistAssignment(BaseModel):
     role: str
@@ -190,8 +198,8 @@ class SpecialistAssignment(BaseModel):
 class OrchestratorDecision(BaseModel):
     action: Literal["proceed", "synthesize", "escalate_to_human", "circuit_break"]
     phase_id: str
-    work_items_covered: list[str] = []    # wi-ids with confidence >= 0.6
-    work_items_partial: list[str] = []    # wi-ids with confidence 0.3-0.59
+    work_items_covered: list[str] = []  # wi-ids with confidence >= 0.6
+    work_items_partial: list[str] = []  # wi-ids with confidence 0.3-0.59
     work_items_uncovered: list[str] = []  # wi-ids with confidence < 0.3
     escalation_notes: dict[str, str] = {}
     circuit_break_reason: str = ""
@@ -199,6 +207,7 @@ class OrchestratorDecision(BaseModel):
 
 
 # --- Evidence ---
+
 
 class EvidenceEnvelope(BaseModel):
     agent_id: str
@@ -214,19 +223,21 @@ class EvidenceEnvelope(BaseModel):
 
 # --- Phase summary (synthesis + raw envelopes) ---
 
+
 class PhaseSummary(BaseModel):
     phase_id: str
     phase_name: str
-    synthesis: str                        # LLM-generated narrative
-    envelopes: list[EvidenceEnvelope]     # raw envelopes preserved alongside synthesis
-    covered_item_ids: list[str] = []      # confidence >= 0.6
-    partial_item_ids: list[str] = []      # confidence 0.3-0.59
-    uncovered_item_ids: list[str] = []    # confidence < 0.3
+    synthesis: str  # LLM-generated narrative
+    envelopes: list[EvidenceEnvelope]  # raw envelopes preserved alongside synthesis
+    covered_item_ids: list[str] = []  # confidence >= 0.6
+    partial_item_ids: list[str] = []  # confidence 0.3-0.59
+    uncovered_item_ids: list[str] = []  # confidence < 0.3
     mean_confidence: float = 0.0
     total_tokens: int = 0
 
 
 # --- Dataset output ---
+
 
 class DatasetCandidate(BaseModel):
     name: str

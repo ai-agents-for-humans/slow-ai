@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,17 +21,13 @@ class GitStore:
         """Write JSON content to a file inside the run repo."""
         full_path = self.run_path / relative_path
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        full_path.write_text(
-            json.dumps(content, indent=2, default=str), encoding="utf-8"
-        )
+        full_path.write_text(json.dumps(content, indent=2, default=str), encoding="utf-8")
         return full_path
 
     def _commit(self, message: str, paths: list[str]) -> str:
         """Stage specific files and commit. Returns commit sha."""
         self.repo.index.add(paths)
-        commit = self.repo.index.commit(
-            message, author=AUTHOR, committer=AUTHOR
-        )
+        commit = self.repo.index.commit(message, author=AUTHOR, committer=AUTHOR)
         return commit.hexsha
 
     def commit_brief(self, brief: dict) -> str:
@@ -41,7 +37,7 @@ class GitStore:
     def commit_milestone(
         self,
         milestone: str,
-        artefacts: dict[str, Any],   # relative_path → content
+        artefacts: dict[str, Any],  # relative_path → content
         registry_snapshot: dict | None = None,
     ) -> str:
         paths = []
@@ -55,9 +51,7 @@ class GitStore:
 
         return self._commit(f"[{milestone}]", paths)
 
-    def record_skipped_path(
-        self, path_id: str, reason: str, triggered_by: str
-    ) -> str:
+    def record_skipped_path(self, path_id: str, reason: str, triggered_by: str) -> str:
         content = {
             "path_id": path_id,
             "reason": reason,
@@ -84,9 +78,7 @@ class GitStore:
         live_dir = self.run_path / _LIVE_DIR
         live_dir.mkdir(exist_ok=True)
         data = (
-            json.dumps(content, default=str)
-            if isinstance(content, (dict, list))
-            else str(content)
+            json.dumps(content, default=str) if isinstance(content, dict | list) else str(content)
         )
         (live_dir / filename).write_text(data, encoding="utf-8")
 
@@ -114,7 +106,7 @@ class GitStore:
         entry = {
             "role": role,
             "content": content,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         with (live_dir / "conversation.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")

@@ -5,6 +5,7 @@ All functions read from a fixed run directory (closed over at agent construction
 Nothing is written. Nothing is executed. The agent uses these to answer questions
 about what the swarm found without spawning any new research agents.
 """
+
 import json
 import re
 from pathlib import Path
@@ -28,15 +29,17 @@ def make_run_reader_tools(run_path: Path):
         summaries = json.loads(path.read_text(encoding="utf-8"))
         result = []
         for s in summaries:
-            result.append({
-                "phase_id": s["phase_id"],
-                "phase_name": s["phase_name"],
-                "mean_confidence": round(s.get("mean_confidence", 0.0), 3),
-                "covered_items": s.get("covered_item_ids", []),
-                "partial_items": s.get("partial_item_ids", []),
-                "uncovered_items": s.get("uncovered_item_ids", []),
-                "total_tokens": s.get("total_tokens", 0),
-            })
+            result.append(
+                {
+                    "phase_id": s["phase_id"],
+                    "phase_name": s["phase_name"],
+                    "mean_confidence": round(s.get("mean_confidence", 0.0), 3),
+                    "covered_items": s.get("covered_item_ids", []),
+                    "partial_items": s.get("partial_item_ids", []),
+                    "uncovered_items": s.get("uncovered_item_ids", []),
+                    "total_tokens": s.get("total_tokens", 0),
+                }
+            )
         return json.dumps(result, indent=2)
 
     def read_phase(phase_id: str) -> str:
@@ -51,15 +54,18 @@ def make_run_reader_tools(run_path: Path):
             if live.exists():
                 for s in json.loads(live.read_text(encoding="utf-8")):
                     if s["phase_id"] == phase_id:
-                        return json.dumps({
-                            "phase_id": phase_id,
-                            "phase_name": s["phase_name"],
-                            "synthesis": s.get("synthesis", ""),
-                            "mean_confidence": s.get("mean_confidence", 0),
-                            "covered_items": s.get("covered_item_ids", []),
-                            "partial_items": s.get("partial_item_ids", []),
-                            "uncovered_items": s.get("uncovered_item_ids", []),
-                        }, indent=2)
+                        return json.dumps(
+                            {
+                                "phase_id": phase_id,
+                                "phase_name": s["phase_name"],
+                                "synthesis": s.get("synthesis", ""),
+                                "mean_confidence": s.get("mean_confidence", 0),
+                                "covered_items": s.get("covered_item_ids", []),
+                                "partial_items": s.get("partial_item_ids", []),
+                                "uncovered_items": s.get("uncovered_item_ids", []),
+                            },
+                            indent=2,
+                        )
             return json.dumps({"error": f"Phase '{phase_id}' not found."})
 
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -67,24 +73,29 @@ def make_run_reader_tools(run_path: Path):
         # read_envelope explicitly to get the raw evidence)
         envelope_summaries = []
         for env in data.get("envelopes", []):
-            envelope_summaries.append({
-                "agent_id": env.get("agent_id"),
-                "role": env.get("role"),
-                "status": env.get("status"),
-                "confidence": env.get("confidence"),
-                "verdict": env.get("verdict"),
-                "artefacts": env.get("artefacts", []),
-            })
-        return json.dumps({
-            "phase_id": data.get("phase_id"),
-            "phase_name": data.get("phase_name"),
-            "synthesis": data.get("synthesis", ""),
-            "mean_confidence": data.get("mean_confidence", 0),
-            "covered_items": data.get("covered_item_ids", []),
-            "partial_items": data.get("partial_item_ids", []),
-            "uncovered_items": data.get("uncovered_item_ids", []),
-            "envelope_summaries": envelope_summaries,
-        }, indent=2)
+            envelope_summaries.append(
+                {
+                    "agent_id": env.get("agent_id"),
+                    "role": env.get("role"),
+                    "status": env.get("status"),
+                    "confidence": env.get("confidence"),
+                    "verdict": env.get("verdict"),
+                    "artefacts": env.get("artefacts", []),
+                }
+            )
+        return json.dumps(
+            {
+                "phase_id": data.get("phase_id"),
+                "phase_name": data.get("phase_name"),
+                "synthesis": data.get("synthesis", ""),
+                "mean_confidence": data.get("mean_confidence", 0),
+                "covered_items": data.get("covered_item_ids", []),
+                "partial_items": data.get("partial_item_ids", []),
+                "uncovered_items": data.get("uncovered_item_ids", []),
+                "envelope_summaries": envelope_summaries,
+            },
+            indent=2,
+        )
 
     def read_envelope(agent_id: str) -> str:
         """
@@ -118,17 +129,23 @@ def make_run_reader_tools(run_path: Path):
         matches = []
 
         # Search phase syntheses
-        for synth_path in sorted((run_path / "syntheses").glob("*.json")) if (run_path / "syntheses").exists() else []:
+        for synth_path in (
+            sorted((run_path / "syntheses").glob("*.json"))
+            if (run_path / "syntheses").exists()
+            else []
+        ):
             try:
                 data = json.loads(synth_path.read_text(encoding="utf-8"))
                 text = data.get("synthesis", "")
                 for m in pattern.finditer(text):
                     start = max(0, m.start() - 100)
                     end = min(len(text), m.end() + 100)
-                    matches.append({
-                        "source": f"synthesis:{data.get('phase_id', synth_path.stem)}",
-                        "snippet": "…" + text[start:end] + "…",
-                    })
+                    matches.append(
+                        {
+                            "source": f"synthesis:{data.get('phase_id', synth_path.stem)}",
+                            "snippet": "…" + text[start:end] + "…",
+                        }
+                    )
             except Exception:
                 pass
 
@@ -140,10 +157,12 @@ def make_run_reader_tools(run_path: Path):
                 for m in pattern.finditer(proof_text):
                     start = max(0, m.start() - 100)
                     end = min(len(proof_text), m.end() + 100)
-                    matches.append({
-                        "source": f"envelope:{data.get('agent_id', env_path.stem)}:{data.get('role', '')}",
-                        "snippet": "…" + proof_text[start:end] + "…",
-                    })
+                    matches.append(
+                        {
+                            "source": f"envelope:{data.get('agent_id', env_path.stem)}:{data.get('role', '')}",
+                            "snippet": "…" + proof_text[start:end] + "…",
+                        }
+                    )
                     if len(matches) >= 20:
                         break
             except Exception:
@@ -171,7 +190,11 @@ def make_run_reader_tools(run_path: Path):
         if not path.exists():
             return json.dumps({"error": f"Artefact not found: {relative_path}"})
         if path.stat().st_size > 500_000:
-            return json.dumps({"error": "Artefact too large to read directly. Use search_evidence() to find specific content."})
+            return json.dumps(
+                {
+                    "error": "Artefact too large to read directly. Use search_evidence() to find specific content."
+                }
+            )
 
         try:
             content = path.read_text(encoding="utf-8", errors="replace")
@@ -214,12 +237,17 @@ def search_across_runs(run_paths: list[Path], keyword: str) -> str:
             break
 
     if not all_matches:
-        return json.dumps({
-            "matches": [],
-            "note": f"No results found for '{keyword}' across {len(run_paths)} prior run(s).",
-        })
-    return json.dumps({
-        "keyword": keyword,
-        "runs_searched": len(run_paths),
-        "matches": all_matches[:30],
-    }, indent=2)
+        return json.dumps(
+            {
+                "matches": [],
+                "note": f"No results found for '{keyword}' across {len(run_paths)} prior run(s).",
+            }
+        )
+    return json.dumps(
+        {
+            "keyword": keyword,
+            "runs_searched": len(run_paths),
+            "matches": all_matches[:30],
+        },
+        indent=2,
+    )

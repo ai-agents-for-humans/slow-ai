@@ -21,6 +21,7 @@ async def perplexity_search(query: str) -> PerplexityResult:
     Retries up to 3 times with exponential backoff on network errors and
     rate-limit (429) responses.
     """
+
     async def _call() -> PerplexityResult:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -45,7 +46,7 @@ async def perplexity_search(query: str) -> PerplexityResult:
         answer = data["choices"][0]["message"]["content"]
         citations = data.get("citations", [])
         if not citations:
-            citations = re.findall(r'https?://[^\s\)\"]+', answer)
+            citations = re.findall(r"https?://[^\s\)\"]+", answer)
 
         return PerplexityResult(answer=answer, citations=citations)
 

@@ -4,6 +4,7 @@ run_conversation — post-run analyst agent.
 Grounded in the final research report and all run artefacts. Can answer questions,
 expand on findings, and update the report document on request.
 """
+
 import json
 from pathlib import Path
 
@@ -30,10 +31,10 @@ def _build_system_prompt(run_id: str, run_path: Path) -> str:
             summaries = json.loads(summaries_path.read_text(encoding="utf-8"))
             lines = []
             for s in summaries:
-                covered   = len(s.get("covered_item_ids", []))
-                partial   = len(s.get("partial_item_ids", []))
+                covered = len(s.get("covered_item_ids", []))
+                partial = len(s.get("partial_item_ids", []))
                 uncovered = len(s.get("uncovered_item_ids", []))
-                conf      = s.get("mean_confidence", 0)
+                conf = s.get("mean_confidence", 0)
                 lines.append(
                     f"  - {s['phase_name']} ({s['phase_id']}): "
                     f"conf {conf:.2f}, {covered} covered / {partial} partial / {uncovered} uncovered"

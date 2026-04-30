@@ -1,9 +1,9 @@
 import asyncio
 import json
-import sys
 import subprocess
+import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
@@ -19,6 +19,7 @@ _POLL_INTERVAL = 2.5  # seconds
 
 
 # ── Post-run assembler ────────────────────────────────────────────────────────
+
 
 def _dur_str(secs: int | None) -> str:
     if secs is None:
@@ -40,29 +41,23 @@ def _build_post_run(run_id: str) -> dict | None:
         except Exception:
             return default
 
-    report          = _r("report.json", {})
+    report = _r("report.json", {})
     phase_summaries = _r("live/phase_summaries.json", [])
-    artefacts       = _r("live/artefacts.json", {})
-    dag_data        = _r("live/dag.json", {"nodes": [], "edges": []})
-    cg              = _r("live/context_graph.json", {"nodes": [], "phases": []})
-    brief           = _r("input_brief.json", {})
-    status_data     = _r("live/status.json", {"status": "unknown"})
+    artefacts = _r("live/artefacts.json", {})
+    dag_data = _r("live/dag.json", {"nodes": [], "edges": []})
+    cg = _r("live/context_graph.json", {"nodes": [], "phases": []})
+    brief = _r("input_brief.json", {})
+    status_data = _r("live/status.json", {"status": "unknown"})
 
     dag_by_id = {n["id"]: n for n in dag_data.get("nodes", [])}
-    wi_by_id  = {
-        n["id"]: n
-        for n in cg.get("nodes", [])
-        if n.get("node_type") == "work_item"
-    }
+    wi_by_id = {n["id"]: n for n in cg.get("nodes", []) if n.get("node_type") == "work_item"}
 
     def _secs(dag_node: dict) -> int | None:
         s, e = dag_node.get("spawned_at"), dag_node.get("completed_at")
         if not s or not e:
             return None
         try:
-            return int(
-                (datetime.fromisoformat(e) - datetime.fromisoformat(s)).total_seconds()
-            )
+            return int((datetime.fromisoformat(e) - datetime.fromisoformat(s)).total_seconds())
         except Exception:
             return None
 
@@ -70,21 +65,21 @@ def _build_post_run(run_id: str) -> dict | None:
     for ps in phase_summaries:
         agents = []
         for env in ps.get("envelopes", []):
-            aid      = env["agent_id"]
+            aid = env["agent_id"]
             dag_node = dag_by_id.get(aid, {})
-            mem      = artefacts.get(aid, {}).get("memory", {})
-            wi_id    = dag_node.get("work_item_id")
-            wi       = wi_by_id.get(wi_id, {}) if wi_id else {}
+            mem = artefacts.get(aid, {}).get("memory", {})
+            wi_id = dag_node.get("work_item_id")
+            wi = wi_by_id.get(wi_id, {}) if wi_id else {}
 
             tool_calls = []
             for entry in mem.get("entries", []):
                 src = entry.get("source", "unknown")
                 val = entry.get("value", {})
                 if isinstance(val, dict):
-                    query   = val.get("query", entry.get("key", ""))
+                    query = val.get("query", entry.get("key", ""))
                     snippet = str(val.get("answer", ""))[:300]
                 else:
-                    query   = str(val)[:120]
+                    query = str(val)[:120]
                     snippet = ""
                 tool_calls.append({"source": src, "query": query, "snippet": snippet})
 
@@ -95,76 +90,85 @@ def _build_post_run(run_id: str) -> dict | None:
             if art_dir.exists():
                 for f in sorted(art_dir.iterdir()):
                     if f.is_file():
-                        artefact_files.append({
-                            "filename": f.name,
-                            "ext": f.suffix.lstrip(".").lower(),
-                        })
+                        artefact_files.append(
+                            {
+                                "filename": f.name,
+                                "ext": f.suffix.lstrip(".").lower(),
+                            }
+                        )
 
             dur = _secs(dag_node)
-            agents.append({
-                "agent_id":    aid,
-                "phase_id":    phase_id,
-                "role":        env.get("role", "").replace("_", " "),
-                "status":      env.get("status", "unknown"),
-                "confidence":  env.get("confidence"),
-                "verdict":     env.get("verdict"),
-                "cost_tokens": env.get("cost_tokens"),
-                "dur_secs":    dur,
-                "dur_str":     _dur_str(dur),
-                "work_item_name":   wi.get("name", ""),
-                "work_item_skills": wi.get("required_skills", []),
-                "tool_calls":    tool_calls,
-                "proof":         env.get("proof", {}),
-                "artefact_files": artefact_files,
-            })
+            agents.append(
+                {
+                    "agent_id": aid,
+                    "phase_id": phase_id,
+                    "role": env.get("role", "").replace("_", " "),
+                    "status": env.get("status", "unknown"),
+                    "confidence": env.get("confidence"),
+                    "verdict": env.get("verdict"),
+                    "cost_tokens": env.get("cost_tokens"),
+                    "dur_secs": dur,
+                    "dur_str": _dur_str(dur),
+                    "work_item_name": wi.get("name", ""),
+                    "work_item_skills": wi.get("required_skills", []),
+                    "tool_calls": tool_calls,
+                    "proof": env.get("proof", {}),
+                    "artefact_files": artefact_files,
+                }
+            )
 
         # Phase wall-clock = earliest spawn → latest completion across its agents
         dag_nodes = [dag_by_id[a["agent_id"]] for a in agents if a["agent_id"] in dag_by_id]
         starts = [n["spawned_at"] for n in dag_nodes if n.get("spawned_at")]
-        ends   = [n["completed_at"] for n in dag_nodes if n.get("completed_at")]
+        ends = [n["completed_at"] for n in dag_nodes if n.get("completed_at")]
         phase_dur = None
         if starts and ends:
             try:
                 phase_dur = int(
-                    (max(datetime.fromisoformat(e) for e in ends) -
-                     min(datetime.fromisoformat(s) for s in starts)).total_seconds()
+                    (
+                        max(datetime.fromisoformat(e) for e in ends)
+                        - min(datetime.fromisoformat(s) for s in starts)
+                    ).total_seconds()
                 )
             except Exception:
                 pass
 
-        phases.append({
-            "phase_id":        ps.get("phase_id"),
-            "phase_name":      ps.get("phase_name"),
-            "synthesis":       ps.get("synthesis", ""),
-            "mean_confidence": ps.get("mean_confidence"),
-            "total_tokens":    ps.get("total_tokens", 0),
-            "dur_secs":        phase_dur,
-            "dur_str":         _dur_str(phase_dur),
-            "agents":          agents,
-        })
+        phases.append(
+            {
+                "phase_id": ps.get("phase_id"),
+                "phase_name": ps.get("phase_name"),
+                "synthesis": ps.get("synthesis", ""),
+                "mean_confidence": ps.get("mean_confidence"),
+                "total_tokens": ps.get("total_tokens", 0),
+                "dur_secs": phase_dur,
+                "dur_str": _dur_str(phase_dur),
+                "agents": agents,
+            }
+        )
 
     total_tokens = sum(p.get("total_tokens") or 0 for p in phases)
-    all_agents   = [a for p in phases for a in p["agents"]]
+    all_agents = [a for p in phases for a in p["agents"]]
 
     doc_path = run_dir / "live" / "final_report.md"
     document = doc_path.read_text(encoding="utf-8") if doc_path.exists() else ""
 
     return {
-        "run_id":   run_id,
-        "status":   status_data.get("status", "unknown"),
-        "brief":    brief,
-        "report":   report,
+        "run_id": run_id,
+        "status": status_data.get("status", "unknown"),
+        "brief": brief,
+        "report": report,
         "document": document,
-        "phases":   phases,
+        "phases": phases,
         "stats": {
-            "phase_count":  len(phases),
-            "agent_count":  len(all_agents),
+            "phase_count": len(phases),
+            "agent_count": len(all_agents),
             "total_tokens": total_tokens,
         },
     }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _start_research(project_id: str, run_id: str | None = None) -> str:
     brief_path = Path("output") / project_id / "problem_brief.json"
@@ -174,10 +178,7 @@ def _start_research(project_id: str, run_id: str | None = None) -> str:
     graph_path = Path("output") / project_id / "context_graph.json"
 
     if run_id is None:
-        run_id = (
-            f"{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
-            f"-{uuid.uuid4().hex[:6]}"
-        )
+        run_id = f"{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
     run_dir = Path("runs") / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -200,10 +201,15 @@ def _start_research(project_id: str, run_id: str | None = None) -> str:
                 pass
     if run_id not in existing_ids:
         with runs_file.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({
-                "run_id": run_id,
-                "started_at": datetime.now(timezone.utc).isoformat(),
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "run_id": run_id,
+                        "started_at": datetime.now(UTC).isoformat(),
+                    }
+                )
+                + "\n"
+            )
 
     subprocess.Popen(
         [sys.executable, "-m", "slow_ai.research", run_id],
@@ -252,6 +258,7 @@ def _run_state(run_id: str) -> dict:
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+
 
 @router.post("/api/runs/launch")
 async def launch_run(project_id: str = Form(...)):
@@ -320,7 +327,7 @@ async def run_state_snapshot(run_id: str):
     if not run_dir.exists():
         return JSONResponse({"error": "Run not found"}, status_code=404)
     state = _run_state(run_id)
-    state["new_log"] = state["log"]          # alias so client can use same path
+    state["new_log"] = state["log"]  # alias so client can use same path
     return state
 
 
@@ -335,33 +342,33 @@ async def post_run_json(run_id: str):
 @router.post("/api/runs/{run_id}/chat", response_class=HTMLResponse)
 async def run_chat(request: Request, run_id: str, message: str = Form(...)):
     import asyncio
+
     from slow_ai.agents.run_conversation import run_conversation_turn
 
     history = _conv_sessions.get(run_id, [])
     try:
-        reply, updated = await asyncio.to_thread(
-            run_conversation_turn, message, run_id, history
-        )
+        reply, updated = await asyncio.to_thread(run_conversation_turn, message, run_id, history)
         _conv_sessions[run_id] = updated
         # Persist to disk
         from slow_ai.execution.git_store import GitStore
+
         GitStore(run_id).append_conversation("assistant", reply)
     except Exception as exc:
         reply = f"Sorry, I hit an error: {exc}"
 
     import html as _html
+
     escaped = _html.escape(reply, quote=True)
     return HTMLResponse(
         f'<div class="d-flex mb-3">'
         f'<div class="chat-bubble-agent" data-markdown="{escaped}"></div>'
-        f'</div>'
+        f"</div>"
     )
 
 
 @router.post("/api/runs/{run_id}/continue")
 async def continue_run(run_id: str):
     """Launch a follow-up run with prior_run_ids pointing at this one."""
-    import asyncio
     from slow_ai.models import ProblemBrief
 
     run_dir = Path("runs") / run_id
@@ -379,6 +386,7 @@ async def continue_run(run_id: str):
     if project_id is None:
         # Create a new project
         import uuid
+
         project_id = str(uuid.uuid4())
         project_dir = Path("output") / project_id
         project_dir.mkdir(parents=True, exist_ok=True)
@@ -432,6 +440,7 @@ async def run_context_graph(run_id: str):
 async def export_run(run_id: str, request: Request):
     """Export the final research report as a standalone HTML file."""
     import html as _html
+
     import mistune
 
     run_dir = Path("runs") / run_id
@@ -452,27 +461,19 @@ async def export_run(run_id: str, request: Request):
         except Exception:
             pass
 
-    status_data = {}
-    status_path = run_dir / "live" / "status.json"
-    if status_path.exists():
-        try:
-            status_data = json.loads(status_path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-
     rendered_body = mistune.html(document)
     goal = _html.escape(brief.get("goal", run_id))
     domain = _html.escape(brief.get("domain", ""))
-    run_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    run_date = datetime.now(UTC).strftime("%B %d, %Y")
 
     html_content = _templates.TemplateResponse(
         "export/run_export.html",
         {
-            "request":       request,
-            "goal":          goal,
-            "domain":        domain,
-            "run_id":        run_id,
-            "run_date":      run_date,
+            "request": request,
+            "goal": goal,
+            "domain": domain,
+            "run_id": run_id,
+            "run_date": run_date,
             "rendered_body": rendered_body,
         },
     ).body.decode()
@@ -481,6 +482,7 @@ async def export_run(run_id: str, request: Request):
     filename = f"research-{safe_goal[:50].strip().replace(' ', '-')}.html"
 
     from fastapi.responses import Response
+
     return Response(
         content=html_content,
         media_type="text/html",

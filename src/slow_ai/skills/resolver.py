@@ -2,7 +2,13 @@ import json
 
 from pydantic_ai import Agent
 
-from slow_ai.models import ContextGraph, ProblemBrief, SkillGap, ViabilityDecision, WorkItem
+from slow_ai.models import (
+    ContextGraph,
+    ProblemBrief,
+    SkillGap,
+    ViabilityDecision,
+    WorkItem,
+)
 from slow_ai.skills import SkillRegistry
 
 
@@ -43,12 +49,14 @@ def resolve_skills(
 
     gaps: list[SkillGap] = []
     for skill, required_by in missing_skill_to_items.items():
-        gaps.append(SkillGap(
-            skill=skill,
-            required_by=required_by,
-            downstream_blocked=len(required_by),
-            is_critical_path=(len(required_by) / total > 0.5) if total > 0 else False,
-        ))
+        gaps.append(
+            SkillGap(
+                skill=skill,
+                required_by=required_by,
+                downstream_blocked=len(required_by),
+                is_critical_path=(len(required_by) / total > 0.5) if total > 0 else False,
+            )
+        )
 
     return executable, list(direct_gap_items), gaps
 
@@ -79,8 +87,10 @@ Several missing skills that only affect peripheral enrichment are "degraded".
 Always include clear reasoning referencing the brief's success criteria.
 """
 
+
 def _make_viability_agent() -> Agent:
     from slow_ai.llm import ModelRegistry
+
     return Agent(
         model=ModelRegistry().for_task("viability_assess"),
         output_type=ViabilityDecision,

@@ -4,6 +4,7 @@ Centralised logging configuration for slow_ai.
 Call setup_logging() once at process startup (e.g. in __main__.py).
 All modules obtain their logger with logging.getLogger(__name__).
 """
+
 import logging
 import sys
 from pathlib import Path
