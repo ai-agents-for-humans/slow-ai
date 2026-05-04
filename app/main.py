@@ -6,8 +6,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .api import brief, graph, interview, projects, runs
+from .api.interview import load_all_sessions
 
 app = FastAPI(title="Slow AI")
+
+
+@app.on_event("startup")
+async def startup():
+    load_all_sessions()
 
 # Static files and templates
 _base = Path(__file__).parent

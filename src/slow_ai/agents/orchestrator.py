@@ -125,6 +125,27 @@ async def run_context_planner(
     return graph
 
 
+async def run_draft_context_graph(conversation_text: str) -> ContextGraph | None:
+    """Build a speculative context graph from a partial interview conversation."""
+    from slow_ai.skills import SkillRegistry
+    skill_registry = SkillRegistry()
+    planner = Agent(
+        model=ModelRegistry().for_task("context_planning"),
+        output_type=ContextGraph,
+        system_prompt=_context_planner_prompt(skill_registry.descriptions_for_prompt()),
+    )
+    try:
+        result = await planner.run(
+            f"Based on this partial interview conversation, infer the user's research goal "
+            f"and produce a speculative context graph. If context is too thin, produce a minimal "
+            f"1-phase placeholder. This is a live preview — use best judgement.\n\n"
+            f"CONVERSATION:\n{conversation_text}"
+        )
+        return result.output
+    except Exception:
+        return None
+
+
 async def generate_run_summary(
     brief: ProblemBrief,
     phase_summaries: list[PhaseSummary],

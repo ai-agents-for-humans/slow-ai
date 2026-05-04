@@ -1,610 +1,528 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ brief.get('goal', run_id)[:60] }}</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="/static/css/app.css">
-  <style>
-    html, body { height: 100%; overflow: hidden; margin: 0; background: #f8f9fa; }
+{% extends "base.html" %}
 
-    /* ── Browser-style tab bar ── */
-    .tab-bar {
-      display: flex; align-items: flex-end; gap: 2px;
-      padding: 0 1rem; background: #f0f2f5;
-      border-bottom: 1px solid #d1d5db; flex-shrink: 0;
-    }
-    .tab-btn {
-      position: relative; padding: 9px 22px 8px;
-      font-size: 0.82rem; font-weight: 500; color: #6b7280;
-      border: 1px solid transparent; border-bottom: none;
-      background: transparent; cursor: pointer;
-      border-radius: 8px 8px 0 0; margin-bottom: -1px;
-      transition: background 0.12s, color 0.12s;
-      display: flex; align-items: center; gap: 6px;
-      white-space: nowrap;
-    }
-    .tab-btn:hover:not(:disabled) { background: #e5e7eb; color: #374151; }
-    .tab-btn.active {
-      background: #fff; color: #111; font-weight: 600;
-      border-color: #d1d5db; border-bottom-color: #fff;
-    }
-    .tab-btn:disabled { color: #c8cdd6; cursor: default; }
+{% block title %}{{ brief.get('goal', run_id)[:60] }}{% endblock %}
 
-    /* ── Results pane ── */
-    #pane-results { overflow: hidden; }
+{% block head %}
+<style>
+  html, body { overflow: hidden; }
 
-    /* Phase / agent tree */
-    .phase-block { border-left: 3px solid #e5e7eb; padding-left: 1.25rem; margin-bottom: 2rem; }
-    .phase-block.done { border-color: #22c55e; }
+  /* ── Browser-style tab bar ── */
+  .tab-bar {
+    display: flex; align-items: flex-end; gap: 2px;
+    padding: 0 1rem; background: #f0f2f5;
+    border-bottom: 1px solid #d1d5db; flex-shrink: 0;
+  }
+  .tab-btn {
+    position: relative; padding: 9px 22px 8px;
+    font-size: 0.82rem; font-weight: 500; color: #6b7280;
+    border: 1px solid transparent; border-bottom: none;
+    background: transparent; cursor: pointer;
+    border-radius: 8px 8px 0 0; margin-bottom: -1px;
+    transition: background 0.12s, color 0.12s;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .tab-btn:hover:not(:disabled) { background: #e5e7eb; color: #374151; }
+  .tab-btn.active {
+    background: #fff; color: #111; font-weight: 600;
+    border-color: #d1d5db; border-bottom-color: #fff;
+  }
+  .tab-btn:disabled { color: #c8cdd6; cursor: default; }
 
-    /* Agent cards */
-    .agent-card {
-      background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
-      padding: 0.9rem 1.1rem; margin: 0.6rem 0;
-    }
-    .agent-card:hover { border-color: #d1d5db; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  /* ── Results pane ── */
+  #pane-results { overflow: hidden; }
 
-    /* Proof text */
-    .proof-key { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.08em;
-                 text-transform: uppercase; color: #9ca3af; margin: 0.75rem 0 0.2rem; }
-    .proof-prose { font-size: 0.83rem; line-height: 1.75; color: #374151;
-                   word-break: break-word; max-width: 72ch; }
-    .proof-prose p { margin-bottom: 0.5rem; }
-    .proof-prose ul, .proof-prose ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
-    .proof-json { background: #f3f4f6; border-radius: 5px; padding: 0.6rem 0.75rem;
-                  font-size: 0.76rem; font-family: monospace; overflow-x: auto;
-                  white-space: pre-wrap; word-break: break-word; margin-bottom: 0.25rem; }
+  /* Phase / agent tree */
+  .phase-block { border-left: 3px solid #e5e7eb; padding-left: 1.25rem; margin-bottom: 2rem; }
+  .phase-block.done { border-color: #22c55e; }
 
-    /* Source badges */
-    .src-badge { font-size: 0.62rem; font-weight: 700; padding: 2px 6px;
-                 border-radius: 3px; color: #fff; letter-spacing: 0.03em; flex-shrink: 0; }
-    .src-perplexity_search { background: #7c3aed; }
-    .src-web_browse        { background: #0ea5e9; }
-    .src-url_fetch         { background: #f59e0b; }
-    .src-code_execution    { background: #22c55e; }
-    .src-default           { background: #6b7280; }
+  /* Agent cards */
+  .agent-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 0.9rem 1.1rem; margin: 0.6rem 0;
+  }
+  .agent-card:hover { border-color: #d1d5db; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
 
-    /* Tool call rows */
-    .tc-row {
-      display: flex; align-items: center; gap: 0.55rem;
-      padding: 6px 0; border-bottom: 1px solid #f3f4f6; cursor: pointer;
-    }
-    .tc-row:last-child { border-bottom: none; }
-    .tc-row:hover { background: #fafafa; margin: 0 -6px; padding: 6px; border-radius: 4px; }
-    .tc-query { flex: 1; font-size: 0.79rem; color: #374151; min-width: 0;
-                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tc-chevron { font-size: 0.6rem; color: #9ca3af; flex-shrink: 0; transition: transform 0.15s; }
-    .tc-chevron.open { transform: rotate(180deg); }
-    .tc-detail {
-      display: none; font-size: 0.77rem; color: #6b7280; line-height: 1.6;
-      padding: 6px 8px 6px 10px; white-space: pre-wrap; word-break: break-word;
-      border-left: 2px solid #e5e7eb; margin: 2px 0 4px 6px;
-      max-height: 160px; overflow-y: auto;
-    }
+  /* Proof text */
+  .proof-key { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.08em;
+               text-transform: uppercase; color: #9ca3af; margin: 0.75rem 0 0.2rem; }
+  .proof-prose { font-size: 0.83rem; line-height: 1.75; color: #374151;
+                 word-break: break-word; max-width: 72ch; }
+  .proof-prose p { margin-bottom: 0.5rem; }
+  .proof-prose ul, .proof-prose ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
+  .proof-json { background: #f3f4f6; border-radius: 5px; padding: 0.6rem 0.75rem;
+                font-size: 0.76rem; font-family: monospace; overflow-x: auto;
+                white-space: pre-wrap; word-break: break-word; margin-bottom: 0.25rem; }
 
-    /* Artefact chips */
-    .artefact-chip {
-      display: inline-flex; align-items: center; gap: 0.35rem;
-      font-size: 0.74rem; font-family: monospace;
-      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px;
-      padding: 3px 9px; color: #166534; margin: 2px 3px 2px 0; cursor: pointer;
-      user-select: none; transition: background 0.1s;
-    }
-    .artefact-chip:hover { background: #dcfce7; border-color: #86efac; }
+  /* Source badges */
+  .src-badge { font-size: 0.62rem; font-weight: 700; padding: 2px 6px;
+               border-radius: 3px; color: #fff; letter-spacing: 0.03em; flex-shrink: 0; }
+  .src-perplexity_search { background: #7c3aed; }
+  .src-web_browse        { background: #0ea5e9; }
+  .src-url_fetch         { background: #f59e0b; }
+  .src-code_execution    { background: #22c55e; }
+  .src-default           { background: #6b7280; }
 
-    /* Sub-section toggles */
-    .sub-tog {
-      display: flex; align-items: center; gap: 0.35rem; width: 100%;
-      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
-      color: #9ca3af; background: none; border: none; border-top: 1px solid #f3f4f6;
-      padding: 6px 0 4px; margin-top: 8px; cursor: pointer; text-align: left;
-    }
-    .sub-tog:hover { color: #6b7280; }
-    .sub-tog .bi { transition: transform 0.15s; font-size: 0.6rem; }
-    .sub-tog.collapsed .bi { transform: rotate(-90deg); }
+  /* Tool call rows */
+  .tc-row {
+    display: flex; align-items: center; gap: 0.55rem;
+    padding: 6px 0; border-bottom: 1px solid #f3f4f6; cursor: pointer;
+  }
+  .tc-row:last-child { border-bottom: none; }
+  .tc-row:hover { background: #fafafa; margin: 0 -6px; padding: 6px; border-radius: 4px; }
+  .tc-query { flex: 1; font-size: 0.79rem; color: #374151; min-width: 0;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tc-chevron { font-size: 0.6rem; color: #9ca3af; flex-shrink: 0; transition: transform 0.15s; }
+  .tc-chevron.open { transform: rotate(180deg); }
+  .tc-detail {
+    display: none; font-size: 0.77rem; color: #6b7280; line-height: 1.6;
+    padding: 6px 8px 6px 10px; white-space: pre-wrap; word-break: break-word;
+    border-left: 2px solid #e5e7eb; margin: 2px 0 4px 6px;
+    max-height: 160px; overflow-y: auto;
+  }
 
-    /* Toggle chevron */
-    .tog { background: none; border: none; padding: 0; cursor: pointer; }
-    .tog .bi { transition: transform 0.18s; color: #9ca3af; font-size: 0.72rem; }
-    .tog.collapsed .bi { transform: rotate(-90deg); }
+  /* Artefact chips */
+  .artefact-chip {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-size: 0.74rem; font-family: monospace;
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 5px;
+    padding: 3px 9px; color: #166534; margin: 2px 3px 2px 0; cursor: pointer;
+    user-select: none; transition: background 0.1s;
+  }
+  .artefact-chip:hover { background: #dcfce7; border-color: #86efac; }
 
-    /* Artefact modal */
-    #artefact-modal .modal-body pre {
-      margin: 0; padding: 16px 18px; font-size: 0.78rem; line-height: 1.6;
-      background: #1e1e2e; color: #cdd6f4; white-space: pre; overflow-x: auto;
-      max-height: calc(80vh - 120px); overflow-y: auto;
-    }
-    #artefact-modal .modal-body .md-render {
-      padding: 20px 24px; font-size: 0.86rem; line-height: 1.75;
-      max-height: calc(80vh - 120px); overflow-y: auto;
-    }
+  /* Sub-section toggles */
+  .sub-tog {
+    display: flex; align-items: center; gap: 0.35rem; width: 100%;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+    color: #9ca3af; background: none; border: none; border-top: 1px solid #f3f4f6;
+    padding: 6px 0 4px; margin-top: 8px; cursor: pointer; text-align: left;
+  }
+  .sub-tog:hover { color: #6b7280; }
+  .sub-tog .bi { transition: transform 0.15s; font-size: 0.6rem; }
+  .sub-tog.collapsed .bi { transform: rotate(-90deg); }
 
-    /* Bottom chat drawer */
-    .chat-drawer { background: #fff; border-top: 1px solid #e5e7eb; }
-    .chat-hist {
-      max-height: 340px; overflow-y: auto;
-      border-bottom: 1px solid #f0f2f5; background: #fafafa;
-    }
-    .chat-hist-inner { padding: 1rem 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; }
-    .chat-input-row { display: flex; align-items: flex-end; gap: 0.75rem; padding: 0.75rem 1.5rem; }
-    .chat-bubble-user {
-      align-self: flex-end; background: #111; color: #fff; border-radius: 16px 16px 4px 16px;
-      padding: 8px 14px; font-size: 0.83rem; line-height: 1.5; max-width: 55%;
-    }
-    .chat-bubble-agent {
-      align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; color: #374151;
-      border-radius: 16px 16px 16px 4px; padding: 10px 16px;
-      font-size: 0.83rem; line-height: 1.65; max-width: 70%;
-    }
-    .chat-bubble-agent h1,.chat-bubble-agent h2,.chat-bubble-agent h3 { font-size:1em; font-weight:700; margin:0.5em 0 0.25em; }
-    .chat-bubble-agent p { margin:0 0 0.4em; }
-    .chat-bubble-agent ul,.chat-bubble-agent ol { margin:0.25em 0 0.4em; padding-left:1.2em; }
-    .chat-bubble-agent strong { font-weight:700; }
-    .chat-bubble-agent code { font-size:0.85em; background:#f3f4f6; padding:1px 4px; border-radius:3px; }
+  /* Toggle chevron */
+  .tog { background: none; border: none; padding: 0; cursor: pointer; }
+  .tog .bi { transition: transform 0.18s; color: #9ca3af; font-size: 0.72rem; }
+  .tog.collapsed .bi { transform: rotate(-90deg); }
 
-    /* Confidence bars */
-    .confidence-bar { height: 4px; background: #f3f4f6; border-radius: 2px; }
-    .confidence-fill { height: 100%; background: #22c55e; border-radius: 2px; }
+  /* Artefact modal */
+  #artefact-modal .modal-body pre {
+    margin: 0; padding: 16px 18px; font-size: 0.78rem; line-height: 1.6;
+    background: #1e1e2e; color: #cdd6f4; white-space: pre; overflow-x: auto;
+    max-height: calc(80vh - 120px); overflow-y: auto;
+  }
+  #artefact-modal .modal-body .md-render {
+    padding: 20px 24px; font-size: 0.86rem; line-height: 1.75;
+    max-height: calc(80vh - 120px); overflow-y: auto;
+  }
 
-    /* Live run pane */
-    #pane-run { overflow: hidden; }
-    .nav-link { border-radius: 0; }
-    .nav-link.active { border-bottom: 2px solid #111; color: #111 !important; font-weight: 600; }
+  /* Bottom chat drawer */
+  .chat-drawer { background: #fff; border-top: 1px solid #e5e7eb; }
+  .chat-hist {
+    max-height: 340px; overflow-y: auto;
+    border-bottom: 1px solid #f0f2f5; background: #fafafa;
+  }
+  .chat-hist-inner { padding: 1rem 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; }
+  .chat-input-row { display: flex; align-items: flex-end; gap: 0.75rem; padding: 0.75rem 1.5rem; }
+  .chat-bubble-user {
+    align-self: flex-end; background: #111; color: #fff; border-radius: 16px 16px 4px 16px;
+    padding: 8px 14px; font-size: 0.83rem; line-height: 1.5; max-width: 55%;
+  }
+  .chat-bubble-agent {
+    align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; color: #374151;
+    border-radius: 16px 16px 16px 4px; padding: 10px 16px;
+    font-size: 0.83rem; line-height: 1.65; max-width: 70%;
+  }
+  .chat-bubble-agent h1,.chat-bubble-agent h2,.chat-bubble-agent h3 { font-size:1em; font-weight:700; margin:0.5em 0 0.25em; }
+  .chat-bubble-agent p { margin:0 0 0.4em; }
+  .chat-bubble-agent ul,.chat-bubble-agent ol { margin:0.25em 0 0.4em; padding-left:1.2em; }
+  .chat-bubble-agent strong { font-weight:700; }
+  .chat-bubble-agent code { font-size:0.85em; background:#f3f4f6; padding:1px 4px; border-radius:3px; }
 
-    /* Typing indicator */
-    .typing-dot { display:inline-block; width:6px; height:6px; background:#9ca3af; border-radius:50%; animation:blink 1.2s infinite; }
-    .typing-dot:nth-child(2){animation-delay:.2s;}
-    .typing-dot:nth-child(3){animation-delay:.4s;}
-    @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+  /* Confidence bars */
+  .confidence-bar { height: 4px; background: #f3f4f6; border-radius: 2px; }
+  .confidence-fill { height: 100%; background: #22c55e; border-radius: 2px; }
 
-    /* ── Responsive pane columns ── */
-    .col-run-sidebar { width:200px; min-width:160px; flex-shrink:0; overflow-y:auto; }
-    .col-run-dag     { flex:1 1 0; min-width:0; }
-    .col-run-info    { width:38%; min-width:280px; max-width:500px; flex-shrink:0; }
-    .col-run-stats   { width:220px; min-width:160px; flex-shrink:0; overflow:hidden; }
-    @media (max-width:1399px) {
-      .col-run-info  { width:36%; }
-      .col-run-stats { width:200px; }
-    }
-    @media (max-width:1199px) {
-      .col-run-sidebar { width:160px; min-width:140px; }
-      .col-run-info    { width:340px; }
-      .col-run-stats   { width:180px; }
-    }
-    @media (max-width:991px) {
-      .col-run-sidebar { display:none !important; }
-      .col-run-info    { width:300px; }
-      .col-run-stats   { width:160px; }
-    }
-  </style>
-</head>
+  /* Live run pane */
+  #pane-run { overflow: hidden; }
+  .nav-link { border-radius: 0; }
+  .nav-link.active { border-bottom: 2px solid #111; color: #111 !important; font-weight: 600; }
 
-<body class="d-flex flex-column" style="height:100vh;">
+  /* Typing indicator */
+  .typing-dot { display:inline-block; width:6px; height:6px; background:#9ca3af; border-radius:50%; animation:blink 1.2s infinite; }
+  .typing-dot:nth-child(2){animation-delay:.2s;}
+  .typing-dot:nth-child(3){animation-delay:.4s;}
+  @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
 
-<!-- ── Global header ──────────────────────────────────────────────────────── -->
-<div class="bg-white border-bottom px-4 py-2 d-flex align-items-center gap-3 flex-shrink-0">
-  <a href="/" class="text-muted text-decoration-none flex-shrink-0" style="font-size:0.85rem;">← Back</a>
+  /* ── Responsive pane columns ── */
+  .col-run-dag     { flex:1 1 0; min-width:0; }
+  .col-run-info    { width:38%; min-width:280px; max-width:500px; flex-shrink:0; }
+  .col-run-stats   { width:220px; min-width:160px; flex-shrink:0; }
+  @media (max-width:1399px) { .col-run-info { width:36%; } .col-run-stats { width:200px; } }
+  @media (max-width:1199px) { .col-run-info { width:340px; } .col-run-stats { width:180px; } }
+  @media (max-width:991px)  { .col-run-info { width:300px; } .col-run-stats { width:160px; } }
+</style>
+{% endblock %}
 
-  <div class="flex-grow-1 text-truncate min-width-0" style="font-size:0.82rem; color:#374151;">
-    {{ brief.get('goal', run_id) }}
-  </div>
+{% block content %}
+<div class="d-flex flex-column" style="height:100vh; overflow:hidden; background:#f8f9fa;">
 
-  <span id="status-badge"
-        class="badge flex-shrink-0
-               {% if status == 'completed' %}bg-success
-               {% elif status == 'failed' %}bg-danger
-               {% else %}bg-secondary{% endif %}"
-        style="font-size:0.7rem;">
-    {% if status == 'completed' %}Completed
-    {% elif status == 'failed' %}Failed
-    {% elif status == 'running' %}Running
-    {% else %}Initialising{% endif %}
-  </span>
-
-  <div id="activity-ticker"
-       class="text-muted text-truncate flex-shrink-0"
-       style="font-size:0.74rem; max-width:240px; font-style:italic; text-align:right;">
-    {% if status in ['completed', 'failed'] %}Run {{ status }}.{% else %}Waiting for agents…{% endif %}
-  </div>
-</div>
-
-<!-- ── Tab bar ─────────────────────────────────────────────────────────────── -->
-<div class="tab-bar">
-  <button class="tab-btn {% if start_tab == 'run' %}active{% endif %}"
-          id="tab-btn-run" onclick="showTab('run')">
-    <i class="bi bi-diagram-3"></i> Run
-  </button>
-  <button class="tab-btn {% if start_tab == 'results' %}active{% endif %}"
-          id="tab-btn-results" onclick="showTab('results')"
-          {% if not post_run %}disabled{% endif %}>
-    <i class="bi bi-file-text"></i> Results
-  </button>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════════════════════ -->
-<!-- ── TAB: RUN ────────────────────────────────────────────────────────────── -->
-<!-- ══════════════════════════════════════════════════════════════════════════ -->
-<div id="pane-run" class="d-flex flex-grow-1"
-     style="{% if start_tab != 'run' %}display:none !important;{% endif %}">
-
-  <!-- Mini sidebar -->
-  <div class="border-end bg-white d-flex flex-column col-run-sidebar">
-    <div class="px-3 py-3 border-bottom">
-      <span class="fw-semibold" style="font-size:0.9rem; letter-spacing:-0.02em;">◈ Slow AI</span>
+  <!-- Global header -->
+  <div class="bg-white border-bottom px-4 py-2 d-flex align-items-center gap-3 flex-shrink-0">
+    <div class="flex-grow-1 text-truncate min-width-0" style="font-size:0.82rem; color:#374151;">
+      {{ brief.get('goal', run_id) }}
     </div>
-    <div class="px-3 pt-3">
-      <a href="/interview" class="btn btn-dark btn-sm w-100" style="font-size:0.73rem;">
-        <i class="bi bi-plus-lg"></i> New
-      </a>
-    </div>
-    <div class="px-3 pt-3 pb-1">
-      <span class="text-uppercase text-muted fw-semibold" style="font-size:0.63rem; letter-spacing:0.08em;">Projects</span>
-    </div>
-    <div class="overflow-auto flex-grow-1 px-2 pb-3" id="project-list"
-         hx-get="/api/projects-html" hx-trigger="load" hx-swap="innerHTML">
-      <div class="text-muted px-2 py-2" style="font-size:0.73rem;">Loading…</div>
+    <span id="status-badge"
+          class="badge flex-shrink-0
+                 {% if status == 'completed' %}bg-success
+                 {% elif status == 'failed' %}bg-danger
+                 {% else %}bg-secondary{% endif %}"
+          style="font-size:0.7rem;">
+      {% if status == 'completed' %}Completed
+      {% elif status == 'failed' %}Failed
+      {% elif status == 'running' %}Running
+      {% else %}Initialising{% endif %}
+    </span>
+    <div id="activity-ticker"
+         class="text-muted text-truncate flex-shrink-0"
+         style="font-size:0.74rem; max-width:240px; font-style:italic; text-align:right;">
+      {% if status in ['completed', 'failed'] %}Run {{ status }}.{% else %}Waiting for agents…{% endif %}
     </div>
   </div>
 
-  <!-- DAG -->
-  <div class="d-flex flex-column col-run-dag">
-    <div class="border-bottom border-end px-4 py-2 bg-white d-flex align-items-center justify-content-between flex-shrink-0">
-      <div class="d-flex align-items-center gap-2">
-        <span class="fw-semibold" style="font-size:0.85rem;">Agent Swarm</span>
-        <span class="text-muted" id="dag-col-sub" style="font-size:0.75rem;"></span>
-      </div>
-      <div class="d-flex align-items-center gap-3" style="font-size:0.71rem; color:#6b7280;">
-        <span><span class="d-inline-block rounded-circle me-1" style="width:7px;height:7px;background:#9ca3af;"></span>Waiting</span>
-        <span><span class="d-inline-block rounded-circle me-1" style="width:7px;height:7px;background:#3b82f6;"></span>Running</span>
-        <span><span class="d-inline-block rounded-circle me-1" style="width:7px;height:7px;background:#22c55e;"></span>Done</span>
-        <span><span class="d-inline-block rounded-circle me-1" style="width:7px;height:7px;background:#ef4444;"></span>Failed</span>
-        <span class="fst-italic">Click node to inspect</span>
-      </div>
-    </div>
-    <div class="d-flex flex-column flex-grow-1" style="min-height:0;">
-      <div class="position-relative flex-grow-1" style="min-height:0;">
-        <div id="cy" style="width:100%; height:100%; background:#fafafa;"></div>
-      </div>
-      <!-- Envelope drawer -->
-      <div id="envelope-drawer" class="border-top bg-white flex-shrink-0"
-           style="display:none; height:340px; overflow-y:auto;">
-        <div class="d-flex align-items-center justify-content-between px-4 py-2 border-bottom"
-             style="position:sticky; top:0; background:#fff; z-index:5;">
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="fw-semibold" id="env-role" style="font-size:0.88rem;"></span>
-            <span id="env-status-badge" class="badge" style="font-size:0.68rem;"></span>
-            <span id="env-confidence" class="text-muted" style="font-size:0.77rem;"></span>
-            <span id="env-duration" class="text-muted" style="font-size:0.77rem;"></span>
-          </div>
-          <button class="btn btn-sm btn-outline-secondary" style="font-size:0.73rem;" onclick="closeEnvelope()">✕</button>
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn {% if start_tab == 'run' %}active{% endif %}"
+            id="tab-btn-run" onclick="showTab('run')">
+      <i class="bi bi-diagram-3"></i> Run
+    </button>
+    <button class="tab-btn {% if start_tab == 'results' %}active{% endif %}"
+            id="tab-btn-results" onclick="showTab('results')"
+            {% if not post_run %}disabled{% endif %}>
+      <i class="bi bi-file-text"></i> Results
+    </button>
+  </div>
+
+  <!-- TAB: RUN -->
+  <div id="pane-run" class="d-flex flex-grow-1"
+       style="{% if start_tab != 'run' %}display:none !important;{% endif %} min-height:0;">
+
+    <!-- DAG -->
+    <div class="d-flex flex-column col-run-dag">
+      <div class="border-bottom border-end px-4 py-2 bg-white d-flex align-items-center justify-content-between flex-shrink-0">
+        <div class="d-flex align-items-center gap-2">
+          <span class="fw-semibold" style="font-size:0.85rem;">Agent Swarm</span>
+          <span class="text-muted" id="dag-col-sub" style="font-size:0.75rem;"></span>
         </div>
-        <div class="px-4 py-3">
-          <div class="d-flex gap-4 mb-3" style="font-size:0.79rem; color:#6b7280;">
-            <span>Verdict: <strong id="env-verdict" class="text-dark"></strong></span>
-            <span>Tokens: <strong id="env-tokens" class="text-dark"></strong></span>
-            <span id="env-skills-wrap" style="display:none;">Skills: <strong id="env-skills" class="text-dark"></strong></span>
+        <div class="d-flex align-items-center gap-3" style="font-size:0.71rem; color:#6b7280;">
+          <span><span class="d-inline-block rounded-circle me-1" style="width:7px;height:7px;background:#9ca3af;"></span>Waiting</span>
+          <span><span class="d-inline-block rounded-circle me-1" style="width:7px;height:7px;background:#3b82f6;"></span>Running</span>
+          <span><span class="d-inline-block rounded-circle me-1" style="width:7px;height:7px;background:#22c55e;"></span>Done</span>
+          <span><span class="d-inline-block rounded-circle me-1" style="width:7px;height:7px;background:#ef4444;"></span>Failed</span>
+          <span class="fst-italic">Click node to inspect</span>
+        </div>
+      </div>
+      <div class="d-flex flex-column flex-grow-1" style="min-height:0;">
+        <div class="position-relative flex-grow-1" style="min-height:0;">
+          <div id="cy" style="width:100%; height:100%; background:#fafafa;"></div>
+        </div>
+        <!-- Envelope drawer -->
+        <div id="envelope-drawer" class="border-top bg-white flex-shrink-0"
+             style="display:none; height:340px; overflow-y:auto;">
+          <div class="d-flex align-items-center justify-content-between px-4 py-2 border-bottom"
+               style="position:sticky; top:0; background:#fff; z-index:5;">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="fw-semibold" id="env-role" style="font-size:0.88rem;"></span>
+              <span id="env-status-badge" class="badge" style="font-size:0.68rem;"></span>
+              <span id="env-confidence" class="text-muted" style="font-size:0.77rem;"></span>
+              <span id="env-duration" class="text-muted" style="font-size:0.77rem;"></span>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" style="font-size:0.73rem;" onclick="closeEnvelope()">✕</button>
           </div>
-          <div class="mb-1 text-uppercase fw-semibold" style="font-size:0.67rem; letter-spacing:0.07em; color:#9ca3af;">Proof</div>
-          <div id="env-proof" style="font-size:0.79rem; line-height:1.65; word-break:break-word; color:#374151;"></div>
+          <div class="px-4 py-3">
+            <div class="d-flex gap-4 mb-3" style="font-size:0.79rem; color:#6b7280;">
+              <span>Verdict: <strong id="env-verdict" class="text-dark"></strong></span>
+              <span>Tokens: <strong id="env-tokens" class="text-dark"></strong></span>
+              <span id="env-skills-wrap" style="display:none;">Skills: <strong id="env-skills" class="text-dark"></strong></span>
+            </div>
+            <div class="mb-1 text-uppercase fw-semibold" style="font-size:0.67rem; letter-spacing:0.07em; color:#9ca3af;">Proof</div>
+            <div id="env-proof" style="font-size:0.79rem; line-height:1.65; word-break:break-word; color:#374151;"></div>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Info panel -->
-  <div class="d-flex flex-column border-start bg-white col-run-info">
-    <div class="border-bottom px-3 pt-2 flex-shrink-0">
-      <ul class="nav nav-tabs border-0" style="font-size:0.81rem;">
-        <li class="nav-item"><button class="nav-link active px-3 py-2" data-tab="log" onclick="switchInfoTab('log',this)">Log</button></li>
-        <li class="nav-item"><button class="nav-link px-3 py-2" data-tab="phases" onclick="switchInfoTab('phases',this)">Phases</button></li>
-        <li class="nav-item"><button class="nav-link px-3 py-2" data-tab="plan" onclick="switchInfoTab('plan',this)">Plan</button></li>
-      </ul>
+    <!-- Info panel -->
+    <div class="d-flex flex-column border-start bg-white col-run-info">
+      <div class="border-bottom px-3 pt-2 flex-shrink-0">
+        <ul class="nav nav-tabs border-0" style="font-size:0.81rem;">
+          <li class="nav-item"><button class="nav-link active px-3 py-2" data-tab="log" onclick="switchInfoTab('log',this)">Log</button></li>
+          <li class="nav-item"><button class="nav-link px-3 py-2" data-tab="phases" onclick="switchInfoTab('phases',this)">Phases</button></li>
+          <li class="nav-item"><button class="nav-link px-3 py-2" data-tab="plan" onclick="switchInfoTab('plan',this)">Plan</button></li>
+        </ul>
+      </div>
+      <div id="info-log" class="flex-grow-1 overflow-auto p-3"><div id="log-lines"></div></div>
+      <div id="info-phases" class="flex-grow-1 overflow-auto p-3" style="display:none;">
+        <div id="phase-cards"></div>
+        <p id="phase-empty" class="text-muted small py-2 mb-0">Phase summaries appear as each phase completes.</p>
+      </div>
+      <div id="info-plan" class="flex-grow-1" style="display:none; position:relative; overflow:hidden;">
+        <div id="cy-plan" style="width:100%; height:100%;"></div>
+        <p id="plan-empty" class="text-muted small px-3 py-3 position-absolute top-0 start-0 mb-0">Loading plan…</p>
+      </div>
     </div>
-    <div id="info-log" class="flex-grow-1 overflow-auto p-3"><div id="log-lines"></div></div>
-    <div id="info-phases" class="flex-grow-1 overflow-auto p-3" style="display:none;">
-      <div id="phase-cards"></div>
-      <p id="phase-empty" class="text-muted small py-2 mb-0">Phase summaries appear as each phase completes.</p>
-    </div>
-    <div id="info-plan" class="flex-grow-1" style="display:none; position:relative; overflow:hidden;">
-      <div id="cy-plan" style="width:100%; height:100%;"></div>
-      <p id="plan-empty" class="text-muted small px-3 py-3 position-absolute top-0 start-0 mb-0">Loading plan…</p>
-    </div>
-  </div>
 
-</div><!-- /pane-run -->
+  </div><!-- /pane-run -->
 
-<!-- ══════════════════════════════════════════════════════════════════════════ -->
-<!-- ── TAB: RESULTS ─────────────────────────────────────────────────────────── -->
-<!-- ══════════════════════════════════════════════════════════════════════════ -->
-<div id="pane-results" class="flex-grow-1 d-flex overflow-hidden"
-     style="{% if start_tab != 'results' %}display:none !important;{% endif %}">
+  <!-- TAB: RESULTS -->
+  <div id="pane-results" class="flex-grow-1 d-flex overflow-hidden"
+       style="{% if start_tab != 'results' %}display:none !important;{% endif %} min-height:0;">
 
-  <!-- Sidebar -->
-  <div class="border-end bg-white d-flex flex-column col-run-sidebar">
-    <div class="px-3 py-3 border-bottom">
-      <span class="fw-semibold" style="font-size:0.9rem; letter-spacing:-0.02em;">◈ Slow AI</span>
-    </div>
-    <div class="px-3 pt-3">
-      <a href="/interview" class="btn btn-dark btn-sm w-100" style="font-size:0.73rem;">
-        <i class="bi bi-plus-lg"></i> New
-      </a>
-    </div>
-    <div class="px-3 pt-3 pb-1">
-      <span class="text-uppercase text-muted fw-semibold" style="font-size:0.63rem; letter-spacing:0.08em;">Projects</span>
-    </div>
-    <div class="overflow-auto flex-grow-1 px-2 pb-3" id="project-list-results"
-         hx-get="/api/projects-html" hx-trigger="load" hx-swap="innerHTML">
-      <div class="text-muted px-2 py-2" style="font-size:0.73rem;">Loading…</div>
-    </div>
-  </div>
+    <!-- Main column: content + chat drawer stacked -->
+    <div class="d-flex flex-column flex-grow-1" style="min-width:0;">
 
-  <!-- Main column: content + chat drawer stacked -->
-  <div class="d-flex flex-column flex-grow-1" style="min-width:0;">
-
-    <!-- Content row: tree + stats -->
-    <div class="d-flex flex-grow-1 overflow-hidden">
-
-      <!-- Phase tree -->
-      <div class="flex-grow-1 overflow-auto px-5 py-4" style="min-width:0;" id="results-tree">
-
-        {% if post_run %}
-
-        <!-- Final report document -->
-        {% if post_run.document %}
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <span class="text-uppercase fw-semibold text-muted" style="font-size:0.68rem; letter-spacing:0.08em;">Research Report</span>
-          <a href="/api/runs/{{ run_id }}/export" download
-             class="btn btn-outline-secondary btn-sm px-3" style="font-size:0.75rem; border-radius:6px;">
-            ↓ Export HTML
-          </a>
-        </div>
-        <div class="card border-0 shadow-sm mb-4 rounded-3">
-          <div class="card-body p-4">
-            <div class="md-content" style="font-size:0.88rem; line-height:1.8; color:#374151;">{{ post_run.document }}</div>
-          </div>
-        </div>
-        <hr class="my-4">
-        {% endif %}
-
-        <!-- Phase summary (legacy short summary) -->
-        {% if post_run.report.get('summary') %}
-        <div class="card border-0 shadow-sm mb-4 rounded-3">
-          <div class="card-body p-4">
-            <div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div>
-            <div class="md-content" style="font-size:0.88rem; line-height:1.75; color:#374151;">{{ post_run.report.summary }}</div>
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- Datasets -->
-        {% if post_run.report.get('datasets') %}
-        <div class="mb-4">
-          <div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem; letter-spacing:0.08em;">
-            Datasets ({{ post_run.report.datasets|length }})
-          </div>
-          <div class="d-flex flex-wrap gap-2">
-            {% for ds in post_run.report.datasets %}
-            <a href="{{ ds.url }}" target="_blank" rel="noopener"
-               class="badge text-decoration-none"
-               style="background:#f3f4f6; color:#374151; border:1px solid #e5e7eb; font-size:0.74rem; font-weight:500; padding:5px 10px; border-radius:6px;">
-              {{ ds.name }}
-              <span class="text-muted ms-1">{{ (ds.quality_score * 100)|int }}%</span>
-            </a>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- Paths not taken -->
-        {% if post_run.report.get('paths_not_taken') %}
-        <div class="mb-4">
-          <div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem; letter-spacing:0.08em;">Paths not taken</div>
-          {% for p in post_run.report.paths_not_taken %}
-          <div class="d-flex gap-2 mb-1" style="font-size:0.81rem; color:#6b7280;"><span>·</span><span>{{ p }}</span></div>
-          {% endfor %}
-        </div>
-        {% endif %}
-
-        <hr class="my-4">
+      <!-- Content row: tree + stats -->
+      <div class="d-flex flex-grow-1 overflow-hidden">
 
         <!-- Phase tree -->
-        {% for phase in post_run.phases %}
-        <div class="phase-block {% if phase.mean_confidence and phase.mean_confidence >= 0.7 %}done{% endif %} mb-4">
+        <div class="flex-grow-1 overflow-auto px-5 py-4" style="min-width:0;" id="results-tree">
 
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <button class="tog" onclick="togSection('ph-{{ phase.phase_id }}', this)">
-              <i class="bi bi-chevron-down"></i>
-            </button>
-            <span class="fw-semibold" style="font-size:0.9rem;">Phase {{ loop.index }}: {{ phase.phase_name }}</span>
-            {% if phase.mean_confidence is not none %}
-            <span class="badge {% if phase.mean_confidence >= 0.8 %}bg-success{% elif phase.mean_confidence >= 0.5 %}bg-warning text-dark{% else %}bg-danger{% endif %}"
-                  style="font-size:0.67rem;">{{ (phase.mean_confidence * 100)|int }}%</span>
-            {% endif %}
-            <span class="text-muted" style="font-size:0.74rem;">
-              {{ phase.agents|length }} agents
-              {% if phase.dur_str %}· {{ phase.dur_str }}{% endif %}
-              {% if phase.total_tokens %}· {{ "{:,}".format(phase.total_tokens) }} tok{% endif %}
-            </span>
-          </div>
-
-          <div id="ph-{{ phase.phase_id }}">
-            {% if phase.synthesis %}
-            <div class="md-content mb-3" style="font-size:0.84rem; line-height:1.75; color:#374151; border-left:3px solid #f0f2f5; padding-left:0.85rem; max-width:72ch;">
-              {{ phase.synthesis }}
-            </div>
-            {% endif %}
-
-            {% for agent in phase.agents %}
-            {% set aid_safe = agent.agent_id | replace('-', '_') %}
-            <div class="agent-card">
-              <!-- Agent header row -->
-              <div class="d-flex align-items-center gap-2 flex-wrap">
-                <button class="tog collapsed" onclick="togSection('ag-{{ aid_safe }}', this)">
-                  <i class="bi bi-chevron-down"></i>
-                </button>
-                <span class="fw-semibold" style="font-size:0.85rem;">{{ agent.role }}</span>
-                {% if agent.work_item_name %}
-                <span class="text-muted" style="font-size:0.78rem;">— {{ agent.work_item_name }}</span>
-                {% endif %}
-                {% for sk in agent.work_item_skills %}
-                <span style="font-size:0.64rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; padding:1px 6px;">{{ sk }}</span>
-                {% endfor %}
-                <span class="ms-auto d-flex align-items-center gap-2" style="font-size:0.74rem; color:#6b7280;">
-                  {% if agent.confidence is not none %}
-                  <span class="badge {% if agent.confidence >= 0.8 %}bg-success{% elif agent.confidence >= 0.5 %}bg-warning text-dark{% else %}bg-danger{% endif %}" style="font-size:0.65rem;">
-                    {{ (agent.confidence * 100)|int }}%
-                  </span>
-                  {% endif %}
-                  {% if agent.dur_str %}{{ agent.dur_str }}{% endif %}
-                  {% if agent.cost_tokens %}· {{ "{:,}".format(agent.cost_tokens) }} tok{% endif %}
-                </span>
-              </div>
-
-              <!-- Agent body (collapsed by default) -->
-              <div id="ag-{{ aid_safe }}" style="display:none; padding-top:0.75rem;">
-
-                <!-- Proof -->
-                {% if agent.proof %}
-                {% for key, val in agent.proof.items() %}
-                <div class="proof-key">{{ key.replace('_',' ') }}</div>
-                {% if val is string %}
-                <div class="proof-prose md-content">{{ val }}</div>
-                {% else %}
-                <pre class="proof-json"><code>{{ val | tojson(indent=2) }}</code></pre>
-                {% endif %}
-                {% endfor %}
-                {% endif %}
-                <div class="d-flex gap-2 mt-2 mb-1" style="font-size:0.77rem; color:#6b7280;">
-                  <span>Verdict:</span><strong class="text-dark">{{ agent.verdict or '—' }}</strong>
-                </div>
-
-                <!-- Tool Calls sub-section -->
-                {% if agent.tool_calls %}
-                <button class="sub-tog collapsed" onclick="togSection('tc-{{ aid_safe }}', this)">
-                  <i class="bi bi-chevron-down"></i>
-                  Tool Calls ({{ agent.tool_calls|length }})
-                </button>
-                <div id="tc-{{ aid_safe }}" style="display:none; padding-top:4px;">
-                  {% for tc in agent.tool_calls %}
-                  {% set sid = 'sn_' ~ aid_safe ~ '_' ~ loop.index %}
-                  {% set src_cls = 'src-' ~ tc.source if tc.source in ['perplexity_search','web_browse','url_fetch','code_execution'] else 'src-default' %}
-                  <div class="tc-row" onclick="togTcDetail('{{ sid }}', this)">
-                    <span class="src-badge {{ src_cls }}">{{ tc.source.replace('_',' ') }}</span>
-                    <span class="tc-query">{{ tc.query[:120] }}{% if tc.query|length > 120 %}…{% endif %}</span>
-                    {% if tc.snippet %}<i class="bi bi-chevron-down tc-chevron"></i>{% endif %}
-                  </div>
-                  {% if tc.snippet %}
-                  <div class="tc-detail" id="{{ sid }}">{{ tc.snippet }}</div>
-                  {% endif %}
-                  {% endfor %}
-                </div>
-                {% endif %}
-
-                <!-- Artefacts sub-section -->
-                {% if agent.artefact_files %}
-                <button class="sub-tog collapsed" onclick="togSection('arts-{{ aid_safe }}', this)">
-                  <i class="bi bi-chevron-down"></i>
-                  Artefacts ({{ agent.artefact_files|length }})
-                </button>
-                <div id="arts-{{ aid_safe }}" style="display:none; padding-top:6px;">
-                  {% for af in agent.artefact_files %}
-                  <span class="artefact-chip"
-                        onclick="openArtefactModal('{{ run_id }}','{{ agent.phase_id }}','{{ agent.agent_id }}','{{ af.filename }}','{{ af.ext }}')">
-                    <i class="bi {% if af.ext == 'md' %}bi-file-text{% elif af.ext == 'py' %}bi-filetype-py{% else %}bi-file-code{% endif %}"></i>
-                    {{ af.filename }}
-                  </span>
-                  {% endfor %}
-                </div>
-                {% endif %}
-
-              </div>
-            </div>
-            {% endfor %}
-          </div>
-        </div>
-        {% endfor %}
-
-        {% else %}
-        <div class="text-muted py-5 text-center">Results will appear when the run completes.</div>
-        {% endif %}
-
-      </div><!-- /results-tree -->
-
-      <!-- Stats panel -->
-      <div class="border-start bg-white d-flex flex-column col-run-stats">
-        <div class="px-4 py-3 overflow-auto flex-grow-1" id="stats-panel">
-          <div class="text-uppercase fw-semibold text-muted mb-3" style="font-size:0.67rem; letter-spacing:0.08em;">Run summary</div>
           {% if post_run %}
-          {% for phase in post_run.phases %}
-          <div class="mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="text-truncate" style="font-size:0.77rem; max-width:160px;">{{ phase.phase_name }}</span>
-              {% if phase.mean_confidence is not none %}
-              <span style="font-size:0.74rem; font-weight:600;">{{ (phase.mean_confidence * 100)|int }}%</span>
-              {% endif %}
-            </div>
-            {% if phase.mean_confidence is not none %}
-            <div class="confidence-bar"><div class="confidence-fill" style="width:{{ (phase.mean_confidence * 100)|int }}%;"></div></div>
-            {% endif %}
-            <div class="text-muted mt-1" style="font-size:0.71rem;">{{ phase.agents|length }} agents{% if phase.dur_str %} · {{ phase.dur_str }}{% endif %}</div>
+
+          {% if post_run.document %}
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-uppercase fw-semibold text-muted" style="font-size:0.68rem; letter-spacing:0.08em;">Research Report</span>
+            <a href="/api/runs/{{ run_id }}/export" download
+               class="btn btn-outline-secondary btn-sm px-3" style="font-size:0.75rem; border-radius:6px;">
+              ↓ Export HTML
+            </a>
           </div>
-          {% endfor %}
-          <hr class="my-2">
-          <div class="d-flex flex-column gap-1" style="font-size:0.79rem;">
-            <div class="d-flex justify-content-between"><span class="text-muted">Total tokens</span><strong>{{ "{:,}".format(post_run.stats.total_tokens) }}</strong></div>
-            <div class="d-flex justify-content-between"><span class="text-muted">Phases</span><strong>{{ post_run.stats.phase_count }}</strong></div>
-            <div class="d-flex justify-content-between"><span class="text-muted">Agents</span><strong>{{ post_run.stats.agent_count }}</strong></div>
+          <div class="card border-0 shadow-sm mb-4 rounded-3">
+            <div class="card-body p-4">
+              <div class="md-content" style="font-size:0.88rem; line-height:1.8; color:#374151;">{{ post_run.document }}</div>
+            </div>
+          </div>
+          <hr class="my-4">
+          {% endif %}
+
+          {% if post_run.report.get('summary') %}
+          <div class="card border-0 shadow-sm mb-4 rounded-3">
+            <div class="card-body p-4">
+              <div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div>
+              <div class="md-content" style="font-size:0.88rem; line-height:1.75; color:#374151;">{{ post_run.report.summary }}</div>
+            </div>
           </div>
           {% endif %}
-        </div>
-        <div class="border-top px-3 py-3 flex-shrink-0">
-          <button id="continue-btn" class="btn btn-outline-dark w-100 btn-sm" onclick="continueRun()" style="font-size:0.82rem;">
-            <i class="bi bi-arrow-repeat me-1"></i>Continue Investigation
-          </button>
-          <div id="continue-status" class="text-muted mt-2 text-center" style="font-size:0.75rem; display:none;"></div>
-        </div>
-      </div>
 
-    </div><!-- /content row -->
+          {% if post_run.report.get('datasets') %}
+          <div class="mb-4">
+            <div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem; letter-spacing:0.08em;">
+              Datasets ({{ post_run.report.datasets|length }})
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              {% for ds in post_run.report.datasets %}
+              <a href="{{ ds.url }}" target="_blank" rel="noopener"
+                 class="badge text-decoration-none"
+                 style="background:#f3f4f6; color:#374151; border:1px solid #e5e7eb; font-size:0.74rem; font-weight:500; padding:5px 10px; border-radius:6px;">
+                {{ ds.name }}
+                <span class="text-muted ms-1">{{ (ds.quality_score * 100)|int }}%</span>
+              </a>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
 
-    <!-- Bottom chat drawer — full width, always visible -->
-    <div class="chat-drawer flex-shrink-0" id="chat-drawer">
+          {% if post_run.report.get('paths_not_taken') %}
+          <div class="mb-4">
+            <div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem; letter-spacing:0.08em;">Paths not taken</div>
+            {% for p in post_run.report.paths_not_taken %}
+            <div class="d-flex gap-2 mb-1" style="font-size:0.81rem; color:#6b7280;"><span>·</span><span>{{ p }}</span></div>
+            {% endfor %}
+          </div>
+          {% endif %}
 
-      <!-- Conversation history (hidden until first message) -->
-      <div id="chat-hist" class="chat-hist" style="display:none;">
-        <div class="chat-hist-inner" id="chat-messages"></div>
-        <div id="chat-typing" class="px-4 pb-3 htmx-indicator" style="display:none;">
-          <div class="chat-bubble-agent d-inline-flex align-items-center gap-1" style="padding:10px 14px;">
-            <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+          <hr class="my-4">
+
+          {% for phase in post_run.phases %}
+          <div class="phase-block {% if phase.mean_confidence and phase.mean_confidence >= 0.7 %}done{% endif %} mb-4">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <button class="tog" onclick="togSection('ph-{{ phase.phase_id }}', this)">
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <span class="fw-semibold" style="font-size:0.9rem;">Phase {{ loop.index }}: {{ phase.phase_name }}</span>
+              {% if phase.mean_confidence is not none %}
+              <span class="badge {% if phase.mean_confidence >= 0.8 %}bg-success{% elif phase.mean_confidence >= 0.5 %}bg-warning text-dark{% else %}bg-danger{% endif %}"
+                    style="font-size:0.67rem;">{{ (phase.mean_confidence * 100)|int }}%</span>
+              {% endif %}
+              <span class="text-muted" style="font-size:0.74rem;">
+                {{ phase.agents|length }} agents
+                {% if phase.dur_str %}· {{ phase.dur_str }}{% endif %}
+                {% if phase.total_tokens %}· {{ "{:,}".format(phase.total_tokens) }} tok{% endif %}
+              </span>
+            </div>
+            <div id="ph-{{ phase.phase_id }}">
+              {% if phase.synthesis %}
+              <div class="md-content mb-3" style="font-size:0.84rem; line-height:1.75; color:#374151; border-left:3px solid #f0f2f5; padding-left:0.85rem; max-width:72ch;">
+                {{ phase.synthesis }}
+              </div>
+              {% endif %}
+              {% for agent in phase.agents %}
+              {% set aid_safe = agent.agent_id | replace('-', '_') %}
+              <div class="agent-card">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <button class="tog collapsed" onclick="togSection('ag-{{ aid_safe }}', this)">
+                    <i class="bi bi-chevron-down"></i>
+                  </button>
+                  <span class="fw-semibold" style="font-size:0.85rem;">{{ agent.role }}</span>
+                  {% if agent.work_item_name %}
+                  <span class="text-muted" style="font-size:0.78rem;">— {{ agent.work_item_name }}</span>
+                  {% endif %}
+                  {% for sk in agent.work_item_skills %}
+                  <span style="font-size:0.64rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; padding:1px 6px;">{{ sk }}</span>
+                  {% endfor %}
+                  <span class="ms-auto d-flex align-items-center gap-2" style="font-size:0.74rem; color:#6b7280;">
+                    {% if agent.confidence is not none %}
+                    <span class="badge {% if agent.confidence >= 0.8 %}bg-success{% elif agent.confidence >= 0.5 %}bg-warning text-dark{% else %}bg-danger{% endif %}" style="font-size:0.65rem;">
+                      {{ (agent.confidence * 100)|int }}%
+                    </span>
+                    {% endif %}
+                    {% if agent.dur_str %}{{ agent.dur_str }}{% endif %}
+                    {% if agent.cost_tokens %}· {{ "{:,}".format(agent.cost_tokens) }} tok{% endif %}
+                  </span>
+                </div>
+                <div id="ag-{{ aid_safe }}" style="display:none; padding-top:0.75rem;">
+                  {% if agent.proof %}
+                  {% for key, val in agent.proof.items() %}
+                  <div class="proof-key">{{ key.replace('_',' ') }}</div>
+                  {% if val is string %}
+                  <div class="proof-prose md-content">{{ val }}</div>
+                  {% else %}
+                  <pre class="proof-json"><code>{{ val | tojson(indent=2) }}</code></pre>
+                  {% endif %}
+                  {% endfor %}
+                  {% endif %}
+                  <div class="d-flex gap-2 mt-2 mb-1" style="font-size:0.77rem; color:#6b7280;">
+                    <span>Verdict:</span><strong class="text-dark">{{ agent.verdict or '—' }}</strong>
+                  </div>
+                  {% if agent.tool_calls %}
+                  <button class="sub-tog collapsed" onclick="togSection('tc-{{ aid_safe }}', this)">
+                    <i class="bi bi-chevron-down"></i>
+                    Tool Calls ({{ agent.tool_calls|length }})
+                  </button>
+                  <div id="tc-{{ aid_safe }}" style="display:none; padding-top:4px;">
+                    {% for tc in agent.tool_calls %}
+                    {% set sid = 'sn_' ~ aid_safe ~ '_' ~ loop.index %}
+                    {% set src_cls = 'src-' ~ tc.source if tc.source in ['perplexity_search','web_browse','url_fetch','code_execution'] else 'src-default' %}
+                    <div class="tc-row" onclick="togTcDetail('{{ sid }}', this)">
+                      <span class="src-badge {{ src_cls }}">{{ tc.source.replace('_',' ') }}</span>
+                      <span class="tc-query">{{ tc.query[:120] }}{% if tc.query|length > 120 %}…{% endif %}</span>
+                      {% if tc.snippet %}<i class="bi bi-chevron-down tc-chevron"></i>{% endif %}
+                    </div>
+                    {% if tc.snippet %}
+                    <div class="tc-detail" id="{{ sid }}">{{ tc.snippet }}</div>
+                    {% endif %}
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                  {% if agent.artefact_files %}
+                  <button class="sub-tog collapsed" onclick="togSection('arts-{{ aid_safe }}', this)">
+                    <i class="bi bi-chevron-down"></i>
+                    Artefacts ({{ agent.artefact_files|length }})
+                  </button>
+                  <div id="arts-{{ aid_safe }}" style="display:none; padding-top:6px;">
+                    {% for af in agent.artefact_files %}
+                    <span class="artefact-chip"
+                          onclick="openArtefactModal('{{ run_id }}','{{ agent.phase_id }}','{{ agent.agent_id }}','{{ af.filename }}','{{ af.ext }}')">
+                      <i class="bi {% if af.ext == 'md' %}bi-file-text{% elif af.ext == 'py' %}bi-filetype-py{% else %}bi-file-code{% endif %}"></i>
+                      {{ af.filename }}
+                    </span>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+
+          {% else %}
+          <div class="text-muted py-5 text-center">Results will appear when the run completes.</div>
+          {% endif %}
+
+        </div><!-- /results-tree -->
+
+        <!-- Stats panel -->
+        <div class="border-start bg-white d-flex flex-column col-run-stats">
+          <div class="px-4 py-3 overflow-auto flex-grow-1" id="stats-panel">
+            <div class="text-uppercase fw-semibold text-muted mb-3" style="font-size:0.67rem; letter-spacing:0.08em;">Run summary</div>
+            {% if post_run %}
+            {% for phase in post_run.phases %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-truncate" style="font-size:0.77rem; max-width:160px;">{{ phase.phase_name }}</span>
+                {% if phase.mean_confidence is not none %}
+                <span style="font-size:0.74rem; font-weight:600;">{{ (phase.mean_confidence * 100)|int }}%</span>
+                {% endif %}
+              </div>
+              {% if phase.mean_confidence is not none %}
+              <div class="confidence-bar"><div class="confidence-fill" style="width:{{ (phase.mean_confidence * 100)|int }}%;"></div></div>
+              {% endif %}
+              <div class="text-muted mt-1" style="font-size:0.71rem;">{{ phase.agents|length }} agents{% if phase.dur_str %} · {{ phase.dur_str }}{% endif %}</div>
+            </div>
+            {% endfor %}
+            <hr class="my-2">
+            <div class="d-flex flex-column gap-1" style="font-size:0.79rem;">
+              <div class="d-flex justify-content-between"><span class="text-muted">Total tokens</span><strong>{{ "{:,}".format(post_run.stats.total_tokens) }}</strong></div>
+              <div class="d-flex justify-content-between"><span class="text-muted">Phases</span><strong>{{ post_run.stats.phase_count }}</strong></div>
+              <div class="d-flex justify-content-between"><span class="text-muted">Agents</span><strong>{{ post_run.stats.agent_count }}</strong></div>
+            </div>
+            {% endif %}
+          </div>
+          <div class="border-top px-3 py-3 flex-shrink-0">
+            <button id="continue-btn" class="btn btn-outline-dark w-100 btn-sm" onclick="continueRun()" style="font-size:0.82rem;">
+              <i class="bi bi-arrow-repeat me-1"></i>Continue Investigation
+            </button>
+            <div id="continue-status" class="text-muted mt-2 text-center" style="font-size:0.75rem; display:none;"></div>
           </div>
         </div>
+
+      </div><!-- /content row -->
+
+      <!-- Bottom chat drawer -->
+      <div class="chat-drawer flex-shrink-0" id="chat-drawer">
+        <div id="chat-hist" class="chat-hist" style="display:none;">
+          <div class="chat-hist-inner" id="chat-messages"></div>
+          <div id="chat-typing" class="px-4 pb-3 htmx-indicator" style="display:none;">
+            <div class="chat-bubble-agent d-inline-flex align-items-center gap-1" style="padding:10px 14px;">
+              <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+            </div>
+          </div>
+        </div>
+        <form id="chat-form"
+              hx-post="/api/runs/{{ run_id }}/chat"
+              hx-target="#chat-messages"
+              hx-swap="beforeend"
+              hx-indicator="#chat-typing">
+          <div class="chat-input-row">
+            <i class="bi bi-chat-text text-muted flex-shrink-0" style="font-size:1rem; margin-bottom:10px;"></i>
+            <textarea id="chat-input" name="message" class="form-control flex-grow-1" rows="1" required
+                      placeholder="Ask about the findings, gaps, or what to do next…"
+                      style="resize:none; overflow-y:hidden; min-height:44px; max-height:140px; font-size:0.84rem; border-radius:8px; line-height:1.5; padding:10px 14px;"></textarea>
+            <button type="submit" class="btn btn-dark flex-shrink-0" style="border-radius:8px; height:44px; width:44px; padding:0; font-size:1rem; margin-bottom:0;">→</button>
+          </div>
+        </form>
       </div>
 
-      <!-- Input bar -->
-      <form id="chat-form"
-            hx-post="/api/runs/{{ run_id }}/chat"
-            hx-target="#chat-messages"
-            hx-swap="beforeend"
-            hx-indicator="#chat-typing">
-        <div class="chat-input-row">
-          <i class="bi bi-chat-text text-muted flex-shrink-0" style="font-size:1rem; margin-bottom:10px;"></i>
-          <textarea id="chat-input" name="message" class="form-control flex-grow-1" rows="1" required
-                    placeholder="Ask about the findings, gaps, or what to do next…"
-                    style="resize:none; overflow-y:hidden; min-height:44px; max-height:140px; font-size:0.84rem; border-radius:8px; line-height:1.5; padding:10px 14px;"></textarea>
-          <button type="submit" class="btn btn-dark flex-shrink-0" style="border-radius:8px; height:44px; width:44px; padding:0; font-size:1rem; margin-bottom:0;">→</button>
-        </div>
-      </form>
+    </div><!-- /main column -->
 
-    </div><!-- /chat-drawer -->
+  </div><!-- /pane-results -->
 
-  </div><!-- /main column -->
+</div><!-- /content wrapper -->
 
-</div><!-- /pane-results -->
-
-<!-- ── Artefact modal ──────────────────────────────────────────────────────── -->
+<!-- Artefact modal -->
 <div class="modal fade" id="artefact-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
@@ -621,10 +539,9 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
-<!-- ── Scripts ─────────────────────────────────────────────────────────────── -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://unpkg.com/htmx.org@1.9.12"></script>
+{% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
@@ -652,6 +569,7 @@ function showTab(tab) {
     runPane.style.removeProperty('display');
     resPane.style.setProperty('display', 'none', 'important');
   } else {
+    runPane.style.removeProperty('display');
     runPane.style.setProperty('display', 'none', 'important');
     resPane.style.removeProperty('display');
   }
@@ -699,7 +617,6 @@ document.getElementById('chat-form').addEventListener('submit', function() {
   bubble.className = 'chat-bubble-user';
   bubble.textContent = msg;
   document.getElementById('chat-messages').appendChild(bubble);
-  // Show typing indicator
   document.getElementById('chat-typing').style.display = '';
   requestAnimationFrame(() => {
     input.value = '';
@@ -741,12 +658,10 @@ function openArtefactModal(runId, phaseId, agentId, filename, ext) {
   const title = document.getElementById('artefact-modal-title');
   const body  = document.getElementById('artefact-modal-body');
   const copyBtn = document.getElementById('artefact-copy-btn');
-
   title.textContent = filename;
   body.innerHTML = '<div class="p-4 text-muted" style="font-size:0.83rem;">Loading…</div>';
   copyBtn.onclick = null;
   _artefactModal.show();
-
   const cacheKey = `${runId}/${phaseId}/${agentId}/${filename}`;
   const doLoad = async () => {
     try {
@@ -798,7 +713,7 @@ async function continueRun() {
   }
 }
 
-// ── Info panel tabs (Run tab) ─────────────────────────────────────────────
+// ── Info panel tabs ───────────────────────────────────────────────────────
 
 function switchInfoTab(tab, btn) {
   ['log','phases','plan'].forEach(t => {
@@ -1029,14 +944,12 @@ function connectSSE() {
   };
 }
 
-// ── Dynamic results population (when run completes during live view) ───────
+// ── Dynamic results population ────────────────────────────────────────────
 
 function populateResultsTab(data) {
   const tree = document.getElementById('results-tree');
   if (!data.phases||!data.phases.length) { tree.innerHTML='<div class="text-muted py-5 text-center">No phase data available.</div>'; return; }
-
   let html = '';
-
   if (data.document) {
     html += `<div class="d-flex justify-content-between align-items-center mb-3">
       <span class="text-uppercase fw-semibold text-muted" style="font-size:0.68rem;letter-spacing:0.08em;">Research Report</span>
@@ -1046,19 +959,15 @@ function populateResultsTab(data) {
       <div style="font-size:0.88rem;line-height:1.8;color:#374151;">${marked.parse(data.document)}</div>
     </div></div><hr class="my-4">`;
   }
-
   if (data.report&&data.report.summary) {
     html += `<div class="card border-0 shadow-sm mb-4 rounded-3"><div class="card-body p-4"><div class="fw-bold mb-3" style="font-size:0.95rem;">What we established</div><div style="font-size:0.88rem;line-height:1.75;color:#374151;">${marked.parse(data.report.summary)}</div></div></div>`;
   }
   if (data.report&&data.report.datasets&&data.report.datasets.length) {
     html += `<div class="mb-4"><div class="text-uppercase fw-semibold text-muted mb-2" style="font-size:0.68rem;letter-spacing:0.08em;">Datasets (${data.report.datasets.length})</div><div class="d-flex flex-wrap gap-2">`;
-    data.report.datasets.forEach(ds=>{
-      html += `<a href="${escHtml(ds.url)}" target="_blank" class="badge text-decoration-none" style="background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;font-size:0.74rem;padding:5px 10px;border-radius:6px;">${escHtml(ds.name)} <span class="text-muted">${Math.round((ds.quality_score||0)*100)}%</span></a>`;
-    });
+    data.report.datasets.forEach(ds=>{ html += `<a href="${escHtml(ds.url)}" target="_blank" class="badge text-decoration-none" style="background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;font-size:0.74rem;padding:5px 10px;border-radius:6px;">${escHtml(ds.name)} <span class="text-muted">${Math.round((ds.quality_score||0)*100)}%</span></a>`; });
     html += `</div></div>`;
   }
   html += '<hr class="my-4">';
-
   data.phases.forEach((phase, pi)=>{
     const conf = phase.mean_confidence!=null?Math.round(phase.mean_confidence*100):null;
     const confBadge = conf!=null?`<span class="badge ${conf>=80?'bg-success':conf>=50?'bg-warning text-dark':'bg-danger'}" style="font-size:0.67rem;">${conf}%</span>`:'';
@@ -1068,77 +977,44 @@ function populateResultsTab(data) {
         <span class="fw-semibold" style="font-size:0.9rem;">Phase ${pi+1}: ${escHtml(phase.phase_name)}</span>
         ${confBadge}
         <span class="text-muted" style="font-size:0.74rem;">${phase.agents.length} agents${phase.dur_str?' · '+phase.dur_str:''}${phase.total_tokens?' · '+phase.total_tokens.toLocaleString()+' tok':''}</span>
-      </div>
-      <div id="dph-${pi}">
+      </div><div id="dph-${pi}">
         ${phase.synthesis?`<div class="mb-3" style="font-size:0.84rem;line-height:1.75;color:#374151;border-left:3px solid #f0f2f5;padding-left:0.85rem;max-width:72ch;">${marked.parse(phase.synthesis)}</div>`:''}`;
-
     phase.agents.forEach((ag, ai)=>{
       const ac = ag.confidence!=null?Math.round(ag.confidence*100):null;
-      html += `<div class="agent-card">
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <button class="tog collapsed" onclick="togSection('dag-${pi}-${ai}',this)"><i class="bi bi-chevron-down"></i></button>
-          <span class="fw-semibold" style="font-size:0.85rem;">${escHtml(ag.role)}</span>
-          ${ag.work_item_name?`<span class="text-muted" style="font-size:0.78rem;">— ${escHtml(ag.work_item_name)}</span>`:''}
-          <span class="ms-auto d-flex align-items-center gap-2" style="font-size:0.74rem;color:#6b7280;">
-            ${ac!=null?`<span class="badge ${ac>=80?'bg-success':ac>=50?'bg-warning text-dark':'bg-danger'}" style="font-size:0.65rem;">${ac}%</span>`:''}
-            ${ag.dur_str||''}${ag.cost_tokens?' · '+ag.cost_tokens.toLocaleString()+' tok':''}
-          </span>
-        </div>
+      html += `<div class="agent-card"><div class="d-flex align-items-center gap-2 flex-wrap">
+        <button class="tog collapsed" onclick="togSection('dag-${pi}-${ai}',this)"><i class="bi bi-chevron-down"></i></button>
+        <span class="fw-semibold" style="font-size:0.85rem;">${escHtml(ag.role)}</span>
+        ${ag.work_item_name?`<span class="text-muted" style="font-size:0.78rem;">— ${escHtml(ag.work_item_name)}</span>`:''}
+        <span class="ms-auto d-flex align-items-center gap-2" style="font-size:0.74rem;color:#6b7280;">
+          ${ac!=null?`<span class="badge ${ac>=80?'bg-success':ac>=50?'bg-warning text-dark':'bg-danger'}" style="font-size:0.65rem;">${ac}%</span>`:''}
+          ${ag.dur_str||''}${ag.cost_tokens?' · '+ag.cost_tokens.toLocaleString()+' tok':''}
+        </span></div>
         <div id="dag-${pi}-${ai}" style="display:none;padding-top:0.75rem;">`;
-
-      if (ag.proof && Object.keys(ag.proof).length) {
-        Object.entries(ag.proof).forEach(([k,v])=>{ html += _renderProofEntry(k,v); });
-      }
+      if (ag.proof && Object.keys(ag.proof).length) { Object.entries(ag.proof).forEach(([k,v])=>{ html += _renderProofEntry(k,v); }); }
       html += `<div class="d-flex gap-2 mt-2 mb-1" style="font-size:0.77rem;color:#6b7280;"><span>Verdict:</span><strong class="text-dark">${ag.verdict||'—'}</strong></div>`;
-
-      // Tool calls — row layout
-      if (ag.tool_calls && ag.tool_calls.length) {
-        const tcId = `dtc_${pi}_${ai}`;
-        html += `<button class="sub-tog collapsed" onclick="togSection('${tcId}',this)"><i class="bi bi-chevron-down"></i> Tool Calls (${ag.tool_calls.length})</button>`;
-        html += `<div id="${tcId}" style="display:none;padding-top:4px;">`;
-        ag.tool_calls.forEach((tc, ti)=>{
-          const sid = `dsnip-${pi}-${ai}-${ti}`;
-          const srcMap = {perplexity_search:'src-perplexity_search',web_browse:'src-web_browse',url_fetch:'src-url_fetch',code_execution:'src-code_execution'};
-          const srcCls = srcMap[tc.source] || 'src-default';
-          const hasSnip = tc.snippet ? 'true' : '';
-          html += `<div class="tc-row" onclick="togTcDetail('${sid}',this)">
-            <span class="src-badge ${srcCls}">${tc.source.replace(/_/g,' ')}</span>
-            <span class="tc-query">${escHtml(tc.query.substring(0,120))}${tc.query.length>120?'…':''}</span>
-            ${hasSnip?'<i class="bi bi-chevron-down tc-chevron"></i>':''}
-          </div>`;
-          if (tc.snippet) html += `<div class="tc-detail" id="${sid}">${escHtml(tc.snippet)}</div>`;
-        });
-        html += `</div>`;
+      if (ag.tool_calls&&ag.tool_calls.length) {
+        const tcId=`dtc_${pi}_${ai}`;
+        html+=`<button class="sub-tog collapsed" onclick="togSection('${tcId}',this)"><i class="bi bi-chevron-down"></i> Tool Calls (${ag.tool_calls.length})</button><div id="${tcId}" style="display:none;padding-top:4px;">`;
+        ag.tool_calls.forEach((tc,ti)=>{ const sid=`dsnip-${pi}-${ai}-${ti}`;const srcMap={perplexity_search:'src-perplexity_search',web_browse:'src-web_browse',url_fetch:'src-url_fetch',code_execution:'src-code_execution'};const srcCls=srcMap[tc.source]||'src-default';html+=`<div class="tc-row" onclick="togTcDetail('${sid}',this)"><span class="src-badge ${srcCls}">${tc.source.replace(/_/g,' ')}</span><span class="tc-query">${escHtml(tc.query.substring(0,120))}${tc.query.length>120?'…':''}</span>${tc.snippet?'<i class="bi bi-chevron-down tc-chevron"></i>':''}</div>${tc.snippet?`<div class="tc-detail" id="${sid}">${escHtml(tc.snippet)}</div>`:''}`; });
+        html+=`</div>`;
       }
-
-      // Artefacts — chips opening modal
-      if (ag.artefact_files && ag.artefact_files.length) {
-        const artsId = `darts_${pi}_${ai}`;
-        const extIcon = ext => ext==='md'?'bi-file-text':ext==='py'?'bi-filetype-py':'bi-file-code';
-        html += `<button class="sub-tog collapsed" onclick="togSection('${artsId}',this)"><i class="bi bi-chevron-down"></i> Artefacts (${ag.artefact_files.length})</button>`;
-        html += `<div id="${artsId}" style="display:none;padding-top:6px;">`;
-        ag.artefact_files.forEach((af)=>{
-          html += `<span class="artefact-chip" onclick="openArtefactModal('${RUN_ID}','${escHtml(ag.phase_id)}','${escHtml(ag.agent_id)}','${escHtml(af.filename)}','${af.ext}')"><i class="bi ${extIcon(af.ext)}"></i> ${escHtml(af.filename)}</span>`;
-        });
-        html += `</div>`;
+      if (ag.artefact_files&&ag.artefact_files.length) {
+        const artsId=`darts_${pi}_${ai}`;
+        html+=`<button class="sub-tog collapsed" onclick="togSection('${artsId}',this)"><i class="bi bi-chevron-down"></i> Artefacts (${ag.artefact_files.length})</button><div id="${artsId}" style="display:none;padding-top:6px;">`;
+        ag.artefact_files.forEach(af=>{ const extIcon=e=>e==='md'?'bi-file-text':e==='py'?'bi-filetype-py':'bi-file-code'; html+=`<span class="artefact-chip" onclick="openArtefactModal('${RUN_ID}','${escHtml(ag.phase_id)}','${escHtml(ag.agent_id)}','${escHtml(af.filename)}','${af.ext}')"><i class="bi ${extIcon(af.ext)}"></i> ${escHtml(af.filename)}</span>`; });
+        html+=`</div>`;
       }
-
-      html += `</div></div>`;
+      html+=`</div></div>`;
     });
-    html += `</div></div>`;
+    html+=`</div></div>`;
   });
   tree.innerHTML = html;
-
-  // Update stats panel
   const statsPanel = document.getElementById('stats-panel');
   if (statsPanel && data.phases) {
-    let statsHtml = `<div class="text-uppercase fw-semibold text-muted mb-3" style="font-size:0.67rem;letter-spacing:0.08em;">Run summary</div>`;
-    data.phases.forEach(p=>{
-      const c=p.mean_confidence!=null?Math.round(p.mean_confidence*100):null;
-      statsHtml+=`<div class="mb-3"><div class="d-flex justify-content-between align-items-center mb-1"><span class="text-truncate" style="font-size:0.77rem;max-width:160px;">${escHtml(p.phase_name)}</span>${c!=null?`<span style="font-size:0.74rem;font-weight:600;">${c}%</span>`:''}</div>${c!=null?`<div class="confidence-bar"><div class="confidence-fill" style="width:${c}%;"></div></div>`:''}<div class="text-muted mt-1" style="font-size:0.71rem;">${p.agents.length} agents${p.dur_str?' · '+p.dur_str:''}</div></div>`;
-    });
-    statsHtml+=`<hr class="my-2"><div class="d-flex flex-column gap-1" style="font-size:0.79rem;"><div class="d-flex justify-content-between"><span class="text-muted">Total tokens</span><strong>${data.stats.total_tokens.toLocaleString()}</strong></div><div class="d-flex justify-content-between"><span class="text-muted">Phases</span><strong>${data.stats.phase_count}</strong></div><div class="d-flex justify-content-between"><span class="text-muted">Agents</span><strong>${data.stats.agent_count}</strong></div></div>`;
-    statsPanel.innerHTML = statsHtml;
+    let s=`<div class="text-uppercase fw-semibold text-muted mb-3" style="font-size:0.67rem;letter-spacing:0.08em;">Run summary</div>`;
+    data.phases.forEach(p=>{ const c=p.mean_confidence!=null?Math.round(p.mean_confidence*100):null; s+=`<div class="mb-3"><div class="d-flex justify-content-between align-items-center mb-1"><span class="text-truncate" style="font-size:0.77rem;max-width:160px;">${escHtml(p.phase_name)}</span>${c!=null?`<span style="font-size:0.74rem;font-weight:600;">${c}%</span>`:''}</div>${c!=null?`<div class="confidence-bar"><div class="confidence-fill" style="width:${c}%;"></div></div>`:''}<div class="text-muted mt-1" style="font-size:0.71rem;">${p.agents.length} agents${p.dur_str?' · '+p.dur_str:''}</div></div>`; });
+    s+=`<hr class="my-2"><div class="d-flex flex-column gap-1" style="font-size:0.79rem;"><div class="d-flex justify-content-between"><span class="text-muted">Total tokens</span><strong>${data.stats.total_tokens.toLocaleString()}</strong></div><div class="d-flex justify-content-between"><span class="text-muted">Phases</span><strong>${data.stats.phase_count}</strong></div><div class="d-flex justify-content-between"><span class="text-muted">Agents</span><strong>${data.stats.agent_count}</strong></div></div>`;
+    statsPanel.innerHTML = s;
   }
 }
 
@@ -1154,14 +1030,13 @@ if (_terminal) {
   fetch(`/api/runs/${RUN_ID}/state`)
     .then(r => r.json())
     .then(state => {
-      if (state.new_log && state.new_log.length) appendLog(state.new_log);
+      if (state.new_log&&state.new_log.length) appendLog(state.new_log);
       if (state.dag) updateDag(state.dag);
       if (state.phase_summaries) renderPhaseSummaries(state.phase_summaries);
     })
-    .catch(() => {});
+    .catch(()=>{});
 } else {
   connectSSE();
 }
 </script>
-</body>
-</html>
+{% endblock %}

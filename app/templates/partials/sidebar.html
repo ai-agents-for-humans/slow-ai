@@ -1,0 +1,110 @@
+<style>
+  #sidebar {
+    transition: width 0.2s ease;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  #sidebar-inner { min-width: 260px; width: 260px; }
+  #sidebar-reopen-tab {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 48px;
+    background: #e5e7eb;
+    border: none;
+    border-radius: 0 8px 8px 0;
+    z-index: 200;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: #6b7280;
+  }
+  #sidebar-reopen-tab:hover { background: #d1d5db; }
+</style>
+
+<nav id="sidebar" class="d-flex flex-column border-end bg-white"
+     style="width:260px; min-height:100vh;">
+
+  <div id="sidebar-inner" class="d-flex flex-column flex-grow-1">
+
+    <!-- Logo -->
+    <div class="px-3 py-4 border-bottom">
+      <a href="/" class="text-decoration-none">
+        <span class="fw-semibold text-dark" style="letter-spacing:-0.02em; font-size:1.1rem;">
+          ◈ Slow AI
+        </span>
+      </a>
+    </div>
+
+    <!-- New Investigation -->
+    <div class="px-3 pt-3 pb-2">
+      <a href="/interview" class="btn btn-dark w-100 btn-sm d-flex align-items-center gap-2">
+        <i class="bi bi-plus-lg"></i> New Investigation
+      </a>
+    </div>
+
+    <!-- Projects section label -->
+    <div class="px-3 pt-2 pb-1">
+      <span class="text-uppercase text-muted fw-semibold" style="font-size:0.7rem; letter-spacing:0.08em;">
+        Projects
+      </span>
+    </div>
+
+    <!-- Projects list (loaded via htmx) -->
+    <div class="overflow-auto flex-grow-1 px-2 pb-2"
+         id="project-list"
+         hx-get="/api/projects-html"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <div class="text-muted small px-2 py-2">Loading...</div>
+    </div>
+
+    <!-- Collapse toggle -->
+    <div class="border-top px-3 py-2 flex-shrink-0">
+      <button onclick="toggleSidebar()" class="btn btn-link p-0 text-muted d-flex align-items-center gap-2"
+              style="font-size:0.78rem; text-decoration:none;">
+        <i class="bi bi-layout-sidebar-reverse"></i>
+        <span>Collapse</span>
+      </button>
+    </div>
+
+  </div>
+</nav>
+
+<!-- Re-open tab (visible when sidebar is collapsed) -->
+<button id="sidebar-reopen-tab" onclick="toggleSidebar()" title="Open sidebar">
+  <i class="bi bi-chevron-right" style="font-size:0.65rem;"></i>
+</button>
+
+<script>
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const tab = document.getElementById('sidebar-reopen-tab');
+    const isCollapsed = sidebar.style.width === '0px';
+    if (isCollapsed) {
+      sidebar.style.width = '260px';
+      tab.style.display = 'none';
+      localStorage.setItem('sidebarCollapsed', 'false');
+    } else {
+      sidebar.style.width = '0px';
+      tab.style.display = 'flex';
+      localStorage.setItem('sidebarCollapsed', 'true');
+    }
+  }
+
+  // Restore collapsed state without transition flash
+  (function () {
+    if (localStorage.getItem('sidebarCollapsed') === 'true') {
+      const sidebar = document.getElementById('sidebar');
+      const tab = document.getElementById('sidebar-reopen-tab');
+      sidebar.style.transition = 'none';
+      sidebar.style.width = '0px';
+      tab.style.display = 'flex';
+      requestAnimationFrame(() => { sidebar.style.transition = ''; });
+    }
+  })();
+</script>

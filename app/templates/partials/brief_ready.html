@@ -33,6 +33,7 @@
     <div class="d-flex gap-2">
       <button class="btn btn-dark btn-sm px-3"
               hx-post="/api/brief/confirm"
+              hx-vals='{"session_id": "{{ session_id }}"}'
               hx-target="#chat-messages"
               hx-swap="beforeend"
               hx-indicator="#typing">

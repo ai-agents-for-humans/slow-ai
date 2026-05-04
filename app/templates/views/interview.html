@@ -1,82 +1,149 @@
 {% extends "base.html" %}
 
-{% block title %}New Investigation · Slow AI{% endblock %}
+{% block title %}Interview · Slow AI{% endblock %}
+
+{% block head %}
+<style>
+  #graph-panel { border-left: 1px solid #e5e7eb; background: #f8f9fa; }
+  #graph-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #9ca3af;
+    font-size: 0.82rem;
+    text-align: center;
+    padding: 2rem;
+    gap: 0.5rem;
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-column" style="height:100vh;">
+<div class="d-flex" style="height:100vh; overflow:hidden;">
 
-  <!-- Header -->
-  <div class="border-bottom bg-white px-4 py-3 d-flex align-items-center gap-3">
-    <a href="/" class="text-muted text-decoration-none" style="font-size:0.85rem;">
-      ← Back
-    </a>
-    <span class="fw-semibold" style="font-size:0.95rem;">New Investigation</span>
-  </div>
+  <!-- Chat column -->
+  <div class="d-flex flex-column flex-grow-1" style="min-width:0; flex:1;">
 
-  <!-- Chat messages -->
-  <div class="flex-grow-1 overflow-auto px-4 py-4" id="chat-scroll">
-    <div style="max-width:720px; margin:0 auto;">
-
-      <div id="chat-messages"
-           hx-post="/api/interview/start"
-           hx-trigger="load"
-           hx-swap="beforeend"
-           hx-indicator="#typing">
-      </div>
-
-      <!-- Typing indicator -->
-      <div id="typing" class="d-flex mb-3 htmx-indicator">
-        <div class="chat-bubble-agent d-flex align-items-center gap-1" style="padding:14px 18px;">
-          <span class="typing-dot"></span>
-          <span class="typing-dot"></span>
-          <span class="typing-dot"></span>
-        </div>
-      </div>
-
+    <!-- Header -->
+    <div class="border-bottom bg-white px-4 py-3 d-flex align-items-center gap-3 flex-shrink-0">
+      <span class="fw-semibold" style="font-size:0.95rem;">New Investigation</span>
+      <span class="text-muted" style="font-size:0.75rem; font-family:monospace;">{{ session_id[:8] }}</span>
     </div>
-  </div>
 
-  <!-- Input -->
-  <div class="border-top bg-white px-4 py-3">
-    <div style="max-width:720px; margin:0 auto;">
-      <form id="chat-form"
-            hx-post="/api/interview/message"
-            hx-target="#chat-messages"
-            hx-swap="beforeend"
-            hx-indicator="#typing"
-            hx-encoding="multipart/form-data"
-            class="d-flex flex-column gap-2">
+    <!-- Chat messages -->
+    <div class="flex-grow-1 overflow-auto px-4 py-4" id="chat-scroll">
+      <div style="max-width:680px; margin:0 auto;">
 
-        <input type="file" id="file-input" name="files" multiple
-               accept=".pdf,.csv,.docx,.png,.jpg,.jpeg,.gif,.webp"
-               style="display:none">
-
-        <!-- File chips -->
-        <div id="file-chips" class="d-flex flex-wrap gap-1" style="display:none;"></div>
-
-        <!-- Message row -->
-        <div class="d-flex gap-2 align-items-end">
-          <textarea id="chat-input"
-                    name="message"
-                    class="form-control"
-                    placeholder="Your answer... (or attach a file)"
-                    autocomplete="off"
-                    rows="3"
-                    style="border-radius:8px; resize:none; overflow-y:hidden; min-height:72px; max-height:160px; line-height:1.5;"></textarea>
-          <button type="button" id="attach-btn"
-                  class="btn btn-outline-secondary px-3 flex-shrink-0"
-                  style="border-radius:8px; height:44px; align-self:flex-end;"
-                  title="Attach file">
-            📎
-          </button>
-          <button type="submit" class="btn btn-dark px-4 flex-shrink-0"
-                  style="border-radius:8px; height:44px; align-self:flex-end;">
-            Send →
-          </button>
+        <div id="chat-messages"
+             {% if not has_history %}
+             hx-post="/api/interview/{{ session_id }}/start"
+             hx-trigger="load"
+             hx-swap="beforeend"
+             hx-indicator="#typing"
+             {% endif %}>
+          {{ history_html | safe }}
         </div>
 
-      </form>
+        <!-- Typing indicator -->
+        <div id="typing" class="d-flex mb-3 htmx-indicator">
+          <div class="chat-bubble-agent d-flex align-items-center gap-1" style="padding:14px 18px;">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+          </div>
+        </div>
+
+      </div>
     </div>
+
+    <!-- Input -->
+    <div class="border-top bg-white px-4 py-3 flex-shrink-0">
+      <div style="max-width:680px; margin:0 auto;">
+        <form id="chat-form"
+              hx-post="/api/interview/{{ session_id }}/message"
+              hx-target="#chat-messages"
+              hx-swap="beforeend"
+              hx-indicator="#typing"
+              hx-encoding="multipart/form-data"
+              class="d-flex flex-column gap-2">
+
+          <input type="file" id="file-input" name="files" multiple
+                 accept=".pdf,.csv,.docx,.png,.jpg,.jpeg,.gif,.webp"
+                 style="display:none">
+
+          <div id="file-chips" class="d-flex flex-wrap gap-1" style="display:none;"></div>
+
+          <div class="d-flex gap-2 align-items-end">
+            <textarea id="chat-input"
+                      name="message"
+                      class="form-control"
+                      placeholder="Your answer… (or attach a file)"
+                      autocomplete="off"
+                      rows="3"
+                      style="border-radius:8px; resize:none; overflow-y:hidden; min-height:72px; max-height:160px; line-height:1.5;"></textarea>
+            <button type="button" id="attach-btn"
+                    class="btn btn-outline-secondary px-3 flex-shrink-0"
+                    style="border-radius:8px; height:44px; align-self:flex-end;"
+                    title="Attach file">
+              📎
+            </button>
+            <button type="submit" class="btn btn-dark px-4 flex-shrink-0"
+                    style="border-radius:8px; height:44px; align-self:flex-end;">
+              Send →
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Graph panel -->
+  <div id="graph-panel" class="d-flex flex-column flex-shrink-0"
+       style="width:50%;">
+
+    <!-- Graph header -->
+    <div class="border-bottom bg-white px-4 py-3 flex-shrink-0 d-flex align-items-center justify-content-between">
+      <div>
+        <div class="fw-semibold" style="font-size:0.9rem;" id="graph-title">Context Graph</div>
+        <div class="text-muted" style="font-size:0.75rem;" id="graph-subtitle">Builds as you talk</div>
+      </div>
+      <div id="graph-meta" class="text-muted" style="font-size:0.75rem;"></div>
+    </div>
+
+    <!-- Cytoscape container -->
+    <div class="position-relative flex-grow-1" style="min-height:0;">
+      <div id="cy" style="width:100%; height:100%;"></div>
+
+      <!-- Empty state -->
+      <div id="graph-empty" class="position-absolute top-0 start-0 w-100 h-100">
+        <div style="font-size:1.5rem;">◈</div>
+        <div>Graph builds after a few exchanges</div>
+      </div>
+
+      <!-- Node tooltip -->
+      <div id="cy-tooltip"
+           class="card shadow-sm"
+           style="display:none; position:absolute; z-index:20; max-width:260px; font-size:0.82rem;">
+        <div class="card-body p-3">
+          <div class="fw-semibold mb-1" id="tt-name"></div>
+          <div class="text-muted" id="tt-desc"></div>
+          <div id="tt-skills" class="mt-2 text-muted" style="font-size:0.75rem;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Launch bar (shown when brief is confirmed) -->
+    <div id="launch-bar"
+         style="display:none; border-top:1px solid #e5e7eb; background:white; padding:16px 20px;">
+      <button id="launch-btn" class="btn btn-dark w-100" onclick="launchSwarm()">
+        Launch Agent Swarm →
+      </button>
+    </div>
+
   </div>
 
 </div>
@@ -84,101 +151,252 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
 <script>
-  marked.setOptions({ breaks: true, gfm: true });
+const SESSION_ID = "{{ session_id }}";
+marked.setOptions({ breaks: true, gfm: true });
 
-  function scrollToBottom() {
-    const el = document.getElementById('chat-scroll');
-    el.scrollTop = el.scrollHeight;
-  }
+// ── Chat helpers ───────────────────────────────────────────────────────────
 
-  function renderMarkdown(container) {
-    container.querySelectorAll('.chat-bubble-agent[data-markdown]').forEach(el => {
-      el.innerHTML = marked.parse(el.dataset.markdown);
-      delete el.dataset.markdown;
-    });
-  }
+function scrollToBottom() {
+  const el = document.getElementById('chat-scroll');
+  el.scrollTop = el.scrollHeight;
+}
 
-  // Attach button → trigger hidden file input
-  document.getElementById('attach-btn').addEventListener('click', () => {
-    document.getElementById('file-input').click();
+function renderMarkdown(container) {
+  container.querySelectorAll('.chat-bubble-agent[data-markdown]').forEach(el => {
+    el.innerHTML = marked.parse(el.dataset.markdown);
+    delete el.dataset.markdown;
   });
+}
 
-  // File selection → show chips
-  document.getElementById('file-input').addEventListener('change', function () {
+document.getElementById('attach-btn').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', function () {
+  const chips = document.getElementById('file-chips');
+  chips.innerHTML = '';
+  if (this.files.length > 0) {
+    chips.style.display = 'flex';
+    Array.from(this.files).forEach(f => {
+      const chip = document.createElement('span');
+      chip.className = 'badge bg-light text-dark border d-flex align-items-center gap-1';
+      chip.style.cssText = 'font-size:0.78rem; padding:4px 8px; font-weight:normal;';
+      chip.textContent = '📎 ' + f.name;
+      chips.appendChild(chip);
+    });
+  } else {
+    chips.style.display = 'none';
+  }
+});
+
+document.getElementById('chat-form').addEventListener('submit', function(e) {
+  const input = document.getElementById('chat-input');
+  const fileInput = document.getElementById('file-input');
+  const msg = input.value.trim();
+  const files = Array.from(fileInput.files);
+  if (!msg && files.length === 0) { e.preventDefault(); return; }
+
+  let content = msg ? msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+  if (files.length > 0) {
+    const fileList = files.map(f => '📎 ' + f.name).join(' &middot; ');
+    content += (content ? '<br><br>' : '') +
+      '<span class="text-muted" style="font-size:0.78rem;">' + fileList + '</span>';
+  }
+  const bubble = document.createElement('div');
+  bubble.className = 'd-flex mb-3 justify-content-end';
+  bubble.innerHTML = `<div class="chat-bubble-user">${content}</div>`;
+  document.getElementById('chat-messages').appendChild(bubble);
+
+  requestAnimationFrame(() => {
+    input.value = '';
+    input.style.height = '72px';
+    fileInput.value = '';
     const chips = document.getElementById('file-chips');
     chips.innerHTML = '';
-    if (this.files.length > 0) {
-      chips.style.display = 'flex';
-      Array.from(this.files).forEach(f => {
-        const chip = document.createElement('span');
-        chip.className = 'badge bg-light text-dark border d-flex align-items-center gap-1';
-        chip.style.cssText = 'font-size:0.78rem; padding:4px 8px; font-weight:normal;';
-        chip.textContent = '📎 ' + f.name;
-        chips.appendChild(chip);
-      });
-    } else {
-      chips.style.display = 'none';
-    }
+    chips.style.display = 'none';
   });
+  scrollToBottom();
+});
 
-  // Show user bubble immediately on submit, before the request goes out
-  document.getElementById('chat-form').addEventListener('submit', function(e) {
-    const input = document.getElementById('chat-input');
-    const fileInput = document.getElementById('file-input');
-    const msg = input.value.trim();
-    const files = Array.from(fileInput.files);
-
-    if (!msg && files.length === 0) { e.preventDefault(); return; }
-
-    let content = msg ? msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
-    if (files.length > 0) {
-      const fileList = files.map(f => '📎 ' + f.name).join(' &middot; ');
-      content += (content ? '<br><br>' : '') +
-        '<span class="text-muted" style="font-size:0.78rem;">' + fileList + '</span>';
-    }
-
-    const bubble = document.createElement('div');
-    bubble.className = 'd-flex mb-3 justify-content-end';
-    bubble.innerHTML = `<div class="chat-bubble-user">${content}</div>`;
-    document.getElementById('chat-messages').appendChild(bubble);
-
-    requestAnimationFrame(() => {
-      input.value = '';
-      input.style.height = '72px';
-      fileInput.value = '';
-      const chips = document.getElementById('file-chips');
-      chips.innerHTML = '';
-      chips.style.display = 'none';
-    });
-
+document.addEventListener('htmx:afterSwap', function(e) {
+  if (e.detail.target.id === 'chat-messages') {
+    renderMarkdown(e.detail.target);
     scrollToBottom();
-  });
+  }
+});
+document.addEventListener('htmx:afterSettle', function(e) {
+  renderMarkdown(document.getElementById('chat-messages'));
+});
 
-  // Render markdown + scroll after any htmx swap into the chat
-  document.addEventListener('htmx:afterSwap', function(e) {
-    if (e.detail.target.id === 'chat-messages') {
-      renderMarkdown(e.detail.target);
-      scrollToBottom();
+document.getElementById('chat-input').addEventListener('input', function() {
+  this.style.height = '72px';
+  this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+});
+document.getElementById('chat-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('chat-form').requestSubmit();
+  }
+});
+
+// ── Cytoscape ──────────────────────────────────────────────────────────────
+
+cytoscape.use(cytoscapeDagre);
+
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: [],
+  style: [
+    {
+      selector: '.phase-node',
+      style: {
+        'background-color': '#111',
+        'label': 'data(label)',
+        'color': '#fff',
+        'font-size': '11px',
+        'font-weight': '600',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'shape': 'round-rectangle',
+        'width': '140px',
+        'height': '44px',
+        'text-wrap': 'wrap',
+        'text-max-width': '120px',
+        'padding': '8px',
+      },
+    },
+    {
+      selector: '.work-item-node',
+      style: {
+        'background-color': '#fff',
+        'border-color': '#d1d5db',
+        'border-width': '1px',
+        'label': 'data(label)',
+        'color': '#111',
+        'font-size': '10px',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'shape': 'round-rectangle',
+        'width': '120px',
+        'height': '38px',
+        'text-wrap': 'wrap',
+        'text-max-width': '104px',
+        'padding': '6px',
+      },
+    },
+    {
+      selector: '.belongs-edge',
+      style: {
+        'line-color': '#d1d5db',
+        'target-arrow-color': '#d1d5db',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'width': 1,
+        'opacity': 0.6,
+      },
+    },
+    {
+      selector: '.depends-edge',
+      style: {
+        'line-color': '#6b7280',
+        'target-arrow-color': '#6b7280',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'width': 2,
+        'line-style': 'dashed',
+      },
+    },
+    {
+      selector: ':selected',
+      style: { 'border-color': '#111', 'border-width': '2px' },
+    },
+  ],
+  layout: { name: 'dagre', rankDir: 'LR', padding: 40, spacingFactor: 1.2 },
+});
+
+const tooltip = document.getElementById('cy-tooltip');
+cy.on('tap', 'node', function(e) {
+  const node = e.target;
+  const pos = e.renderedPosition;
+  document.getElementById('tt-name').textContent = node.data('label');
+  document.getElementById('tt-desc').textContent = node.data('description') || '';
+  const skills = node.data('skills');
+  const skillEl = document.getElementById('tt-skills');
+  skillEl.textContent = skills ? 'Skills: ' + skills : '';
+  skillEl.style.display = skills ? '' : 'none';
+  tooltip.style.display = 'block';
+  tooltip.style.left = (pos.x + 16) + 'px';
+  tooltip.style.top = (pos.y - 20) + 'px';
+});
+cy.on('tap', function(e) {
+  if (e.target === cy) tooltip.style.display = 'none';
+});
+
+// ── Graph polling ──────────────────────────────────────────────────────────
+
+let _lastItemCount = 0;
+let _launchReady = false;
+let _projectId = null;
+
+async function pollGraph() {
+  try {
+    const res = await fetch(`/api/interview/${SESSION_ID}/draft-graph`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.ready) return;
+
+    if (data.item_count !== _lastItemCount) {
+      _lastItemCount = data.item_count;
+      cy.elements().remove();
+      cy.add(data.elements);
+      cy.layout({ name: 'dagre', rankDir: 'LR', padding: 40, spacingFactor: 1.2 }).run();
+      cy.fit(40);
+      document.getElementById('graph-empty').style.display = 'none';
+      document.getElementById('graph-meta').textContent =
+        `${data.phase_count} phases · ${data.item_count} work items`;
     }
-  });
 
-  document.addEventListener('htmx:afterSettle', function(e) {
-    renderMarkdown(document.getElementById('chat-messages'));
-  });
-
-  // Auto-grow textarea
-  document.getElementById('chat-input').addEventListener('input', function() {
-    this.style.height = '72px';
-    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
-  });
-
-  // Enter to submit, Shift+Enter for newline
-  document.getElementById('chat-input').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      document.getElementById('chat-form').requestSubmit();
+    if (data.launch_ready && !_launchReady) {
+      _launchReady = true;
+      _projectId = data.project_id;
+      document.getElementById('graph-title').textContent = 'Ready to Launch';
+      document.getElementById('graph-subtitle').textContent = 'Brief confirmed';
+      document.getElementById('launch-bar').style.display = 'block';
+      cy.fit(40);
     }
-  });
+  } catch (_) {}
+}
+
+setInterval(pollGraph, 4000);
+pollGraph();
+
+// ── Launch ─────────────────────────────────────────────────────────────────
+
+async function launchSwarm() {
+  const btn = document.getElementById('launch-btn');
+  btn.textContent = 'Launching…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/runs/launch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `project_id=${encodeURIComponent(_projectId)}`,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.run_id) window.location.href = `/run/${data.run_id}`;
+    } else {
+      btn.textContent = 'Launch failed — try again';
+      btn.disabled = false;
+    }
+  } catch (_) {
+    btn.textContent = 'Launch failed — try again';
+    btn.disabled = false;
+  }
+}
 </script>
 {% endblock %}

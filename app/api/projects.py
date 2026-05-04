@@ -90,6 +90,32 @@ def _all_projects() -> list[dict]:
     return projects
 
 
+def _all_interviews() -> list[dict]:
+    interviews_dir = Path("output") / "interviews"
+    if not interviews_dir.exists():
+        return []
+    interviews = []
+    for session_file in sorted(
+        interviews_dir.glob("*/session.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    ):
+        try:
+            meta = json.loads(session_file.read_text(encoding="utf-8"))
+            if meta.get("status") == "confirmed":
+                continue
+            if meta.get("project_id"):
+                continue
+            interviews.append({
+                "session_id": meta["session_id"],
+                "created_at": meta.get("created_at", "")[:16].replace("T", " "),
+                "preview": meta.get("preview", ""),
+            })
+        except Exception:
+            continue
+    return interviews
+
+
 @router.get("/api/projects")
 def list_projects_json():
     return _all_projects()
@@ -97,8 +123,11 @@ def list_projects_json():
 
 @router.get("/api/projects-html", response_class=HTMLResponse)
 def list_projects_html(request: Request):
-    projects = _all_projects()
     return _templates.TemplateResponse(
         "partials/sidebar_projects.html",
-        {"request": request, "projects": projects},
+        {
+            "request": request,
+            "projects": _all_projects(),
+            "interviews": _all_interviews(),
+        },
     )
