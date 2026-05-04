@@ -31,49 +31,73 @@ report_agent = Agent(
 )
 
 
+def _format_proof(proof: dict) -> str:
+    """Render an agent's proof dict as readable structured text."""
+    parts = []
+    for key, value in proof.items():
+        heading = key.replace("_", " ").title()
+        if isinstance(value, str):
+            parts.append(f"**{heading}:**\n{value.strip()}")
+        elif isinstance(value, list):
+            items = "\n".join(f"  - {item}" for item in value)
+            parts.append(f"**{heading}:**\n{items}")
+        elif isinstance(value, dict):
+            items = "\n".join(f"  - {k}: {v}" for k, v in value.items())
+            parts.append(f"**{heading}:**\n{items}")
+        else:
+            parts.append(f"**{heading}:** {value}")
+    return "\n\n".join(parts)
+
+
 def _build_context(brief: ProblemBrief, phase_summaries: list[PhaseSummary]) -> str:
     lines = [
-        "## Research Brief",
-        f"Goal: {brief.goal}",
-        f"Domain: {brief.domain}",
+        "# Research Brief\n",
+        f"**Goal:** {brief.goal}",
+        f"**Domain:** {brief.domain}",
     ]
     if brief.constraints:
-        lines.append(f"Constraints: {json.dumps(brief.constraints)}")
+        lines.append(f"**Constraints:** {json.dumps(brief.constraints)}")
     if brief.unknowns:
-        lines.append("Unknowns to resolve:")
+        lines.append("**Unknowns to resolve:**")
         for u in brief.unknowns:
             lines.append(f"  - {u}")
     if brief.success_criteria:
-        lines.append("Success criteria:")
+        lines.append("**Success criteria:**")
         for sc in brief.success_criteria:
             lines.append(f"  - {sc}")
     if brief.excluded_paths:
-        lines.append("Excluded paths:")
+        lines.append("**Excluded paths:**")
         for ep in brief.excluded_paths:
             lines.append(f"  - {ep}")
 
-    lines.append("\n## Phase Findings")
+    lines.append("\n---\n")
+    lines.append("# Full Phase Evidence\n")
+    lines.append(
+        "Everything below is the complete output of every agent in every phase. "
+        "Include all of this detail in the final report — do not drop or compress findings.\n"
+    )
 
     for ps in phase_summaries:
-        lines.append(f"\n### {ps.phase_name}  (mean confidence: {ps.mean_confidence:.0%})")
-        lines.append(f"\n**Phase synthesis:**\n{ps.synthesis}")
+        conf_pct = f"{ps.mean_confidence:.0%}" if ps.mean_confidence is not None else "unknown"
+        lines.append(f"\n## Phase: {ps.phase_name}  (mean confidence: {conf_pct})\n")
+        lines.append(f"### Phase Synthesis (orchestrator assessment)\n\n{ps.synthesis}\n")
 
         if ps.envelopes:
-            lines.append("\n**Agent evidence:**")
+            lines.append("### Agent Findings\n")
             for env in ps.envelopes:
                 short_id = env.agent_id[:8]
-                lines.append(f"\n**[{short_id}] {env.role}**")
+                conf_str = f"{env.confidence:.0%}" if env.confidence is not None else "unknown"
+                lines.append(f"#### [{short_id}] {env.role}")
                 lines.append(
-                    f"- Status: {env.status} | Verdict: {env.verdict} "
-                    f"| Confidence: {env.confidence:.0%}"
+                    f"- **Status:** {env.status}  "
+                    f"**Verdict:** {env.verdict}  "
+                    f"**Confidence:** {conf_str}"
                 )
                 if env.proof:
-                    proof_str = json.dumps(env.proof, ensure_ascii=False)
-                    if len(proof_str) > 2000:
-                        proof_str = proof_str[:2000] + "…"
-                    lines.append(f"- Findings: {proof_str}")
+                    lines.append("\n" + _format_proof(env.proof))
                 if env.artefacts:
-                    lines.append(f"- Artefacts: {', '.join(env.artefacts)}")
+                    lines.append(f"\n**Artefacts produced:** {', '.join(env.artefacts)}")
+                lines.append("")
 
     return "\n".join(lines)
 
