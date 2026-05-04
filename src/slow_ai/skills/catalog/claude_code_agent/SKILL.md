@@ -1,6 +1,6 @@
 ---
 name: claude_code_agent
-description: Delegate complex, multi-file coding tasks to a Claude Code subprocess that can iterate, self-correct, and produce working implementations — far beyond single-shot code generation.
+description: Delegate complex, multi-file coding tasks to an autonomous coding agent that can iterate and self-correct. Uses Claude Code if ANTHROPIC_API_KEY is set, otherwise falls back to Gemini via generate_code + execute.
 tools: [code_execution]
 source: built-in
 tags:
@@ -17,28 +17,41 @@ Use this skill when the research task requires:
 - Analysing a codebase (clone a repo, understand its structure, answer questions about it)
 - Generating a working implementation of something described in a paper or spec
 - Running experiments where the code needs to adapt based on intermediate results
-- Any coding task where `generate_code` + `execute` would need more than 2 cycles to converge
+- Any coding task where a single `generate_code` + `execute` cycle would not be enough
 
-Do NOT use for trivial one-shot scripts — `code_execution` is faster and sufficient.
+Do NOT use for trivial one-shot scripts — `code_execution` alone is faster and sufficient.
 
 ## How to execute
 
-### 1. Check Claude Code is available
+### Step 1 — Check which backend is available
+
+Always run this check first:
+
+```python
+import os, subprocess
+
+has_anthropic_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+claude_available = False
+if has_anthropic_key:
+    r = subprocess.run(["claude", "--version"], capture_output=True, text=True)
+    claude_available = r.returncode == 0
+
+print("backend:", "claude_code" if claude_available else "gemini_fallback")
+```
+
+Execute this with `execute()`. Then follow the matching path below.
+
+---
+
+### Path A — Claude Code (when `claude_available` is True)
+
+`claude -p` runs non-interactively and exits when done.
+
 ```python
 import subprocess
-result = subprocess.run(["claude", "--version"], capture_output=True, text=True)
-print(result.stdout)
-```
-If the command fails, note in proof and fall back to `code_execution`.
-
-### 2. Invoke Claude Code in print mode
-`claude -p` runs non-interactively and exits when done. This is the correct mode for agent use.
-
-```python
-import subprocess, json
 
 task = """
-<describe the coding task in full detail here>
+<describe the coding task in full detail>
 Output the result as plain text or JSON.
 """
 
@@ -48,51 +61,64 @@ result = subprocess.run(
     text=True,
     timeout=300,
 )
-
-print("stdout:", result.stdout)
-print("stderr:", result.stderr)
 print("exit:", result.returncode)
+print(result.stdout)
+if result.stderr:
+    print("stderr:", result.stderr[:2000])
 ```
 
-Wrap this in an `execute()` call.
+If the output is incomplete, make a follow-up call with the prior output as context:
 
-### 3. Iterating on the result
-If the first output is incomplete, make a follow-up call with more context:
 ```python
 result2 = subprocess.run(
-    ["claude", "-p", f"Previous attempt:\n{result.stdout}\n\nNow fix the following issue: <issue>"],
+    ["claude", "-p", f"Previous output:\n{result.stdout}\n\nContinue: <remaining task>"],
     capture_output=True, text=True, timeout=300,
 )
+print(result2.stdout)
 ```
 
-### 4. Codebase analysis
-To analyse a remote repository:
+---
+
+### Path B — Gemini fallback (when `claude_available` is False)
+
+Use `generate_code` to produce the implementation, then `execute` to run it. Iterate up to 3 times.
+
+**Iteration pattern:**
+1. Call `generate_code("full task description")` — returns working Python
+2. Call `execute(code)` — run it, read stdout/stderr
+3. If it fails or output is wrong: call `generate_code("fix this: <error> in this code: <code>")` and execute again
+4. After 3 iterations, accept the best result and record what remains incomplete
+
+For codebase analysis without Claude Code:
 ```python
-import subprocess, os, tempfile
+import subprocess, tempfile
 
 with tempfile.TemporaryDirectory() as tmpdir:
     subprocess.run(["git", "clone", "--depth=1", repo_url, tmpdir], check=True, timeout=120)
-    result = subprocess.run(
-        ["claude", "-p", f"Analyse the codebase at {tmpdir} and answer: <question>"],
-        capture_output=True, text=True, timeout=300, cwd=tmpdir,
-    )
-    print(result.stdout)
+    # Then use generate_code + execute to analyse the cloned repo
 ```
 
+---
+
 ## Output contract
-- `claude_output`: full stdout from Claude Code
-- `task_given`: the task description passed to Claude Code
-- `exit_code`: 0 = success, non-zero = error
-- `iterations`: number of claude invocations made
-- If code was produced and saved, list the file paths in `artefacts`
+Include in `proof`:
+- `backend_used`: `"claude_code"` or `"gemini_fallback"`
+- `task_given`: the coding task description
+- `output`: the final result (stdout or generated artefact)
+- `iterations`: number of attempts made
+- `exit_code` (Claude Code path): 0 = success
+- `error_output` (if any): stderr or exception text
+
+List produced files in `artefacts`.
 
 ## Quality bar
-- Always capture both stdout and stderr — stderr contains tool use logs that explain what Claude did
-- Set timeout ≥ 120s; complex tasks can take 2–3 minutes
-- If exit code is non-zero, include stderr in proof under `error_output`
-- Do not pass secrets or credentials in the task string — they will appear in logs
+- Always run the Step 1 backend check — do not assume which is available
+- Claude Code path: capture both stdout and stderr; stderr shows tool use logs
+- Gemini fallback path: do not exceed 3 iterations — accept partial results and note gaps in proof
+- Never pass secrets or credentials in the task string
+- Set timeout ≥ 120s on all subprocess calls
 
 ## Pairs with
-- `code_execution` — use for simple one-shot scripts; use claude_code_agent for iterative work
-- `web_browse` / `browser_use` — fetch specs or docs first, then pass them to Claude Code for implementation
-- `dataset_inspection` — inspect a dataset's schema, then delegate cleaning/analysis to Claude Code
+- `web_browse` / `browser_use` — fetch specs or docs first, then pass them to the coding agent
+- `dataset_inspection` — inspect a dataset's schema, then delegate cleaning/analysis here
+- `code_execution` — this skill IS the advanced form of code_execution; use plain code_execution for simple one-shot scripts
