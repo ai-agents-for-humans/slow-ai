@@ -8,6 +8,7 @@ from pydantic_ai import Agent
 
 from slow_ai.llm import ModelRegistry
 from slow_ai.models import AgentContext, EvidenceEnvelope, MemoryEntry
+from slow_ai.tools.browser_use_tool import browser_use as _browser_use
 from slow_ai.tools.code_execution import code_execution as _code_execution
 from slow_ai.tools.code_generation import generate_python_code
 from slow_ai.tools.perplexity import perplexity_search
@@ -40,6 +41,12 @@ def _tool_descriptions(tools_available: list[str]) -> str:
         "read_prior_evidence": (
             "read_prior_evidence(topic): search prior run evidence for a topic or keyword. "
             "Use this FIRST to avoid repeating work already done in previous runs."
+        ),
+        "browser_use": (
+            "browse_interactive(task): drive a real browser with an LLM agent to complete "
+            "an interactive web task — use for JS-rendered SPAs, login flows, form submission, "
+            "and infinite scroll that static web_browse cannot reach. Describe the task in "
+            "full detail including the starting URL and what to extract."
         ),
     }
     lines = [descriptions[t] for t in tools_available if t in descriptions]
@@ -152,6 +159,24 @@ async def run_specialist(
             if not result.success:
                 return json.dumps({"error": result.error})
             return json.dumps({"title": result.title, "text": result.text})
+
+    if "browser_use" in ctx.tools_available:
+
+        @agent.tool_plain
+        async def browse_interactive(task: str) -> str:
+            result = await _browser_use(task)
+            entry = MemoryEntry(
+                key=f"browser_{uuid.uuid4().hex[:4]}",
+                value={"task": task[:200], "result": result.result[:500], "success": result.success},
+                source="browser_use",
+                confidence=0.85 if result.success else 0.1,
+                created_at=datetime.now(UTC).isoformat(),
+                tokens_consumed=len(result.result.split()) * 2 if result.result else 10,
+            )
+            ctx.memory.add(entry)
+            if not result.success:
+                return json.dumps({"error": result.error})
+            return json.dumps({"result": result.result})
 
     if "url_fetch" in ctx.tools_available:
 
