@@ -194,6 +194,14 @@
   @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:.55} }
   .badge-pulse { animation: pulse-badge 1.8s ease-in-out infinite; }
 
+  /* ── Markdown rendered content ── */
+  .md-content { overflow-wrap: break-word; word-break: break-word; min-width: 0; }
+  .md-content img  { max-width: 100%; height: auto; }
+  .md-content pre  { overflow-x: auto; max-width: 100%; white-space: pre-wrap; word-break: break-word; }
+  .md-content table { display: block; overflow-x: auto; max-width: 100%; border-collapse: collapse; }
+  .md-content table th, .md-content table td { border: 1px solid #e5e7eb; padding: 4px 8px; font-size: 0.82rem; }
+  .md-content p    { max-width: 100%; }
+
   /* ── Responsive pane columns ── */
   .col-run-dag  { flex: 1 1 0; min-width: 0; }
   .col-run-info { width: 38%; min-width: 280px; max-width: 500px; flex-shrink: 0; }
@@ -208,7 +216,7 @@
 
   <!-- Global header -->
   <div class="bg-white border-bottom px-4 py-2 d-flex align-items-center gap-3 flex-shrink-0">
-    <div class="flex-grow-1 text-truncate min-width-0" style="font-size:0.82rem; color:#374151;">
+    <div class="flex-grow-1 text-truncate" style="font-size:0.82rem; color:#374151; min-width:0;">
       {{ brief.get('goal', run_id) }}
     </div>
     <span id="status-badge"
