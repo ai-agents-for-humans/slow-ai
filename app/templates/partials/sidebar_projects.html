@@ -59,6 +59,13 @@
           </a>
           {% endfor %}
         {% endif %}
+        <div class="pt-1 pb-1 px-2">
+          <button class="btn btn-dark btn-sm w-100"
+                  style="font-size:0.72rem;"
+                  onclick="rerunProject('{{ project.project_id }}', this)">
+            <i class="bi bi-arrow-repeat me-1"></i>Run again
+          </button>
+        </div>
       </div>
     </div>
   </div>

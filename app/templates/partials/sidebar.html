@@ -81,6 +81,26 @@
 </button>
 
 <script>
+  async function rerunProject(projectId, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" style="width:.7rem;height:.7rem;"></span>Launching…';
+    try {
+      const fd = new FormData();
+      fd.append('project_id', projectId);
+      const res = await fetch('/api/runs/launch', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.run_id) {
+        window.location.href = `/run/${data.run_id}`;
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Run again';
+      }
+    } catch(e) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Run again';
+    }
+  }
+
   function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const tab = document.getElementById('sidebar-reopen-tab');

@@ -601,12 +601,6 @@
             </div>
             {% endif %}
           </div>
-          <div class="border-top px-3 py-3 flex-shrink-0">
-            <button id="continue-btn" class="btn btn-outline-dark w-100 btn-sm" onclick="continueRun()" style="font-size:0.82rem;">
-              <i class="bi bi-arrow-repeat me-1"></i>Continue Investigation
-            </button>
-            <div id="continue-status" class="text-muted mt-2 text-center" style="font-size:0.75rem; display:none;"></div>
-          </div>
         </div>
 
       </div><!-- /content row -->
@@ -877,33 +871,6 @@ function openArtefactModal(runId, phaseId, agentId, filename, ext) {
       body.innerHTML = `<div class="p-4 text-danger" style="font-size:0.83rem;">Failed to load ${escHtml(filename)}</div>`;
     }
   })();
-}
-
-// ── Continue / run chaining ───────────────────────────────────────────────────
-
-async function continueRun() {
-  const btn = document.getElementById('continue-btn');
-  const status = document.getElementById('continue-status');
-  btn.disabled = true;
-  btn.textContent = 'Launching…';
-  status.style.display = 'block';
-  status.textContent = 'Starting follow-up run with prior context…';
-  try {
-    const res = await fetch(`/api/runs/${RUN_ID}/continue`, { method: 'POST' });
-    const data = await res.json();
-    if (data.run_id) {
-      status.textContent = 'Launched! Navigating…';
-      setTimeout(() => { window.location.href = `/run/${data.run_id}`; }, 800);
-    } else {
-      status.textContent = data.error || 'Failed to launch.';
-      btn.disabled = false;
-      btn.textContent = 'Continue Investigation';
-    }
-  } catch(e) {
-    status.textContent = 'Error: ' + e.message;
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Continue Investigation';
-  }
 }
 
 // ── Status + ticker ───────────────────────────────────────────────────────────
