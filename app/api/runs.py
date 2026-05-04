@@ -490,6 +490,52 @@ async def export_run(run_id: str, request: Request):
     )
 
 
+@router.get("/api/runs/{run_id}/interview")
+async def run_interview_data(run_id: str):
+    """Return the interview conversation and context graph that launched this run."""
+    from app.api.interview import _sessions, _graph_for_cytoscape
+    from slow_ai.models import ContextGraph
+
+    project_id = _find_project(run_id)
+    if not project_id:
+        return {"conversation_log": [], "graph_elements": []}
+
+    # Try in-memory sessions first
+    session = next((s for s in _sessions.values() if s.get("project_id") == project_id), None)
+    if session:
+        graph = session.get("draft_graph")
+        return {
+            "conversation_log": session.get("conversation_log", []),
+            "graph_elements": _graph_for_cytoscape(graph) if graph else [],
+        }
+
+    # Fall back to disk
+    interviews_dir = Path("output") / "interviews"
+    if interviews_dir.exists():
+        for session_file in interviews_dir.glob("*/session.json"):
+            try:
+                meta = json.loads(session_file.read_text(encoding="utf-8"))
+                if meta.get("project_id") != project_id:
+                    continue
+                conv_log = []
+                log_file = session_file.parent / "conversation_log.json"
+                if log_file.exists():
+                    conv_log = json.loads(log_file.read_text(encoding="utf-8"))
+                elements = []
+                graph_file = session_file.parent / "draft_graph.json"
+                if graph_file.exists():
+                    try:
+                        graph = ContextGraph.model_validate_json(graph_file.read_text(encoding="utf-8"))
+                        elements = _graph_for_cytoscape(graph)
+                    except Exception:
+                        pass
+                return {"conversation_log": conv_log, "graph_elements": elements}
+            except Exception:
+                continue
+
+    return {"conversation_log": [], "graph_elements": []}
+
+
 @router.get("/api/runs/{run_id}/stream")
 async def stream_run(run_id: str, request: Request):
     run_dir = Path("runs") / run_id

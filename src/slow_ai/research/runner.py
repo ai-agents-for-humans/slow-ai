@@ -577,6 +577,7 @@ async def _run_wave(
             _emit(store, registry, artefacts)
             return worker_ctx
 
+        _log(store, f"  → {ctx.role}: starting research…")
         registry.update_status(ctx.agent_id, "running")
         _emit(store, registry, artefacts)
         return await run_specialist(ctx, registry, spawn_handler)
