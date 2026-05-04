@@ -946,7 +946,7 @@ function appendLog(lines) {
     const sub = document.getElementById('dag-loading-sub');
     if (sub) sub.textContent = msg.length > 80 ? msg.slice(0, 80) + '…' : msg;
   });
-  termLog.scrollTop = termLog.scrollHeight;
+  requestAnimationFrame(() => { termLog.scrollTop = termLog.scrollHeight; });
 }
 
 // ── Phase summary cards ───────────────────────────────────────────────────────
@@ -1014,7 +1014,7 @@ function updateDag(dag) {
         ex.style('background-color',c); changed=true;
       }
     } else {
-      cy.add({ data:{ id:n.id,label:_nodelbl(n),node_type:_ntype(n.type),status:n.status,tokens:n.tokens,spawned_at:n.spawned_at,completed_at:n.completed_at,work_item_id:n.work_item_id }, style:{'background-color':c} });
+      cy.add({ data:{ id:n.id,label:_nodelbl(n),node_type:_ntype(n.type),raw_type:n.type,status:n.status,tokens:n.tokens,spawned_at:n.spawned_at,completed_at:n.completed_at,work_item_id:n.work_item_id }, style:{'background-color':c} });
       changed=true;
     }
   });
@@ -1071,22 +1071,31 @@ cy.on('tap','node', async function(e){
 
   // ── Phase node ───────────────────────────────────────────────────────────
   if (ntype === 'phase') {
-    const pid = n.data('id');
-    const s = _phaseSummaryCache[pid];
-    document.getElementById('env-role').textContent = _lbl(n.data()) || 'Phase';
+    const rawType = n.data('raw_type') || '';
+    document.getElementById('env-role').textContent = n.data('label') || 'Phase';
     badge.textContent = 'phase';
     badge.style.background = '#374151';
-    const conf = s && s.mean_confidence != null ? Math.round(s.mean_confidence * 100) : null;
-    document.getElementById('env-confidence').textContent = conf != null ? `${conf}% confidence` : '';
+    document.getElementById('env-confidence').textContent = '';
     document.getElementById('env-duration').textContent = '';
-    document.getElementById('env-verdict').textContent = s ? `${(s.envelopes||[]).length} agents` : '—';
-    document.getElementById('env-tokens').textContent = s ? (s.total_tokens||0).toLocaleString() : '—';
-    if (!s) {
-      document.getElementById('env-proof').innerHTML = '<span class="text-muted" style="font-size:0.8rem;">Phase has not completed yet.</span>';
-    } else {
+    document.getElementById('env-verdict').textContent = '—';
+    document.getElementById('env-tokens').textContent = '—';
+    document.getElementById('env-proof').innerHTML = '<span class="text-muted" style="font-size:0.8rem;">Loading…</span>';
+    try {
+      const res = await fetch(`/api/runs/${RUN_ID}/phase-summary?node_type=${encodeURIComponent(rawType)}`);
+      if (!res.ok) {
+        document.getElementById('env-proof').innerHTML = '<span class="text-muted" style="font-size:0.8rem;">Phase has not completed yet.</span>';
+        return;
+      }
+      const s = await res.json();
+      const conf = s.mean_confidence != null ? Math.round(s.mean_confidence * 100) : null;
+      document.getElementById('env-confidence').textContent = conf != null ? `${conf}% confidence` : '';
+      document.getElementById('env-verdict').textContent = (s.envelopes || []).length + ' agents';
+      document.getElementById('env-tokens').textContent = s.total_tokens != null ? s.total_tokens.toLocaleString() : '—';
       document.getElementById('env-proof').innerHTML = s.synthesis
         ? `<div class="proof-prose">${marked.parse(s.synthesis)}</div>`
         : '<span class="text-muted" style="font-size:0.8rem;">No synthesis recorded.</span>';
+    } catch(_) {
+      document.getElementById('env-proof').innerHTML = '<span class="text-muted" style="font-size:0.8rem;">Could not load phase summary.</span>';
     }
     return;
   }

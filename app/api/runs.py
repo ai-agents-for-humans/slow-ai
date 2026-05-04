@@ -490,6 +490,24 @@ async def export_run(run_id: str, request: Request):
     )
 
 
+@router.get("/api/runs/{run_id}/phase-summary")
+async def run_phase_summary(run_id: str, node_type: str = ""):
+    """Return the phase synthesis for a DAG phase node, matched by node_type slug."""
+    summaries = _read_live(run_id, "phase_summaries.json", [])
+    if not summaries:
+        return JSONResponse({"error": "not_complete"}, status_code=404)
+
+    # node_type looks like 'phase_reddit_need_discovery'; strip prefix to get slug
+    slug = node_type[len("phase_"):] if node_type.startswith("phase_") else node_type
+
+    for s in summaries:
+        phase_slug = (s.get("phase_name") or "").lower().replace(" ", "_")
+        if phase_slug == slug:
+            return s
+
+    return JSONResponse({"error": "not_found"}, status_code=404)
+
+
 @router.get("/api/runs/{run_id}/interview")
 async def run_interview_data(run_id: str):
     """Return the interview conversation and context graph that launched this run."""
