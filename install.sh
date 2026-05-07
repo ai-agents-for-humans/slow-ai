@@ -88,7 +88,7 @@ print_logo() {
 # step 1 — sanity checks
 # ──────────────────────────────────────────────────────────────────────────────
 check_location() {
-  [[ -f "pyproject.toml" && -f "main.py" ]] || \
+  [[ -f "pyproject.toml" ]] || \
     die "Run this script from the root of the slow-ai repository."
   ok "Repository root confirmed"
 }
@@ -152,135 +152,28 @@ sync_deps() {
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
-# step 4 — api keys
+# step 4 — model & search setup (Python wizard)
 # ──────────────────────────────────────────────────────────────────────────────
-ask_key() {
-  local label="$1" varname="$2" hint="$3"
-  printf "\n  ${BLD}${CYN}%s${NC}\n" "$label"
-  dim "$hint"
-  printf "  ${DIM}Press Enter to skip — you can add it to .env later.${NC}\n"
-  printf "  ${CYN}›${NC} "
-  local val="" ch
-  while IFS= read -r -s -n1 ch; do
-    if [[ -z "$ch" ]]; then
-      break
-    elif [[ "$ch" == $'\x7f' || "$ch" == $'\b' ]]; then
-      if [[ -n "$val" ]]; then
-        val="${val%?}"
-        printf '\b \b'
-      fi
-    else
-      val+="$ch"
-      printf '*'
-    fi
-  done
-  echo
-  if [[ -n "$val" ]]; then
-    ok "$label configured"
-  else
-    warn "$label skipped"
-  fi
-  printf -v "$varname" '%s' "$val"
-}
-
-_detect_shell_profile() {
-  local shell_name
-  shell_name=$(basename "${SHELL:-bash}")
-  case "$shell_name" in
-    zsh)  echo "$HOME/.zshrc" ;;
-    bash) echo "$HOME/.bashrc" ;;
-    fish) echo "$HOME/.config/fish/config.fish" ;;
-    *)    echo "$HOME/.profile" ;;
-  esac
-}
-
-_append_exports_to_profile() {
-  local profile="$1" gemini="$2" perplexity="$3"
-  [[ -z "$gemini" && -z "$perplexity" ]] && return
-
-  # Remove any previous slow-ai key block
-  if [[ -f "$profile" ]]; then
-    local tmp
-    tmp=$(mktemp)
-    sed '/# slow-ai keys/,/# end slow-ai keys/d' "$profile" > "$tmp"
-    mv "$tmp" "$profile"
-  fi
-
-  {
-    printf '\n# slow-ai keys\n'
-    [[ -n "$gemini" ]]     && printf 'export GEMINI_KEY_SLOW_AI=%s\n' "$gemini"
-    [[ -n "$perplexity" ]] && printf 'export PERPLEXITY_KEY_SLOW_AI=%s\n' "$perplexity"
-    printf '# end slow-ai keys\n'
-  } >> "$profile"
-}
-
-configure_env() {
-  if [[ -f ".env" ]]; then
-    # Only skip if both keys are already present and non-empty
-    local existing_gemini existing_perplexity
-    existing_gemini=$(grep -E '^GEMINI_KEY_SLOW_AI=.+' .env || true)
-    existing_perplexity=$(grep -E '^PERPLEXITY_KEY_SLOW_AI=.+' .env || true)
-    if [[ -n "$existing_gemini" && -n "$existing_perplexity" ]]; then
-      ok ".env already configured — skipping"
-      dim "To reconfigure, delete .env and re-run this script."
-      return
-    fi
-    # Keys missing or empty — ask whether to update
-    printf "\n  ${YLW}⚠${NC}  ${BLD}.env exists but one or more keys are missing.${NC}\n"
-    printf "  Add missing keys now? ${DIM}[Y/n]${NC} "
-    local yn=""
-    read -r yn || true
-    if [[ "$yn" =~ ^[Nn]$ ]]; then
-      info "Keeping existing .env"
-      return
-    fi
-  fi
-
-  local GEMINI_KEY="" PERPLEXITY_KEY=""
-
-  ask_key \
-    "Gemini API Key" \
-    GEMINI_KEY \
-    "Get yours → aistudio.google.com/app/apikey"
-
-  ask_key \
-    "Perplexity API Key" \
-    PERPLEXITY_KEY \
-    "Get yours → perplexity.ai/settings/api"
-
-  printf "GEMINI_KEY_SLOW_AI='%s'\nPERPLEXITY_KEY_SLOW_AI='%s'\n" \
-    "$GEMINI_KEY" "$PERPLEXITY_KEY" > .env
-
-  ok ".env written"
-
-  # Append exports to shell profile so keys survive new shells
-  local profile
-  profile=$(_detect_shell_profile)
-  _append_exports_to_profile "$profile" "$GEMINI_KEY" "$PERPLEXITY_KEY"
-  ok "Exports added to $profile"
-  dim "Keys are stored locally and never leave your machine."
+run_setup_wizard() {
+  info "Launching model & search setup wizard..."
+  uv run python -m slow_ai.setup
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
 # done
 # ──────────────────────────────────────────────────────────────────────────────
 print_done() {
-  local profile
-  profile=$(_detect_shell_profile)
   printf "\n${PRP}${BLD}"
   printf "  ╔══════════════════════════════════════════════════════════╗\n"
   printf "  ║                     you're ready                        ║\n"
   printf "  ╚══════════════════════════════════════════════════════════╝${NC}\n"
   printf "\n"
-  printf "  ${BLD}Load keys in this terminal${NC}  ${DIM}(already saved to %s for future shells)${NC}\n" "$profile"
-  printf "  ${CYN}  source %s${NC}\n" "$profile"
-  printf "\n"
   printf "  ${BLD}Run the app${NC}\n"
-  printf "  ${CYN}  PYTHONPATH=. uv run uvicorn app.main:app --reload${NC}\n"
+  printf "  ${CYN}  uv run uvicorn app.main:app --reload${NC}\n"
   printf "\n"
-  printf "  ${BLD}Bring your own models${NC}   ${DIM}src/slow_ai/llm/registry.json${NC}\n"
-  printf "  ${BLD}Add or edit skills${NC}      ${DIM}src/slow_ai/skills/catalog/${NC}\n"
-  printf "  ${BLD}Edit API keys${NC}           ${DIM}.env${NC}\n"
+  printf "  ${BLD}Reconfigure models / keys${NC}  ${DIM}uv run python -m slow_ai.setup${NC}\n"
+  printf "  ${BLD}Add or edit skills${NC}         ${DIM}src/slow_ai/skills/catalog/${NC}\n"
+  printf "  ${BLD}Edit API keys directly${NC}     ${DIM}.env${NC}\n"
   printf "\n"
   printf "  ${DIM}Trust no node. Trust is built. Trust is designed.${NC}\n"
   printf "\n"
@@ -302,8 +195,8 @@ main() {
   sep "3 / 4  Dependencies"
   sync_deps
 
-  sep "4 / 4  API Keys"
-  configure_env
+  sep "4 / 4  Model & Search"
+  run_setup_wizard
 
   print_done
 }

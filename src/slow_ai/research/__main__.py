@@ -30,6 +30,9 @@ def main() -> None:
         sys.exit(1)
 
     setup_logging(log_file=Path("runs") / run_id / "runner.log")
+    from slow_ai.observability import setup_llm_logging
+
+    setup_llm_logging()
 
     brief = ProblemBrief.model_validate_json(brief_path.read_text(encoding="utf-8"))
     asyncio.run(run_research(brief, run_id))

@@ -9,13 +9,14 @@ Supported provider types:
   "google"            — native pydantic_ai Google provider
   "openai"            — native pydantic_ai OpenAI provider
   "anthropic"         — native pydantic_ai Anthropic provider
-  "openai_compatible" — any OpenAI-compatible endpoint (Ollama, vLLM, LM Studio, etc.)
-                        Requires: base_url, optional api_key
+  "ollama"            — native pydantic_ai OllamaModel (uses JSON schema output,
+                        no tool-call wrangling, grammar-constrained decoding)
+  "openai_compatible" — legacy alias for "ollama"; kept for existing registry files
 
 Each registry entry must declare "api_key_setting": the field name on Settings
 that holds the key for that provider. ModelRegistry validates at init that all
 configured models have their keys available, so misconfiguration fails fast at
-startup rather than mid-run.
+startup rather than mid-run. Ollama entries need no api_key_setting.
 """
 
 import json
@@ -27,7 +28,10 @@ class ModelRegistry:
     def __init__(self):
         from slow_ai.config import settings
 
-        registry_path = Path(__file__).parent / "registry.json"
+        local_path = Path(__file__).parent / "registry.local.json"
+        registry_path = (
+            local_path if local_path.exists() else Path(__file__).parent / "registry.json"
+        )
         data = json.loads(registry_path.read_text(encoding="utf-8"))
         self._models = {m["name"]: m for m in data["models"]}
 
@@ -43,8 +47,8 @@ class ModelRegistry:
     def _build(self, entry: dict, settings: Any) -> Any:
         provider = entry.get("provider", "google")
 
-        if provider == "openai_compatible":
-            return self._build_openai_compatible(entry)
+        if provider in ("ollama", "openai_compatible"):
+            return self._build_ollama(entry)
 
         api_key_setting = entry.get("api_key_setting")
         api_key = getattr(settings, api_key_setting, None) if api_key_setting else None
@@ -81,16 +85,15 @@ class ModelRegistry:
 
         return AnthropicModel(model_id, provider=AnthropicProvider(api_key=api_key))
 
-    def _build_openai_compatible(self, entry: dict) -> Any:
-        from openai import AsyncOpenAI
-        from pydantic_ai.models.openai import OpenAIModel
-        from pydantic_ai.providers.openai import OpenAIProvider
+    def _build_ollama(self, entry: dict) -> Any:
+        from pydantic_ai.models.ollama import OllamaModel
+        from pydantic_ai.providers.ollama import OllamaProvider
 
-        client = AsyncOpenAI(
-            base_url=entry["base_url"],
-            api_key=entry.get("api_key", "local"),
+        base_url = entry.get("base_url", "http://localhost:11434/v1")
+        return OllamaModel(
+            entry["model_id"],
+            provider=OllamaProvider(base_url=base_url),
         )
-        return OpenAIModel(entry["model_id"], provider=OpenAIProvider(openai_client=client))
 
     def for_task(self, task_type: str) -> Any:
         model_name = self._task_map.get(task_type, "fast")

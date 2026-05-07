@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     gemini_key_slow_ai: str | None = None
     perplexity_key_slow_ai: str | None = None
     anthropic_api_key: str | None = None
+    openai_api_key: str | None = None
+    parallel_key_slow_ai: str | None = None
     model_config = SettingsConfigDict(
         env_file=str(_env_path),
         env_file_encoding="utf-8",
