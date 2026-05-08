@@ -1,6 +1,27 @@
+import importlib
+import logging
 from pathlib import Path
 
 import yaml
+
+_logger = logging.getLogger(__name__)
+
+# Tools that require optional system dependencies.
+# Map tool_name → list of Python modules that must be importable for the tool to work.
+# Skills are dropped from the registry at load time if any of their tools fail this check.
+_TOOL_DEPS: dict[str, list[str]] = {
+    "browser_use": ["browser_use", "browser_use.llm.google.chat", "playwright"],
+}
+
+
+def _tool_available(tool_name: str) -> bool:
+    for mod in _TOOL_DEPS.get(tool_name, []):
+        try:
+            importlib.import_module(mod)
+        except ImportError:
+            return False
+    return True
+
 
 # Sections written into and parsed from a SKILL.md body
 _BODY_SECTIONS = {
@@ -38,7 +59,19 @@ class SkillRegistry:
             skill_md = skill_dir / "SKILL.md"
             if skill_dir.is_dir() and skill_md.exists():
                 skill = self._parse_skill_md(skill_md)
-                if skill and "name" in skill:
+                if not skill or "name" not in skill:
+                    continue
+                unavailable = [
+                    t for t in skill.get("tools", []) if not _tool_available(t) and t in _TOOL_DEPS
+                ]
+                if unavailable:
+                    _logger.warning(
+                        "Skill '%s' disabled — tools not available: %s. "
+                        "Run: uv run playwright install chromium",
+                        skill["name"],
+                        unavailable,
+                    )
+                else:
                     self._skills[skill["name"]] = skill
 
     def _parse_skill_md(self, path: Path) -> dict | None:

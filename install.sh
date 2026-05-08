@@ -88,7 +88,7 @@ print_logo() {
 # step 1 — sanity checks
 # ──────────────────────────────────────────────────────────────────────────────
 check_location() {
-  [[ -f "pyproject.toml" && -f "main.py" ]] || \
+  [[ -f "pyproject.toml" ]] || \
     die "Run this script from the root of the slow-ai repository."
   ok "Repository root confirmed"
 }
@@ -149,6 +149,20 @@ sync_deps() {
   spin_start "Installing dependencies via uv sync"
   uv sync --quiet 2>&1 | tail -1 >/dev/null || true
   spin_ok "Dependencies installed"
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# step 4 — browser tools (optional)
+# ──────────────────────────────────────────────────────────────────────────────
+install_playwright() {
+  spin_start "Installing Playwright browser (Chromium)"
+  if uv run playwright install chromium 2>/dev/null; then
+    spin_ok "Playwright Chromium installed — browser_use skill enabled"
+  else
+    spin_err "Playwright Chromium install failed"
+    warn "The 'browser_use' skill will be unavailable for runs."
+    warn "To enable it later:  uv run playwright install chromium"
+  fi
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -299,10 +313,13 @@ main() {
   sep "2 / 4  uv"
   install_uv
 
-  sep "3 / 4  Dependencies"
+  sep "3 / 5  Dependencies"
   sync_deps
 
-  sep "4 / 4  API Keys"
+  sep "4 / 5  Browser tools"
+  install_playwright
+
+  sep "5 / 5  API Keys"
   configure_env
 
   print_done

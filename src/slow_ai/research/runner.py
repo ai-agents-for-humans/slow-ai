@@ -614,6 +614,19 @@ async def _run_wave(
                 store,
                 f"  {updated_ctx.role}: {envelope.status} (confidence {envelope.confidence:.2f})",
             )
+            if envelope.status == "failed":
+                proof_snippet = json.dumps(envelope.proof)[:300]
+                logger.warning(
+                    "Specialist %s (%s) returned failed status — verdict=%s proof=%s",
+                    updated_ctx.agent_id,
+                    updated_ctx.role,
+                    envelope.verdict,
+                    proof_snippet,
+                )
+                _log(
+                    store,
+                    f"  ↳ Failed: verdict={envelope.verdict} — {proof_snippet}",
+                )
         _emit(store, registry, artefacts)
 
     return wave_envelopes

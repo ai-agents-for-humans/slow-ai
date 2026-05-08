@@ -167,7 +167,11 @@ async def run_specialist(
             result = await _browser_use(task)
             entry = MemoryEntry(
                 key=f"browser_{uuid.uuid4().hex[:4]}",
-                value={"task": task[:200], "result": result.result[:500], "success": result.success},
+                value={
+                    "task": task[:200],
+                    "result": result.result[:500],
+                    "success": result.success,
+                },
                 source="browser_use",
                 confidence=0.85 if result.success else 0.1,
                 created_at=datetime.now(UTC).isoformat(),
@@ -175,6 +179,9 @@ async def run_specialist(
             )
             ctx.memory.add(entry)
             if not result.success:
+                logger.warning(
+                    "browse_interactive failed [agent=%s]: %s", ctx.agent_id, result.error
+                )
                 return json.dumps({"error": result.error})
             return json.dumps({"result": result.result})
 
