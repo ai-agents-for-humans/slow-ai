@@ -82,7 +82,7 @@
                       placeholder="Your answer… (or attach a file)"
                       autocomplete="off"
                       rows="3"
-                      style="border-radius:8px; resize:none; overflow-y:hidden; min-height:72px; max-height:160px; line-height:1.5;"></textarea>
+                      style="border-radius:8px; resize:none; overflow-y:auto; min-height:72px; max-height:160px; line-height:1.5;"></textarea>
             <button type="button" id="attach-btn"
                     class="btn btn-outline-secondary px-3 flex-shrink-0"
                     style="border-radius:8px; height:44px; align-self:flex-end;"
@@ -234,7 +234,9 @@ document.addEventListener('htmx:afterSettle', function(e) {
 
 document.getElementById('chat-input').addEventListener('input', function() {
   this.style.height = '72px';
-  this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+  const maxH = 160;
+  this.style.height = Math.min(this.scrollHeight, maxH) + 'px';
+  this.style.overflowY = this.scrollHeight > maxH ? 'auto' : 'hidden';
 });
 document.getElementById('chat-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
