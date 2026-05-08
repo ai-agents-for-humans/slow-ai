@@ -106,11 +106,13 @@ def _all_interviews() -> list[dict]:
                 continue
             if meta.get("project_id"):
                 continue
-            interviews.append({
-                "session_id": meta["session_id"],
-                "created_at": meta.get("created_at", "")[:16].replace("T", " "),
-                "preview": meta.get("preview", ""),
-            })
+            interviews.append(
+                {
+                    "session_id": meta["session_id"],
+                    "created_at": meta.get("created_at", "")[:16].replace("T", " "),
+                    "preview": meta.get("preview", ""),
+                }
+            )
         except Exception:
             continue
     return interviews

@@ -498,7 +498,7 @@ async def run_phase_summary(run_id: str, node_type: str = ""):
         return JSONResponse({"error": "not_complete"}, status_code=404)
 
     # node_type looks like 'phase_reddit_need_discovery'; strip prefix to get slug
-    slug = node_type[len("phase_"):] if node_type.startswith("phase_") else node_type
+    slug = node_type[len("phase_") :] if node_type.startswith("phase_") else node_type
 
     for s in summaries:
         phase_slug = (s.get("phase_name") or "").lower().replace(" ", "_")
@@ -511,7 +511,7 @@ async def run_phase_summary(run_id: str, node_type: str = ""):
 @router.get("/api/runs/{run_id}/interview")
 async def run_interview_data(run_id: str):
     """Return the interview conversation and context graph that launched this run."""
-    from app.api.interview import _sessions, _graph_for_cytoscape
+    from app.api.interview import _graph_for_cytoscape, _sessions
     from slow_ai.models import ContextGraph
 
     project_id = _find_project(run_id)
@@ -543,7 +543,9 @@ async def run_interview_data(run_id: str):
                 graph_file = session_file.parent / "draft_graph.json"
                 if graph_file.exists():
                     try:
-                        graph = ContextGraph.model_validate_json(graph_file.read_text(encoding="utf-8"))
+                        graph = ContextGraph.model_validate_json(
+                            graph_file.read_text(encoding="utf-8")
+                        )
                         elements = _graph_for_cytoscape(graph)
                     except Exception:
                         pass

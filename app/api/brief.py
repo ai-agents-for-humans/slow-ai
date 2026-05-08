@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Form
 from fastapi.responses import HTMLResponse
 
-from .interview import _sessions, _save_session
+from .interview import _save_session, _sessions
 
 router = APIRouter()
 
@@ -53,9 +53,9 @@ async def brief_confirm(session_id: str = Form(...)):
         '<div class="chat-bubble-agent">'
         '<div class="fw-semibold mb-1">Brief confirmed.</div>'
         '<div class="text-muted" style="font-size:0.85rem;">'
-        'Your context graph is ready. Launch the agent swarm from the panel on the right.'
-        '</div>'
-        '</div>'
-        '</div>'
+        "Your context graph is ready. Launch the agent swarm from the panel on the right."
+        "</div>"
+        "</div>"
+        "</div>"
     )
     return HTMLResponse(content=confirmation_html)

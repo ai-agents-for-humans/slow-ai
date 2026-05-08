@@ -2,7 +2,7 @@ import html as _html
 import io
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, Request, UploadFile
@@ -30,7 +30,7 @@ def _save_session(sid: str, session: dict) -> None:
     d.mkdir(parents=True, exist_ok=True)
     meta = {
         "session_id": sid,
-        "created_at": session.get("created_at", datetime.now(timezone.utc).isoformat()),
+        "created_at": session.get("created_at", datetime.now(UTC).isoformat()),
         "status": session.get("status", "interviewing"),
         "brief": session["brief"].model_dump() if session.get("brief") else None,
         "project_id": session.get("project_id"),
@@ -105,7 +105,7 @@ def _make_session(sid: str) -> dict:
         "draft_graph": None,
         "project_id": None,
         "status": "interviewing",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "preview": "",
         "conversation_log": [],
     }
@@ -206,13 +206,12 @@ async def _build_prompt(message: str, files: list[UploadFile]):
 
 def _conversation_text_for_graph(session: dict) -> str:
     log = session.get("conversation_log", [])
-    return "\n".join(
-        f"{e['role'].upper()}: {e['text'][:400]}" for e in log[-20:]
-    )
+    return "\n".join(f"{e['role'].upper()}: {e['text'][:400]}" for e in log[-20:])
 
 
 async def _rebuild_draft_graph(sid: str, session: dict) -> None:
     from slow_ai.agents.orchestrator import run_draft_context_graph
+
     log = session.get("conversation_log", [])
     if len(log) < 3:
         return
@@ -222,56 +221,63 @@ async def _rebuild_draft_graph(sid: str, session: dict) -> None:
         session["draft_graph"] = graph
         d = _session_dir(sid)
         d.mkdir(parents=True, exist_ok=True)
-        (d / "draft_graph.json").write_text(
-            graph.model_dump_json(indent=2), encoding="utf-8"
-        )
+        (d / "draft_graph.json").write_text(graph.model_dump_json(indent=2), encoding="utf-8")
 
 
 def _graph_for_cytoscape(graph: ContextGraph) -> list[dict]:
     elements = []
     for phase in graph.phases:
-        elements.append({
-            "data": {
-                "id": phase.id,
-                "label": phase.name,
-                "node_type": "phase",
-                "description": phase.purpose,
-            },
-            "classes": "phase-node",
-        })
+        elements.append(
+            {
+                "data": {
+                    "id": phase.id,
+                    "label": phase.name,
+                    "node_type": "phase",
+                    "description": phase.purpose,
+                },
+                "classes": "phase-node",
+            }
+        )
         for wi in phase.work_items:
-            elements.append({
-                "data": {
-                    "id": wi.id,
-                    "label": wi.name,
-                    "node_type": "work_item",
-                    "description": wi.description,
-                    "parent_phase": phase.id,
-                    "skills": ", ".join(wi.required_skills),
-                },
-                "classes": "work-item-node",
-            })
-            elements.append({
-                "data": {
-                    "source": wi.id,
-                    "target": phase.id,
-                    "edge_type": "belongs_to",
-                },
-                "classes": "belongs-edge",
-            })
+            elements.append(
+                {
+                    "data": {
+                        "id": wi.id,
+                        "label": wi.name,
+                        "node_type": "work_item",
+                        "description": wi.description,
+                        "parent_phase": phase.id,
+                        "skills": ", ".join(wi.required_skills),
+                    },
+                    "classes": "work-item-node",
+                }
+            )
+            elements.append(
+                {
+                    "data": {
+                        "source": wi.id,
+                        "target": phase.id,
+                        "edge_type": "belongs_to",
+                    },
+                    "classes": "belongs-edge",
+                }
+            )
         for dep in phase.depends_on_phases:
-            elements.append({
-                "data": {
-                    "source": dep,
-                    "target": phase.id,
-                    "edge_type": "phase_depends",
-                },
-                "classes": "depends-edge",
-            })
+            elements.append(
+                {
+                    "data": {
+                        "source": dep,
+                        "target": phase.id,
+                        "edge_type": "phase_depends",
+                    },
+                    "classes": "depends-edge",
+                }
+            )
     return elements
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
+
 
 @router.get("/interview", response_class=HTMLResponse)
 async def interview_new():

@@ -128,6 +128,7 @@ async def run_context_planner(
 async def run_draft_context_graph(conversation_text: str) -> ContextGraph | None:
     """Build a speculative context graph from a partial interview conversation."""
     from slow_ai.skills import SkillRegistry
+
     skill_registry = SkillRegistry()
     planner = Agent(
         model=ModelRegistry().for_task("context_planning"),

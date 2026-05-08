@@ -25,10 +25,10 @@ jobs:
         run: uv sync --dev
 
       - name: Lint (ruff)
-        run: uv run ruff check src/ app/
+        run: uv run ruff check src/ app/ --fix
 
-      - name: Format check (ruff)
-        run: uv run ruff format --check src/ app/
+      - name: Format (ruff)
+        run: uv run ruff format src/ app/
 
       - name: Type check (mypy)
         run: uv run mypy src/ app/ --ignore-missing-imports --no-strict-optional

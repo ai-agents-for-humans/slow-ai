@@ -5,6 +5,7 @@ Reads all phase summaries and agent evidence from a completed run and produces
 a single long-form markdown document following the report_synthesis skill playbook.
 Invoked as the mandatory last step of every run.
 """
+
 import json
 from pathlib import Path
 
@@ -13,9 +14,7 @@ from pydantic_ai import Agent
 from slow_ai.llm import ModelRegistry
 from slow_ai.models import EvidenceEnvelope, PhaseSummary, ProblemBrief
 
-_SKILL_PATH = (
-    Path(__file__).parents[1] / "skills" / "catalog" / "report_synthesis" / "SKILL.md"
-)
+_SKILL_PATH = Path(__file__).parents[1] / "skills" / "catalog" / "report_synthesis" / "SKILL.md"
 
 
 def _load_system_prompt() -> str:

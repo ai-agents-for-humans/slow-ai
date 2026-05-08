@@ -15,6 +15,7 @@ app = FastAPI(title="Slow AI")
 async def startup():
     load_all_sessions()
 
+
 # Static files and templates
 _base = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=_base / "static"), name="static")
