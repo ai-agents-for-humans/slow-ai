@@ -102,15 +102,9 @@ The interviewer agent asks you questions one at a time to understand your resear
 - Don't worry about framing it perfectly — the agent will push back if something is vague
 - Answer one question at a time; don't pre-answer questions that haven't been asked
 
-![The interview — one question at a time, pushing toward precision](assets/images/interview.png)
+<video src="interview_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
-When the agent has enough, it presents a structured **Problem Brief** directly in the conversation — goal, domain, constraints, unknowns, and success criteria laid out clearly.
-
-![The Problem Brief appears inline — review it before confirming](assets/images/problem-brief.png)
-
-Read it carefully. If something is missing or wrong, type your correction and the agent will revise. When you're satisfied, click **Confirm Brief →**.
-
-![Confirm the brief or ask for a refinement](assets/images/confirm-brief.png)
+When the agent has enough, it presents a structured **Problem Brief** directly in the conversation — goal, domain, constraints, unknowns, and success criteria laid out clearly. Read it carefully. If something is missing or wrong, type your correction and the agent will revise. When you're satisfied, click **Confirm Brief →**.
 
 {: .highlight }
 > **The brief is the cornerstone.** Everything that follows — the context graph, the agent assignments, the synthesis — is built on top of it. A five-minute interview is the highest-leverage thing the system does.
@@ -127,8 +121,6 @@ You will see:
 - A chat panel for refinement
 
 **Read the narrative first.** It explains why the graph is structured the way it is. If the narrative doesn't match your mental model of the work, that is the signal to refine.
-
-![The workflow plan — phases and work items, the shape of the problem made visible](assets/images/context_graph.png)
 
 **Refining the plan through conversation:**
 
@@ -169,13 +161,9 @@ After launch, the approved plan drives a swarm of specialist agents running in p
 | Green | Complete — evidence envelope produced |
 | Red | Failed or partial — agent flagged a gap |
 
-![The agent swarm in progress — nodes updating in real time, log streaming on the right](assets/images/live_run.png)
+<video src="swarm_running_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
-The **Log** panel on the right streams every agent action as it happens — phase launches, specialist completions, synthesis steps, confidence scores. The **Phases** tab shows a card for each completed phase with its synthesis and confidence. The **Plan** tab shows the original context graph for reference.
-
-**Click any completed node** to open the evidence envelope — what the agent found, its confidence score, the sources it cited, and what it couldn't determine.
-
-![Clicking a node opens the evidence envelope at the bottom of the DAG](assets/images/agent_envelope.png)
+The **Log** strip at the bottom streams every agent action as it happens — phase launches, specialist completions, synthesis steps, confidence scores. **Click any completed node** to open the evidence envelope on the right — what the agent found, its confidence score, the sources it cited, and what it couldn't determine.
 
 You do not need to watch it run. You can close the browser and come back later. The run continues in the background and the state is always written to disk.
 
@@ -185,43 +173,29 @@ You do not need to watch it run. You can close the browser and come back later. 
 
 When the run completes, the **Results tab** opens automatically. Everything is in one place.
 
-**The Final Research Report** — at the very top of the Results tab, the system synthesises all agent findings into a single long-form document. This is not a summary card. It is a full research report: executive summary, thematic findings (organised by insight, not by phase), open questions, limitations, recommendations, and an inline source list. Every claim is cited back to the agent that produced it.
+**The Final Research Report** — at the very top of the Results tab, the system synthesises all agent findings into a single long-form document: executive summary, thematic findings, open questions, limitations, recommendations, and an inline source list. Every claim is cited back to the agent that produced it.
 
-![The Results tab — final report at the top, phase tree below](assets/images/post_run_results.png)
+<video src="results_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
-**Export the report** — click **↓ Export HTML** next to the report to download a self-contained, standalone HTML file. It has no external dependencies, renders correctly without the app running, and is print-ready. Share it, archive it, or open it offline.
+**Export the report** — click **↓ Export HTML** to download a self-contained, standalone HTML file. No external dependencies, print-ready, shareable without the app running.
 
-**Below the report:** the full phase tree. Expanding a phase shows the synthesis for that phase, then each agent card. Expand an agent card to see its full findings and confidence score.
+**Below the report:** the full phase tree. Expanding a phase shows the synthesis for that phase, then each agent card with its full findings and confidence score. Each agent card has a collapsible **Tool Calls** section — every search query, web browse, or code execution, colour-coded by source. Agents that ran code show an **Artefacts** section — click any chip to open the file in a full-screen viewer with syntax highlighting.
 
-![Phase 1 expanded — synthesis and individual agent findings](assets/images/post_run_phases_agent_view.png)
+**Ask about the run** — the chat bar at the bottom is always available. Ask follow-up questions grounded in the run's evidence, or instruct the agent to rewrite or expand a section of the report. The document updates in place.
 
-**Tool Calls** — each agent card has a collapsible Tool Calls section. Expand it to see every search query, web browse, or code execution the agent made, with the source shown as a colour-coded badge. Click any row to expand the snippet it returned.
-
-![Tool calls expanded — each call shown as a row with source badge and query](assets/images/post_run_tool_calls_artefacts.png)
-
-**Artefacts** — agents that ran code or produced documents show an Artefacts section. Click any chip to open the file in a full-screen viewer with syntax highlighting and a copy button.
-
-![An artefact open in the viewer — generated Python code with syntax highlighting](assets/images/post_run_artefacts_viewer.png)
-
-**Ask about the run — and update the report** — the chat bar at the bottom of the Results page is always available. You can ask follow-up questions grounded in the run's evidence, drill into specific findings, or instruct the agent to rewrite or expand a section of the report. When you ask for a report change, the agent edits the document in place — the updated version is reflected immediately and the updated export is available on next download.
-
-![The bottom chat drawer — ask questions or update the report](assets/images/post_run_chat.png)
-
-The **Run Summary** panel on the right shows confidence per phase, total tokens, and the Continue Investigation button.
+The **Run Summary** panel on the right shows confidence per phase and total tokens.
 
 ---
 
-### Step 5 — Continue the investigation
+### Step 5 — Run it again
 
-The run doesn't have to end here. Click **Continue Investigation** in the stats panel on the right.
+The run doesn't have to end here. Click **Run again** on the project in the sidebar.
 
-The system generates a follow-on brief from the current run's identified gaps — questions that surfaced but weren't answered. You review the new context graph (it will not duplicate work already done), confirm the direction, and launch.
-
-The next run's specialists pull specific evidence from prior runs when their work item needs it. The understanding compounds.
+The system reuses the approved brief and context graph from the original run, launches a fresh swarm, and produces a new report. The next run's specialists can pull specific evidence from prior runs when their work item needs it — the understanding compounds.
 
 ```
   Run 1  →  Market landscape. Gaps: regulatory detail, pricing pressure.
-  Run 2  →  Regulatory + pricing. Builds on Run 1. Gaps: competitive moat.
+  Run 2  →  Fresh swarm, same brief. Specialists build on Run 1 evidence.
   Run 3  →  Competitive synthesis. Uses Runs 1 + 2. Strategic recommendation.
 ```
 

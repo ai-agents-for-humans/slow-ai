@@ -168,45 +168,33 @@ To swap models, edit `src/slow_ai/llm/registry.json`. No code changes required.
 
 **1 — Interview**
 
-Click **New** in the sidebar. The interviewer asks one question at a time until it has enough to write a precise brief. Answer as if you were briefing a colleague.
+Click **New** in the sidebar. The interviewer asks one question at a time until it has enough to write a precise brief. Answer as if you were briefing a colleague. The agent surfaces a structured **Problem Brief** inline — review it, correct anything wrong, then click **Confirm Brief →**.
 
-![Interview — one question at a time](docs/assets/images/interview.png)
-
-The agent surfaces a structured **Problem Brief** inline. Review it, correct anything wrong, then click **Confirm Brief →**.
-
-![Problem Brief — review before confirming](docs/assets/images/problem-brief.png)
+<video src="docs/interview_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
 **2 — Review the workflow plan**
 
-The planner breaks your brief into phases and parallel work items, rendered as an interactive graph. Read the narrative on the right first — it explains the logic. Refine in plain language until the shape of the work matches how an expert would approach it.
-
-![Context graph — phases and work items](docs/assets/images/context_graph.png)
-
-When you're satisfied, click **Launch Agent Swarm →**.
+The planner breaks your brief into phases and parallel work items, rendered as an interactive graph. Read the narrative on the right first — it explains the logic. Refine in plain language until the shape of the work matches how an expert would approach it. When you're satisfied, click **Launch Agent Swarm →**.
 
 **3 — Watch the swarm**
 
 Specialists run in parallel, phase by phase. The DAG fills in as agents complete. Grey = waiting, blue = running, green = done, red = failed. Click any node to open the evidence envelope — what the agent found, its confidence, its sources, and what it couldn't determine.
 
-![Live run — DAG updating in real time](docs/assets/images/live_run.png)
+<video src="docs/swarm_running_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
 You don't need to watch. Close the tab and come back — the run continues and all state is on disk.
 
 **4 — Read the results**
 
-When the run completes, the Results tab opens automatically. At the top: a **Final Research Report** — a long-form synthesis across all phases, written like a Gemini Deep Research output. Executive summary, thematic findings, open questions, limitations, and recommendations. Every claim is cited back to the agent that produced it.
+When the run completes, the Results tab opens automatically. At the top: a **Final Research Report** — a long-form synthesis across all phases. Executive summary, thematic findings, open questions, limitations, and recommendations. Every claim is cited back to the agent that produced it. Click **↓ Export HTML** to download a self-contained, print-ready file.
 
-Click **↓ Export HTML** to download the report as a self-contained standalone file — no dependencies, print-ready, shareable without the app running.
+<video src="docs/results_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
-![Results — summary, phases, tool calls, artefacts](docs/assets/images/post_run_results.png)
+Below the report: phase cards with per-phase synthesis and agent evidence. Inside each agent: Tool Calls (every search query and web browse, expandable) and Artefacts (generated code and documents, full-screen viewer). The chat bar at the bottom is always available — ask follow-up questions or ask the agent to rewrite a section of the report in place.
 
-Below the report: phase cards with per-phase synthesis and agent evidence. Inside each agent: Tool Calls (every search query and web browse, expandable) and Artefacts (generated code and documents, full-screen viewer).
+**5 — Run it again**
 
-The chat bar at the bottom is always available. Ask follow-up questions, drill into a finding, or ask the agent to **rewrite a section of the report** — it will update the document in place.
-
-**5 — Continue the investigation**
-
-Click **Continue Investigation** in the stats panel. The system generates a follow-on brief from the current run's open questions, builds a new graph, and the next run starts smarter than the last.
+Click **Run again** on any project in the sidebar. The system reuses the approved brief and context graph, launches a fresh swarm, and produces a new report. Chain runs to go deeper — each run's evidence is available to the next.
 
 ---
 
