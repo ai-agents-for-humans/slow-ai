@@ -102,7 +102,7 @@ The interviewer agent asks you questions one at a time to understand your resear
 - Don't worry about framing it perfectly — the agent will push back if something is vague
 - Answer one question at a time; don't pre-answer questions that haven't been asked
 
-<video src="interview_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
+<video src="https://raw.githubusercontent.com/ai-agents-for-humans/slow-ai/main/docs/interview_spedup.mp4" autoplay muted loop playsinline width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
 When the agent has enough, it presents a structured **Problem Brief** directly in the conversation — goal, domain, constraints, unknowns, and success criteria laid out clearly. Read it carefully. If something is missing or wrong, type your correction and the agent will revise. When you're satisfied, click **Confirm Brief →**.
 
@@ -161,7 +161,7 @@ After launch, the approved plan drives a swarm of specialist agents running in p
 | Green | Complete — evidence envelope produced |
 | Red | Failed or partial — agent flagged a gap |
 
-<video src="swarm_running_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
+<video src="https://raw.githubusercontent.com/ai-agents-for-humans/slow-ai/main/docs/swarm_running_spedup.mp4" autoplay muted loop playsinline width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
 The **Log** strip at the bottom streams every agent action as it happens — phase launches, specialist completions, synthesis steps, confidence scores. **Click any completed node** to open the evidence envelope on the right — what the agent found, its confidence score, the sources it cited, and what it couldn't determine.
 
@@ -175,7 +175,7 @@ When the run completes, the **Results tab** opens automatically. Everything is i
 
 **The Final Research Report** — at the very top of the Results tab, the system synthesises all agent findings into a single long-form document: executive summary, thematic findings, open questions, limitations, recommendations, and an inline source list. Every claim is cited back to the agent that produced it.
 
-<video src="results_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
+<video src="https://raw.githubusercontent.com/ai-agents-for-humans/slow-ai/main/docs/results_spedup.mp4" autoplay muted loop playsinline width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
 **Export the report** — click **↓ Export HTML** to download a self-contained, standalone HTML file. No external dependencies, print-ready, shareable without the app running.
 

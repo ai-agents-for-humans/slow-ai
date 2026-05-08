@@ -170,7 +170,7 @@ To swap models, edit `src/slow_ai/llm/registry.json`. No code changes required.
 
 Click **New** in the sidebar. The interviewer asks one question at a time until it has enough to write a precise brief. Answer as if you were briefing a colleague. The agent surfaces a structured **Problem Brief** inline — review it, correct anything wrong, then click **Confirm Brief →**.
 
-<video src="docs/interview_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
+<video src="https://raw.githubusercontent.com/ai-agents-for-humans/slow-ai/main/docs/interview_spedup.mp4" autoplay muted loop playsinline width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
 **2 — Review the workflow plan**
 
@@ -180,7 +180,7 @@ The planner breaks your brief into phases and parallel work items, rendered as a
 
 Specialists run in parallel, phase by phase. The DAG fills in as agents complete. Grey = waiting, blue = running, green = done, red = failed. Click any node to open the evidence envelope — what the agent found, its confidence, its sources, and what it couldn't determine.
 
-<video src="docs/swarm_running_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
+<video src="https://raw.githubusercontent.com/ai-agents-for-humans/slow-ai/main/docs/swarm_running_spedup.mp4" autoplay muted loop playsinline width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
 You don't need to watch. Close the tab and come back — the run continues and all state is on disk.
 
@@ -188,7 +188,7 @@ You don't need to watch. Close the tab and come back — the run continues and a
 
 When the run completes, the Results tab opens automatically. At the top: a **Final Research Report** — a long-form synthesis across all phases. Executive summary, thematic findings, open questions, limitations, and recommendations. Every claim is cited back to the agent that produced it. Click **↓ Export HTML** to download a self-contained, print-ready file.
 
-<video src="docs/results_spedup.mp4" controls width="100%" style="border-radius:8px; margin:12px 0;"></video>
+<video src="https://raw.githubusercontent.com/ai-agents-for-humans/slow-ai/main/docs/results_spedup.mp4" autoplay muted loop playsinline width="100%" style="border-radius:8px; margin:12px 0;"></video>
 
 Below the report: phase cards with per-phase synthesis and agent evidence. Inside each agent: Tool Calls (every search query and web browse, expandable) and Artefacts (generated code and documents, full-screen viewer). The chat bar at the bottom is always available — ask follow-up questions or ask the agent to rewrite a section of the report in place.
 
