@@ -9,9 +9,7 @@ _logger = logging.getLogger(__name__)
 # Tools that require optional system dependencies.
 # Map tool_name → list of Python modules that must be importable for the tool to work.
 # Skills are dropped from the registry at load time if any of their tools fail this check.
-_TOOL_DEPS: dict[str, list[str]] = {
-    "browser_use": ["browser_use", "browser_use.llm.google.chat", "playwright"],
-}
+_TOOL_DEPS: dict[str, list[str]] = {}
 
 
 def _tool_available(tool_name: str) -> bool:
@@ -66,8 +64,7 @@ class SkillRegistry:
                 ]
                 if unavailable:
                     _logger.warning(
-                        "Skill '%s' disabled — tools not available: %s. "
-                        "Run: uv run playwright install chromium",
+                        "Skill '%s' disabled — tools not available: %s",
                         skill["name"],
                         unavailable,
                     )

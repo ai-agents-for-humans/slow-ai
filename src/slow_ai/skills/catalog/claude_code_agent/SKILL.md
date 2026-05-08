@@ -119,6 +119,6 @@ List produced files in `artefacts`.
 - Set timeout ≥ 120s on all subprocess calls
 
 ## Pairs with
-- `web_browse` / `browser_use` — fetch specs or docs first, then pass them to the coding agent
+- `web_browse` — fetch specs or docs first, then pass them to the coding agent
 - `dataset_inspection` — inspect a dataset's schema, then delegate cleaning/analysis here
 - `code_execution` — this skill IS the advanced form of code_execution; use plain code_execution for simple one-shot scripts

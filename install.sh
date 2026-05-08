@@ -152,20 +152,6 @@ sync_deps() {
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
-# step 4 — browser tools (optional)
-# ──────────────────────────────────────────────────────────────────────────────
-install_playwright() {
-  spin_start "Installing Playwright browser (Chromium)"
-  if uv run playwright install chromium 2>/dev/null; then
-    spin_ok "Playwright Chromium installed — browser_use skill enabled"
-  else
-    spin_err "Playwright Chromium install failed"
-    warn "The 'browser_use' skill will be unavailable for runs."
-    warn "To enable it later:  uv run playwright install chromium"
-  fi
-}
-
-# ──────────────────────────────────────────────────────────────────────────────
 # step 4 — api keys
 # ──────────────────────────────────────────────────────────────────────────────
 ask_key() {
@@ -313,13 +299,10 @@ main() {
   sep "2 / 4  uv"
   install_uv
 
-  sep "3 / 5  Dependencies"
+  sep "3 / 4  Dependencies"
   sync_deps
 
-  sep "4 / 5  Browser tools"
-  install_playwright
-
-  sep "5 / 5  API Keys"
+  sep "4 / 4  API Keys"
   configure_env
 
   print_done
